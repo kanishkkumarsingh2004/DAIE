@@ -1,282 +1,312 @@
 # Decentralized AI Ecosystem
 
-A fully decentralized AI agentic system where agents communicate like humans through a decentralized brain network.
+A lightweight Python library for creating and managing AI agents with tools, featuring decentralized communication and memory management.
 
-## 📚 Overview
+## Features
 
-This project creates a revolutionary decentralized AI ecosystem with:
+### 🚀 **Core Features**
+- **Lightweight Design**: Minimal dependencies, optimized for speed and resource efficiency
+- **Agent Management**: Create, configure, and manage AI agents with unique identities
+- **Tool System**: Define and register reusable tools for agents to execute
+- **Decentralized Communication**: Agents communicate via NATS JetStream
+- **Memory Management**: Agent-specific memories with persistence support
+- **LLM Integration**: Centralized LLM management with Ollama integration (default: llama3)
+- **CLI Interface**: Command-line tools for system management
 
-- **Central Core System**: LLM cluster, tools storage, and coordination layer
-- **Agent Node System**: Unlimited agents running on external computers worldwide
-- **Decentralized Communication**: Secure, encrypted peer-to-peer messaging
-- **Persistent Memory**: Each agent has unique knowledge storage and identity
-- **Rich Toolset**: Web search, file access, system operations, and custom tools
-- **High Performance**: Low latency communication and distributed task processing
+### 🤖 **Agent Features**
+Each agent has:
+- **Unique Identity**: ID, name, role, goal, backstory, and system prompt
+- **Local Tool Execution**: Agents execute tools locally within their own context
+- **Chat History**: Individual memory stores with working, semantic, and episodic memory
+- **Vector Database**: Each agent has its own vector database for semantic search (in development)
+- **LangGraph Workflow**: Each agent has its own LangGraph workflow (in development)
+- **LLM from Core**: Agents fetch LLM instances from the centralized LLM manager
 
-## 🚀 Getting Started
+## Installation
 
 ### Prerequisites
+- Python 3.10+
+- Ollama (for LLM functionality)
+- NATS JetStream (for communication)
 
-- Python 3.11+
-- PostgreSQL 15+
-- Redis 7+
-- NATS JetStream (included in Docker Compose)
-- pip package manager
+### Install the Library
+```bash
+pip install -e .
+```
 
-### Quick Start
-
-1. **Clone the repository**:
+### Install Ollama
+1. Download and install Ollama from [ollama.com](https://ollama.com/download)
+2. Pull the default model:
    ```bash
-   git clone <repository-url>
-   cd decentralized_ai_ecosystem
+   ollama pull llama3
    ```
 
-2. **Create and activate virtual environment**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+## Quick Start
 
-3. **Install dependencies**:
-   ```bash
-   pip install -r central_core_system/requirements.txt
-   pip install -r agent_node_system/requirements.txt
-   ```
+### Example: Creating a Simple Agent
+```python
+#!/usr/bin/env python3
+import asyncio
+import logging
+from decentralized_ai import Agent, AgentConfig, Tool, ToolRegistry
+from decentralized_ai.agents import AgentRole
+from decentralized_ai.tools import tool
 
-4. **Copy and configure environment variables**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-5. **Initialize database**:
-   ```bash
-   # Create PostgreSQL database
-   createdb decentralized_ai
-   ```
 
-### Starting the System
+async def main():
+    logger.info("=== Decentralized AI Ecosystem Example ===")
+    
+    # Create a tool
+    @tool(
+        name="greeting",
+        description="Generate a greeting message",
+        category="general",
+        version="1.0.0"
+    )
+    async def greeting_tool(name: str, language: str = "en") -> str:
+        greetings = {
+            "en": f"Hello, {name}! Welcome to the Decentralized AI Ecosystem!",
+            "es": f"Hola, {name}! ¡Bienvenido al Ecosistema AI Descentralizado!",
+            "fr": f"Bonjour, {name}! Bienvenue dans l'écosystème AI décentralisé!",
+            "de": f"Hallo, {name}! Willkommen im dezentralen KI-Ökosystem!"
+        }
+        return greetings.get(language.lower(), greetings["en"])
+    
+    # Create agent configuration with new features
+    config = AgentConfig(
+        name="ResearchAgent",
+        role=AgentRole.SPECIALIZED,
+        goal="Research information on given topics",
+        backstory="Created to assist with research and information gathering",
+        system_prompt="You are a research assistant that helps users find and analyze information.",
+        capabilities=["greeting"]
+    )
+    
+    # Create agent
+    agent = Agent(config=config)
+    agent.add_tool(greeting_tool)
+    
+    # Test tool execution
+    result = await greeting_tool.execute({"name": "Alice", "language": "es"})
+    logger.info(f"✅ Tool executed successfully: {result}")
+    
+    logger.info("\n🎉 Example completed successfully!")
 
-#### Option 1: Using Shell Scripts (Recommended)
 
-**Terminal 1 - Start Central Core System**:
-```bash
-./start_central_core.sh start
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        logger.error(f"❌ Error: {e}")
+        import sys
+        sys.exit(1)
 ```
 
-**Terminal 2 - Start Agent Node System**:
+## CLI Usage
+
+### Agent Management
 ```bash
-./start_agent_node.sh start
+# List all agents
+dai agent list
+
+# Create a new agent
+dai agent create --name "MyAgent" --role "general-purpose" --goal "Help users with questions"
+
+# Start an agent
+dai agent start <agent-id>
+
+# Stop an agent
+dai agent stop <agent-id>
+
+# Get agent status
+dai agent status <agent-id>
+
+# Delete an agent
+dai agent delete <agent-id>
 ```
 
-#### Option 2: Using Docker Compose
-
+### Core System Management
 ```bash
-docker-compose up -d
+# Initialize the system
+dai core init
+
+# Start the central core system
+dai core start
+
+# Stop the central core system
+dai core stop
+
+# Restart the central core system
+dai core restart
+
+# Get system status
+dai core status
+
+# View system logs
+dai core logs
+
+# Check system health
+dai core health
 ```
 
-#### Option 3: Manual Start
+## LLM Configuration
 
-**Terminal 1 - Start Central Core System**:
-```bash
-cd central_core_system
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn central_core_system.api_gateway.main:app --host 0.0.0.0 --port 8000 --workers 4
+### Setting LLM Parameters
+```python
+from decentralized_ai import set_llm, get_llm_config, LLMType
+
+# Using Ollama (default)
+set_llm(ollama_llm="llama3")
+set_llm(ollama_llm="mistral", temperature=0.3, max_tokens=1500)
+
+# Using OpenAI
+set_llm(
+    llm_type=LLMType.OPENAI,
+    model_name="gpt-3.5-turbo",
+    api_key="your-api-key",
+    temperature=0.5,
+    max_tokens=2000
+)
+
+# Get current configuration
+config = get_llm_config()
+print(f"Current LLM: {config.llm_type.value}/{config.model_name}")
+print(f"Temperature: {config.temperature}")
+print(f"Max tokens: {config.max_tokens}")
 ```
 
-**Terminal 2 - Start Agent Node System**:
+### Available LLM Models
+
+#### Ollama Models:
+- llama3 (default)
+- llama3.2:latest
+- mistral
+- llama2
+- gemma
+
+#### OpenAI Models:
+- gpt-4o
+- gpt-4o-mini
+- gpt-4-turbo
+- gpt-3.5-turbo
+
+## Configuration
+
+### Environment Variables
 ```bash
-cd agent_node_system
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python -m agent_node_system.agent_runtime.main_agent
+# System configuration
+DAI_LOG_LEVEL=INFO
+DAI_NATS_URL=nats://localhost:4222
+DAI_CENTRAL_CORE_URL=http://localhost:8000
+
+# LLM configuration
+DAI_DEFAULT_LLM_MODEL=llama3
+DAI_LLM_TEMPERATURE=0.7
+DAI_LLM_MAX_TOKENS=1000
+
+# Database configuration
+DAI_DATABASE_URL=sqlite:///:memory:
+DAI_REDIS_URL=redis://localhost:6379/0
 ```
 
-### Accessing the System
+## Architecture
 
-- **Central Core API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/health
-- **System Status**: http://localhost:8000/status
+### System Components
+1. **Agent**: Individual AI entity with specific capabilities
+2. **Tool**: Reusable functionality that agents can execute
+3. **LLM Manager**: Handles LLM integration with various providers
+4. **Communication Manager**: Facilitates agent communication via NATS
+5. **Memory Manager**: Manages agent memory storage and retrieval
+6. **Tool Registry**: Central repository for available tools
+7. **Central Core System**: Orchestrator for the entire ecosystem
 
-## 📖 Usage Guide
+### Communication Protocol
+Agents communicate using NATS JetStream with the following message types:
+- **Text Messages**: Direct communication between agents
+- **Tasks**: Requests for tool execution
+- **Responses**: Results from task execution
+- **Events**: System and agent events
 
-### Shell Script Commands
+## Development
 
-**Central Core System**:
+### Prerequisites
+- Python 3.10+
+- Docker (for running dependencies)
+- Poetry (for package management)
+
+### Setup
 ```bash
-./start_central_core.sh [command]
-# Commands: start, stop, restart, status, logs, tail, check
+# Clone the repository
+git clone https://github.com/decentralized-ai/decentralized-ai-ecosystem.git
+cd decentralized-ai-ecosystem
+
+# Install dependencies
+poetry install
+
+# Run tests
+poetry run pytest tests/
+
+# Run the CLI
+poetry run dai --help
 ```
 
-**Agent Node System**:
-```bash
-./start_agent_node.sh [command]
-# Commands: start, stop, restart, status, logs, tail, check, reset
+### Project Structure
+```
+src/decentralized_ai/
+├── __init__.py          # Package initialization
+├── core/                # Core system components
+│   ├── __init__.py
+│   ├── system.py       # DecentralizedAISystem class
+│   ├── node.py         # Node class for system components
+│   └── llm_manager.py  # LLM management
+├── agents/             # Agent implementation
+│   ├── __init__.py
+│   ├── agent.py        # Agent class
+│   ├── config.py       # Agent configuration
+│   └── message.py      # AgentMessage class
+├── tools/              # Tool system
+│   ├── __init__.py
+│   ├── tool.py         # Tool class
+│   └── registry.py     # ToolRegistry class
+├── communication/      # Communication system
+│   ├── __init__.py
+│   └── manager.py      # CommunicationManager class
+├── memory/             # Memory management
+│   ├── __init__.py
+│   └── manager.py      # MemoryManager class
+├── config/             # Configuration system
+│   ├── __init__.py
+│   └── system.py       # SystemConfig class
+├── utils/              # Utility functions
+│   ├── __init__.py
+│   └── logger.py       # Logger configuration
+└── cli/                # CLI interface
+    ├── __init__.py
+    ├── main.py         # Main CLI entry point
+    ├── agent.py        # Agent management commands
+    └── core.py         # Core system commands
 ```
 
-### Configuration
-
-Main configuration files:
-- `central_core_system/config/settings.py` - Central core configuration
-- `agent_node_system/config/environment.py` - Agent node configuration
-- `.env` - Environment variables (copy from .env.example)
-
-## 📊 System Architecture
-
-### Central Core Components
-
-- **LLM Cluster**: Model routing, embeddings, planning, reasoning
-- **Tools MCP Server**: Tool registry, execution, protocol
-- **Coordination Layer**: NATS JetStream based communication, event streaming, task routing
-- **Global Memory Federation**: Knowledge graph, episodic archive, semantic memory
-- **Identity Authority**: DID registry, key management, verification
-- **API Gateway**: Authentication, rate limiting, CORS
-
-### Agent Node Components
-
-- **Agent Runtime**: Main agent, state management, lifecycle
-- **Communication**: NATS JetStream client, libp2p P2P, X25519/AES encryption
-- **Identity**: Keypair manager, Ed25519 signatures, verification
-- **Memory System**: Working memory, chat history, vector storage
-- **Local Tools**: Web search, file system, system operations
-- **Tool Executor**: Tool loader, sandbox, permission manager
-
-## 🔧 Development
-
-### Adding New Tools
-
-1. Create tool implementation in `agent_node_system/local_tools/`
-2. Register tool in `central_core_system/tool_mcp_server/tool_registry/`
-3. Define tool protocol in `central_core_system/tool_mcp_server/tool_protocol/`
-4. Update agent configuration in `agent_node_system/config/role_config.py`
-
-### Creating Custom Agent Roles
-
-1. Define role configuration in `agent_node_system/config/role_config.py`
-2. Implement role-specific behavior in `agent_node_system/agent_runtime/`
-3. Register role capabilities in `central_core_system/coordination_layer/agent_registry/`
-
-## 🔒 Security
-
-The system implements comprehensive security features:
-- End-to-end AES-256 encryption
-- Ed25519 digital signatures
-- DID-based decentralized identity
-- Trust score system
-- Sandboxed tool execution
-- JWT authentication
-- Rate limiting and CORS
-
-## 📈 Performance
-
-- **Response Time**: < 200ms for API calls, < 500ms for LLM calls
-- **Message Throughput**: 100+ messages/second
-- **Agent Capacity**: 1000+ concurrent agents
-- **Scalability**: Horizontal scaling across multiple servers
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-1. **Connection failures**: Check firewall settings and network connectivity
-2. **Performance issues**: Monitor CPU/RAM usage, optimize tool execution
-3. **Authentication errors**: Verify DID and key management
-4. **Message delivery failures**: Check message router and retry mechanisms
-
-### Log Files
-
-- Central core: `central_core.log`
-- Agent node: `agent_node.log`
-
-### Health Check
-
-```bash
-curl http://localhost:8000/health
-```
-
-## 🚀 Deployment
-
-### Production Deployment
-
-1. **System Requirements**:
-   - CPU: 8+ cores (x86_64)
-   - RAM: 32GB+
-   - Storage: 500GB SSD+
-   - Network: 100Mbps+
-
-2. **Docker Deployment**:
-   ```bash
-   docker-compose up -d --build
-   ```
-
-3. **Kubernetes Deployment**:
-   See `central_core_system/infrastructure/kubernetes/` for Kubernetes configurations.
-
-## 📚 Documentation
-
-- **Architecture Overview**: [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)
-- **API Documentation**: http://localhost:8000/docs
-- **Configuration Reference**: See configuration files
-
-## 👥 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests: `pytest`
-5. Commit your changes
-6. Push to your branch
-7. Create a pull request
+4. Add tests for your changes
+5. Run the tests
+6. Submit a pull request
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🤝 Support
+## Support
 
-If you encounter any issues or have questions:
-
-1. Check the [Architecture Overview](ARCHITECTURE_OVERVIEW.md)
-2. Review the [FAQ](#faq)
-3. Create a GitHub issue
-4. Join our Discord community
-
-## 📊 Performance Monitoring
-
-### Prometheus Metrics
-```
-http://localhost:9090
-```
-
-### Grafana Dashboard
-```
-http://localhost:3000 (admin/admin)
-```
-
-## 🎯 Roadmap
-
-- [ ] Federated Learning across agents
-- [ ] Blockchain integration for immutable history
-- [ ] Edge computing for low-latency tasks
-- [ ] Multi-modal communication (images, video, audio)
-- [ ] Autonomous learning capabilities
-- [ ] Energy efficiency optimizations
-
-## 🔄 Version History
-
-- **1.0.0**: Initial release with basic agent communication and tool execution
-
-## 📞 Contact
-
-For more information, please contact:
-- Email: support@decentralizedai.tech
-- Website: https://www.decentralizedai.tech
-- Discord: https://discord.gg/decentralizedai
-
----
-
-**Note**: This system is designed for educational and research purposes. Always follow best practices for security and comply with all applicable laws and regulations.
+For questions or support, please contact **KANISHK KUMAR SINGH** at kanishkkumar2004@gmail.com.

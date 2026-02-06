@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+*.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.log.*
+
+# Configuration
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Identity Files
+agent_node_system/identity/private_key.pem
+agent_node_system/identity/public_key.pem
+agent_node_system/identity/identity.json
+
+# Data
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.xlsx
+*.jsonl
+
+# Node Modules (if any frontend code)
+node_modules/
+
+# Build files
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

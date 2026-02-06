@@ -20,6 +20,7 @@ This project creates a revolutionary decentralized AI ecosystem with:
 - Python 3.11+
 - PostgreSQL 15+
 - Redis 7+
+- NATS JetStream (included in Docker Compose)
 - pip package manager
 
 ### Quick Start
@@ -130,7 +131,7 @@ Main configuration files:
 
 - **LLM Cluster**: Model routing, embeddings, planning, reasoning
 - **Tools MCP Server**: Tool registry, execution, protocol
-- **Coordination Layer**: Agent registry, message router, task dispatcher
+- **Coordination Layer**: NATS JetStream based communication, event streaming, task routing
 - **Global Memory Federation**: Knowledge graph, episodic archive, semantic memory
 - **Identity Authority**: DID registry, key management, verification
 - **API Gateway**: Authentication, rate limiting, CORS
@@ -138,8 +139,8 @@ Main configuration files:
 ### Agent Node Components
 
 - **Agent Runtime**: Main agent, state management, lifecycle
-- **Communication**: Central client, P2P client, encryption
-- **Identity**: Keypair manager, signing engine, verification
+- **Communication**: NATS JetStream client, libp2p P2P, X25519/AES encryption
+- **Identity**: Keypair manager, Ed25519 signatures, verification
 - **Memory System**: Working memory, chat history, vector storage
 - **Local Tools**: Web search, file system, system operations
 - **Tool Executor**: Tool loader, sandbox, permission manager

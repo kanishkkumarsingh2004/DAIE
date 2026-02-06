@@ -1,6 +1,10 @@
 # Central Core System Dependencies
 # Decentralized AI Ecosystem - Central Server Requirements
 
+# Coordination Layer
+nats-py==2.6.0
+libp2p==0.1.0
+
 # Web Framework and API
 fastapi==0.104.1
 uvicorn==0.24.0

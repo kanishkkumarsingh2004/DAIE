@@ -14,9 +14,11 @@ services:
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - NATS_URL=nats://nats:4222
     depends_on:
       - postgres
       - redis
+      - nats
     volumes:
       - ./central_core_system:/app/central_core_system
       - central_core_data:/app/central_core_system/data
@@ -58,11 +60,13 @@ services:
     environment:
       - CENTRAL_CORE_URL=http://central-core:8000
       - WEBSOCKET_URL=ws://central-core:8000/ws
+      - NATS_URL=nats://nats:4222
       - AGENT_ID=agent-docker-001
       - AGENT_NAME=Docker Test Agent
       - AGENT_ROLE=test-agent
     depends_on:
       - central-core
+      - nats
     volumes:
       - ./agent_node_system:/app/agent_node_system
       - agent_node_data:/app/agent_node_system/local_storage
@@ -95,6 +99,23 @@ services:
       - decentralized_ai_network
     restart: unless-stopped
 
+  # Coordination Layer: NATS JetStream for message queuing and event streaming
+  nats:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    environment:
+      - NATS_SERVER_NAME=nats-1
+      - NATS_ADVERTISE=0.0.0.0
+    volumes:
+      - nats_data:/nats
+    command: --jetstream --store_dir /nats
+    networks:
+      - decentralized_ai_network
+    restart: unless-stopped
+
   # Optional: RabbitMQ for advanced message queuing
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -123,3 +144,4 @@ volumes:
   prometheus_data:
   grafana_data:
   rabbitmq_data:
+  nats_data:

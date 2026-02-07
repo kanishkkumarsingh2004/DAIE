@@ -30,7 +30,7 @@ Example usage:
 >>> agent.start()
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from daie.agents import Agent, AgentConfig
 from daie.tools import Tool, ToolRegistry

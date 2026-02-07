@@ -56,6 +56,9 @@ class AgentConfig:
     """List of capabilities this agent supports"""
     
     # LLM settings
+    llm_provider: str = "ollama"
+    """LLM provider (openai, anthropic, ollama, etc.)"""
+    
     llm_model: str = "llama3"
     """Default LLM model to use"""
     

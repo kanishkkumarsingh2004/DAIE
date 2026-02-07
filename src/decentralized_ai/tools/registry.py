@@ -3,7 +3,7 @@ Tool registry module for managing tools
 """
 
 import logging
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
 
 from decentralized_ai.tools.tool import Tool, ToolMetadata, ToolCategory
@@ -59,6 +59,61 @@ class ToolRegistry:
         }
         self._usage_counts: Dict[str, int] = {}
         logger.info("Tool registry initialized")
+        
+    def register_tool(self, name: str):
+        """
+        Decorator for registering a tool with the registry
+        
+        Args:
+            name: Tool name
+            
+        Returns:
+            Decorator function
+        """
+        def decorator(cls):
+            # Check if this is already an instance or a class
+            if isinstance(cls, Tool):
+                tool_instance = cls
+            else:
+                # If it's a class, instantiate it
+                tool_instance = cls()
+                
+            tool_instance.name = name
+            self.register(tool_instance)
+            return cls
+        return decorator
+        
+    def unregister_tool(self, tool_name: str) -> "ToolRegistry":
+        """
+        Unregister a tool from the registry (alias for unregister)
+        
+        Args:
+            tool_name: Name of tool to unregister
+            
+        Returns:
+            self for method chaining
+        """
+        return self.unregister(tool_name)
+        
+    def invoke_tool(self, tool_name: str, **kwargs) -> Any:
+        """
+        Invoke a tool with the given parameters
+        
+        Args:
+            tool_name: Name of tool to invoke
+            **kwargs: Parameters to pass to the tool
+            
+        Returns:
+            Result of tool invocation
+            
+        Raises:
+            ValueError: If tool not found
+        """
+        tool = self.get_tool(tool_name)
+        if not tool:
+            raise ValueError(f"Tool '{tool_name}' not found")
+            
+        return tool.execute(**kwargs)
 
     def register(self, tool: Tool) -> "ToolRegistry":
         """

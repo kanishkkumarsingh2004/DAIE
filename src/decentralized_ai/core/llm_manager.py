@@ -25,7 +25,7 @@ class LLMType(Enum):
 class LLMConfig:
     """LLM configuration"""
     llm_type: LLMType = LLMType.OLLAMA
-    model_name: str = "llama3"
+    model_name: str = "llama3.2:latest"
     temperature: float = 0.7
     max_tokens: int = 1000
     api_key: Optional[str] = None
@@ -59,6 +59,18 @@ class LLMManager:
         self._llm_cache: Dict[str, Any] = {}
         
         logger.info("LLM Manager initialized")
+        
+    async def initialize(self) -> "LLMManager":
+        """
+        Initialize the LLM manager - creates the LLM instance
+        
+        Returns:
+            self for method chaining
+        """
+        # Pre-create the LLM instance to ensure it's available
+        self.get_llm()
+        logger.info(f"LLM initialized: {self.config.llm_type.value}:{self.config.model_name}")
+        return self
         
     def set_llm(
         self,
@@ -170,18 +182,18 @@ class LLMManager:
             raise
     
     def _create_ollama_llm(self):
-        """Create an Ollama LLM instance using direct API calls"""
+        """Create an Ollama LLM instance using HTTP API"""
         class OllamaLLM:
-            """Simple Ollama LLM implementation using subprocess calls"""
+            """Simple Ollama LLM implementation using HTTP API"""
             
             def __init__(self, config: LLMConfig):
                 self.config = config
+                self.base_url = config.base_url or "http://localhost:11434"
                 
             def invoke(self, prompt: str, **kwargs) -> str:
                 """Invoke the LLM with a prompt"""
                 try:
-                    # Use ollama CLI directly for simplicity
-                    import subprocess
+                    import requests
                     import json
                     
                     # Create message payload
@@ -200,22 +212,50 @@ class LLMManager:
                     }
                     
                     # Call ollama API
-                    result = subprocess.run(
-                        ["ollama", "chat", "--format", "json"],
-                        input=json.dumps(payload),
-                        capture_output=True,
-                        text=True,
-                        check=True
+                    response = requests.post(
+                        f"{self.base_url}/api/chat",
+                        json=payload,
+                        timeout=60
                     )
                     
-                    # Parse response
-                    response = json.loads(result.stdout)
-                    return response.get("message", {}).get("content", "")
-                    
-                except subprocess.CalledProcessError as e:
-                    logger.error(f"Ollama command failed: {e}")
-                    logger.error(f"Error output: {e.stderr}")
-                    return f"Error: Failed to communicate with Ollama - {e}"
+                    # Parse response - Ollama might stream responses
+                    if response.status_code == 200:
+                        # Check if response is streamed
+                        response_text = response.text
+                        if '\n' in response_text:
+                            # If there are newlines, parse each line
+                            full_content = []
+                            for line in response_text.split('\n'):
+                                if line.strip():
+                                    try:
+                                        data = json.loads(line)
+                                        if "message" in data and "content" in data["message"]:
+                                            full_content.append(data["message"]["content"])
+                                    except json.JSONDecodeError:
+                                        logger.debug(f"Failed to parse line: {line}")
+                                        continue
+                            if full_content:
+                                return ''.join(full_content)
+                        else:
+                            # Single response
+                            data = response.json()
+                            if "message" in data and "content" in data["message"]:
+                                return data["message"]["content"]
+                        
+                        logger.error(f"Ollama API returned unexpected format: {response.text}")
+                        return "Error: Failed to parse Ollama response format"
+                        
+                    else:
+                        logger.error(f"Ollama API error: Status code {response.status_code}")
+                        logger.error(f"Error response: {response.text}")
+                        return f"Error: Failed to communicate with Ollama (Status: {response.status_code})"
+                        
+                except requests.exceptions.ConnectionError:
+                    logger.error("Ollama connection error: Could not connect to server")
+                    return "Error: Could not connect to Ollama server. Is it running?"
+                except requests.exceptions.Timeout:
+                    logger.error("Ollama timeout error: Request timed out")
+                    return "Error: Request timed out. Ollama may be taking too long to respond."
                 except Exception as e:
                     logger.error(f"Ollama LLM error: {e}")
                     return f"Error: {e}"
@@ -449,3 +489,21 @@ def get_llm() -> Any:
         LLM instance
     """
     return get_llm_manager().get_llm()
+
+
+def get_llm_config() -> LLMConfig:
+    """
+    Get the current LLM configuration from the global manager
+    
+    Returns:
+        LLMConfig instance
+    """
+    return get_llm_manager().config
+
+
+def reset_llm_config() -> None:
+    """
+    Reset the LLM configuration to default values
+    """
+    get_llm_manager().config = LLMConfig()
+    get_llm_manager().llm = None

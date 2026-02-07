@@ -276,7 +276,9 @@ class MemoryManager:
             # Remove oldest items
             self._agent_memories[agent_id][memory_type] = self._agent_memories[agent_id][memory_type][-max_items:]
 
-        logger.debug(f"Memory stored for agent {agent_id}: {content[:50]}...")
+        # Handle case where content might not be a string (like a dictionary)
+        content_str = str(content)
+        logger.debug(f"Memory stored for agent {agent_id}: {content_str[:50]}...")
         
         # Save to persistent storage
         self._save_agent_memory(agent_id)

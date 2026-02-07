@@ -74,25 +74,20 @@ class Agent:
             config: Agent configuration (if None, default is used)
             tools: List of tools to initialize with
         """
-        self.config = config or AgentConfig()
-        
-        if name:
-            self.config.name = name
-            
-        if role:
-            self.config.role = role
-            
-        if goal:
-            self.config.goal = goal
-            
-        if backstory:
-            self.config.backstory = backstory
-            
-        if system_prompt:
-            self.config.system_prompt = system_prompt
+        if config is not None:
+            self.config = config
+        else:
+            self.config = AgentConfig(
+                name=name or "DefaultAgent",
+                role=role or AgentRole.GENERAL_PURPOSE,
+                goal=goal or "Perform general tasks",
+                backstory=backstory or "Default AI agent",
+                system_prompt=system_prompt or "You are a helpful AI agent that can assist with various tasks.",
+            )
             
         self.id = str(uuid.uuid4())
         self.tools: Dict[str, Any] = {}
+        self.tool_registry = ToolRegistry()
         self._is_running = False
         self._task_queue: asyncio.Queue = asyncio.Queue()
         self._message_handler: Optional[Callable] = None
@@ -297,16 +292,31 @@ class Agent:
             except Exception as e:
                 logger.error(f"Error in task queue: {e}")
                 
-    async def send_message(self, message: AgentMessage) -> bool:
+    async def send_message(self, message: str or AgentMessage) -> str or bool:
         """
-        Send a message to another agent
+        Send a message - if string is provided, use LLM to generate response
         
         Args:
-            message: Message to send
+            message: Message to send (string or AgentMessage)
             
         Returns:
-            True if message sent successfully, False otherwise
+            If string message, returns LLM response. If AgentMessage, returns boolean success
         """
+        if isinstance(message, str):
+            # If string is provided, use LLM to generate response
+            prompt = f"{self.config.system_prompt}\n\nUser: {message}\n\nAssistant:"
+            
+            try:
+                llm = self.llm
+                response = llm.invoke(prompt)
+                return response.strip()
+            except Exception as e:
+                logger.error(f"LLM invocation error: {e}")
+                return f"Error: Failed to get response from LLM - {e}"
+                
+        # If AgentMessage, proceed with normal sending
+        logger.info(f"Agent {self.name} sending message to {message.receiver_id}")
+        
         try:
             if not hasattr(self, "communication_manager"):
                 logger.error("Communication manager not initialized")
@@ -353,14 +363,14 @@ class Agent:
         await self._task_queue.put(task)
         return True
         
-    def start(self, communication_manager, memory_manager, tool_registry) -> None:
+    async def start(self, communication_manager=None, memory_manager=None, tool_registry=None) -> None:
         """
         Start the agent
         
         Args:
-            communication_manager: Communication manager instance
-            memory_manager: Memory manager instance
-            tool_registry: Tool registry instance
+            communication_manager: Communication manager instance (optional)
+            memory_manager: Memory manager instance (optional)
+            tool_registry: Tool registry instance (optional)
         """
         if self._is_running:
             logger.warning(f"Agent {self.name} is already running")
@@ -369,17 +379,18 @@ class Agent:
         logger.info(f"Starting agent: {self.name} (ID: {self.id})")
         
         try:
-            # Initialize managers
-            self.communication_manager = communication_manager
-            self.memory_manager = memory_manager
-            self.tool_registry = tool_registry
-            
-            # Register with communication manager
-            self.communication_manager.register_agent(self)
-            
-            # Initialize memory
-            self.memory_manager.initialize_agent_memory(self.id)
-            
+            # Initialize managers - use dummy managers if not provided
+            if communication_manager:
+                self.communication_manager = communication_manager
+                self.communication_manager.register_agent(self)
+                
+            if memory_manager:
+                self.memory_manager = memory_manager
+                self.memory_manager.initialize_agent_memory(self.id)
+                
+            if tool_registry:
+                self.tool_registry = tool_registry
+                
             # Start task processing
             self._is_running = True
             self._loop = asyncio.get_event_loop()
@@ -392,7 +403,7 @@ class Agent:
             self._is_running = False
             raise
             
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Stop the agent"""
         if not self._is_running:
             logger.warning(f"Agent {self.name} is already stopped")

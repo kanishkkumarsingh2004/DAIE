@@ -4,7 +4,10 @@ Decentralized AI System - Main orchestrator for the AI ecosystem
 
 import asyncio
 import logging
+import signal
 from typing import List, Optional, Dict, Any
+import os
+from pathlib import Path
 
 from decentralized_ai.agents import Agent
 from decentralized_ai.tools import ToolRegistry
@@ -47,6 +50,7 @@ class DecentralizedAISystem:
         self.memory_manager = MemoryManager(config=self.config)
         self._is_running = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._shutdown_event: Optional[asyncio.Event] = None
 
         # Set up logging
         from decentralized_ai.utils.logger import setup_system_logger
@@ -118,6 +122,9 @@ class DecentralizedAISystem:
         logger.info("Starting Decentralized AI System...")
         
         try:
+            # Create PID file
+            self._create_pid_file()
+            
             # Initialize communication manager
             self.communication_manager.start()
             
@@ -131,14 +138,34 @@ class DecentralizedAISystem:
             self._is_running = True
             logger.info(f"System started successfully with {len(self.agents)} agents")
             
-            # Run event loop
+            # Run event loop with shutdown handlers
             self._loop = asyncio.get_event_loop()
-            self._loop.run_forever()
+            self._shutdown_event = asyncio.Event()
+            
+            # Set up signal handlers
+            self._loop.add_signal_handler(signal.SIGINT, self._signal_handler)
+            self._loop.add_signal_handler(signal.SIGTERM, self._signal_handler)
+            
+            # Run event loop until shutdown
+            self._loop.run_until_complete(self._run_event_loop())
             
         except Exception as e:
             logger.error(f"Failed to start system: {e}")
             self.stop()
             raise
+
+    async def _run_event_loop(self):
+        """Internal method to run the event loop until shutdown"""
+        try:
+            await self._shutdown_event.wait()
+        finally:
+            self.stop()
+
+    def _signal_handler(self):
+        """Handle shutdown signals"""
+        logger.info("Received shutdown signal")
+        if self._shutdown_event and not self._shutdown_event.is_set():
+            self._shutdown_event.set()
 
     def stop(self) -> None:
         """
@@ -164,14 +191,74 @@ class DecentralizedAISystem:
             self.communication_manager.stop()
             
             # Stop event loop
-            if self._loop:
-                self._loop.stop()
+            if self._loop and self._loop.is_running():
+                try:
+                    self._loop.stop()
+                except Exception:
+                    pass
             
             self._is_running = False
+            
+            # Remove PID file
+            self._remove_pid_file()
+            
             logger.info("System stopped successfully")
             
         except Exception as e:
             logger.error(f"Error during system shutdown: {e}")
+
+    def _create_pid_file(self):
+        """Create PID file to track running process"""
+        pid = os.getpid()
+        pid_dir = Path.home() / ".dai"
+        pid_dir.mkdir(exist_ok=True)
+        pid_file = pid_dir / "core.pid"
+        with open(pid_file, "w") as f:
+            f.write(str(pid))
+        logger.debug(f"PID file created at {pid_file} with PID {pid}")
+
+    def _remove_pid_file(self):
+        """Remove PID file"""
+        pid_dir = Path.home() / ".dai"
+        pid_file = pid_dir / "core.pid"
+        if pid_file.exists():
+            try:
+                pid_file.unlink()
+                logger.debug(f"PID file removed from {pid_file}")
+            except Exception as e:
+                logger.error(f"Failed to remove PID file: {e}")
+
+    @classmethod
+    def get_running_pid(cls) -> Optional[int]:
+        """Get PID of running core process"""
+        pid_dir = Path.home() / ".dai"
+        pid_file = pid_dir / "core.pid"
+        if pid_file.exists():
+            try:
+                with open(pid_file, "r") as f:
+                    pid = int(f.read().strip())
+                # Check if process is actually running
+                if cls._is_process_running(pid):
+                    return pid
+                else:
+                    # PID file exists but process doesn't, clean it up
+                    try:
+                        pid_file.unlink()
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.error(f"Error reading PID file: {e}")
+        return None
+
+    @staticmethod
+    def _is_process_running(pid: int) -> bool:
+        """Check if a process with given PID is running"""
+        try:
+            # Send signal 0 to check if process exists (doesn't kill it)
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
 
     @property
     def is_running(self) -> bool:

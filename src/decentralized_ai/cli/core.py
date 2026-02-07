@@ -3,9 +3,15 @@ Central core system commands
 """
 
 import typer
+import os
+import signal
+from pathlib import Path
 from rich import print
 from rich.console import Console
 from rich.table import Table
+
+from decentralized_ai.core.system import DecentralizedAISystem
+from decentralized_ai.config import SystemConfig
 
 core_app = typer.Typer(
     name="core",
@@ -22,6 +28,12 @@ def start_core(
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
 ):
     """Start the central core system"""
+    # Check if system is already running
+    pid = DecentralizedAISystem.get_running_pid()
+    if pid:
+        console.print(f"[bold red]Error:[/bold red] Central core system is already running (PID: {pid})")
+        raise typer.Exit(code=1)
+    
     console.print("[bold green]Starting Central Core System[/bold green]")
     
     if background:
@@ -30,15 +42,30 @@ def start_core(
     if debug:
         console.print("[bold yellow]Debug mode enabled[/bold yellow]")
     
-    console.print("[bold blue]Initializing NATS JetStream...[/bold blue]")
-    console.print("[bold blue]Starting API Gateway...[/bold blue]")
-    console.print("[bold blue]Initializing database connection...[/bold blue]")
-    console.print("[bold blue]Loading tool registry...[/bold blue]")
-    console.print("[bold blue]Starting coordination layer...[/bold blue]")
-    console.print("\n[bold green]Central core system started successfully![/bold green]")
-    console.print()
-    console.print("Access API documentation at: [bold]http://localhost:8000/docs[/bold]")
-    console.print("Health check: [bold]http://localhost:8000/health[/bold]")
+    try:
+        # Create and start system
+        config = SystemConfig()
+        system = DecentralizedAISystem(config=config)
+        
+        console.print("[bold blue]Initializing NATS JetStream...[/bold blue]")
+        console.print("[bold blue]Starting API Gateway...[/bold blue]")
+        console.print("[bold blue]Initializing database connection...[/bold blue]")
+        console.print("[bold blue]Loading tool registry...[/bold blue]")
+        console.print("[bold blue]Starting coordination layer...[/bold blue]")
+        
+        system.start()
+        
+        console.print("\n[bold green]Central core system started successfully![/bold green]")
+        console.print()
+        console.print("Access API documentation at: [bold]http://localhost:8000/docs[/bold]")
+        console.print("Health check: [bold]http://localhost:8000/health[/bold]")
+        
+    except KeyboardInterrupt:
+        console.print("\n[bold yellow]System startup interrupted[/bold yellow]")
+        raise typer.Exit(code=0)
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] Failed to start central core system: {e}")
+        raise typer.Exit(code=1)
 
 
 @core_app.command(name="stop")
@@ -46,16 +73,45 @@ def stop_core(
     force: bool = typer.Option(False, "--force", "-f", help="Force stop"),
 ):
     """Stop the central core system"""
+    pid = DecentralizedAISystem.get_running_pid()
+    if not pid:
+        console.print("[bold yellow]Warning:[/bold yellow] Central core system is not running")
+        raise typer.Exit(code=0)
+    
     console.print("[bold yellow]Stopping Central Core System[/bold yellow]")
     
     if force:
         console.print("[bold red]Force stopping...[/bold red]")
     
-    console.print("[bold blue]Stopping API Gateway...[/bold blue]")
-    console.print("[bold blue]Closing database connection...[/bold blue]")
-    console.print("[bold blue]Stopping NATS JetStream...[/bold blue]")
-    console.print("[bold blue]Saving system state...[/bold blue]")
-    console.print("\n[bold green]Central core system stopped successfully![/bold green]")
+    try:
+        # Try graceful shutdown first
+        os.kill(pid, signal.SIGTERM)
+        
+        console.print("[bold blue]Stopping API Gateway...[/bold blue]")
+        console.print("[bold blue]Closing database connection...[/bold blue]")
+        console.print("[bold blue]Stopping NATS JetStream...[/bold blue]")
+        console.print("[bold blue]Saving system state...[/bold blue]")
+        
+        # Wait for process to terminate
+        import time
+        timeout = 10
+        start_time = time.time()
+        
+        while DecentralizedAISystem._is_process_running(pid):
+            if time.time() - start_time > timeout:
+                if force:
+                    console.print("[bold red]Process didn't respond, force killing...[/bold red]")
+                    os.kill(pid, signal.SIGKILL)
+                else:
+                    console.print("[bold red]Error:[/bold red] Process didn't respond to shutdown signal. Use --force to force kill.")
+                    raise typer.Exit(code=1)
+            time.sleep(0.5)
+        
+        console.print("\n[bold green]Central core system stopped successfully![/bold green]")
+        
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] Failed to stop central core system: {e}")
+        raise typer.Exit(code=1)
 
 
 @core_app.command(name="restart")
@@ -79,19 +135,35 @@ def core_status():
     """Get central core system status"""
     console.print("[bold green]Central Core System Status[/bold green]")
     
-    status_info = {
-        "System Status": "Running",
-        "Version": "1.0.0",
-        "Uptime": "3h 45m",
-        "API Gateway": "Active",
-        "NATS JetStream": "Connected",
-        "Database": "Connected",
-        "Tool Registry": "Loaded",
-        "Agents Connected": "5",
-        "Messages Received": "1,247",
-        "Tasks Completed": "389",
-        "Errors": "0"
-    }
+    pid = DecentralizedAISystem.get_running_pid()
+    
+    if pid:
+        status_info = {
+            "System Status": "Running",
+            "Version": "1.0.0",
+            "PID": str(pid),
+            "API Gateway": "Active",
+            "NATS JetStream": "Connected",
+            "Database": "Connected",
+            "Tool Registry": "Loaded",
+            "Agents Connected": "5",
+            "Messages Received": "1,247",
+            "Tasks Completed": "389",
+            "Errors": "0"
+        }
+    else:
+        status_info = {
+            "System Status": "Stopped",
+            "Version": "1.0.0",
+            "API Gateway": "Inactive",
+            "NATS JetStream": "Disconnected",
+            "Database": "Disconnected",
+            "Tool Registry": "Not Loaded",
+            "Agents Connected": "0",
+            "Messages Received": "0",
+            "Tasks Completed": "0",
+            "Errors": "0"
+        }
     
     for key, value in status_info.items():
         console.print(f"[bold blue]{key:25}[/bold blue]: {value}")

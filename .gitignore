@@ -37,6 +37,10 @@ Thumbs.db
 agent_node_system/identity/private_key.pem
 agent_node_system/identity/public_key.pem
 agent_node_system/identity/identity.json
+agent
+agent_node_system
+central
+imp.txt
 
 # Data
 *.db

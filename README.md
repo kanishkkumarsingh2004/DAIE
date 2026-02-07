@@ -1,4 +1,4 @@
-# Decentralized AI Ecosystem
+# DAIE - Decentralized AI Ecosystem
 
 A lightweight Python library for creating and managing AI agents with tools, featuring decentralized communication and memory management.
 
@@ -31,7 +31,7 @@ Each agent has:
 
 ### Install the Library
 ```bash
-pip install -e .
+pip install daie
 ```
 
 ### Install Ollama
@@ -48,9 +48,9 @@ pip install -e .
 #!/usr/bin/env python3
 import asyncio
 import logging
-from decentralized_ai import Agent, AgentConfig, Tool, ToolRegistry
-from decentralized_ai.agents import AgentRole
-from decentralized_ai.tools import tool
+from daie import Agent, AgentConfig, Tool, ToolRegistry
+from daie.agents import AgentRole
+from daie.tools import tool
 
 # Configure logging
 logging.basicConfig(
@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    logger.info("=== Decentralized AI Ecosystem Example ===")
+    logger.info("=== DAIE - Decentralized AI Ecosystem Example ===")
     
     # Create a tool
     @tool(
@@ -72,10 +72,10 @@ async def main():
     )
     async def greeting_tool(name: str, language: str = "en") -> str:
         greetings = {
-            "en": f"Hello, {name}! Welcome to the Decentralized AI Ecosystem!",
-            "es": f"Hola, {name}! ¡Bienvenido al Ecosistema AI Descentralizado!",
-            "fr": f"Bonjour, {name}! Bienvenue dans l'écosystème AI décentralisé!",
-            "de": f"Hallo, {name}! Willkommen im dezentralen KI-Ökosystem!"
+            "en": f"Hello, {name}! Welcome to DAIE!",
+            "es": f"Hola, {name}! ¡Bienvenido a DAIE!",
+            "fr": f"Bonjour, {name}! Bienvenue dans DAIE!",
+            "de": f"Hallo, {name}! Willkommen bei DAIE!"
         }
         return greetings.get(language.lower(), greetings["en"])
     
@@ -114,53 +114,53 @@ if __name__ == "__main__":
 ### Agent Management
 ```bash
 # List all agents
-dai agent list
+daie agent list
 
 # Create a new agent
-dai agent create --name "MyAgent" --role "general-purpose" --goal "Help users with questions"
+daie agent create --name "MyAgent" --role "general-purpose" --goal "Help users with questions"
 
 # Start an agent
-dai agent start <agent-id>
+daie agent start <agent-id>
 
 # Stop an agent
-dai agent stop <agent-id>
+daie agent stop <agent-id>
 
 # Get agent status
-dai agent status <agent-id>
+daie agent status <agent-id>
 
 # Delete an agent
-dai agent delete <agent-id>
+daie agent delete <agent-id>
 ```
 
 ### Core System Management
 ```bash
 # Initialize the system
-dai core init
+daie core init
 
 # Start the central core system
-dai core start
+daie core start
 
 # Stop the central core system
-dai core stop
+daie core stop
 
 # Restart the central core system
-dai core restart
+daie core restart
 
 # Get system status
-dai core status
+daie core status
 
 # View system logs
-dai core logs
+daie core logs
 
 # Check system health
-dai core health
+daie core health
 ```
 
 ## LLM Configuration
 
 ### Setting LLM Parameters
 ```python
-from decentralized_ai import set_llm, get_llm_config, LLMType
+from daie import set_llm, get_llm_config, LLMType
 
 # Using Ollama (default)
 set_llm(ollama_llm="llama3")
@@ -202,18 +202,18 @@ print(f"Max tokens: {config.max_tokens}")
 ### Environment Variables
 ```bash
 # System configuration
-DAI_LOG_LEVEL=INFO
-DAI_NATS_URL=nats://localhost:4222
-DAI_CENTRAL_CORE_URL=http://localhost:8000
+DAIE_LOG_LEVEL=INFO
+DAIE_NATS_URL=nats://localhost:4222
+DAIE_CENTRAL_CORE_URL=http://localhost:8000
 
 # LLM configuration
-DAI_DEFAULT_LLM_MODEL=llama3
-DAI_LLM_TEMPERATURE=0.7
-DAI_LLM_MAX_TOKENS=1000
+DAIE_DEFAULT_LLM_MODEL=llama3
+DAIE_LLM_TEMPERATURE=0.7
+DAIE_LLM_MAX_TOKENS=1000
 
 # Database configuration
-DAI_DATABASE_URL=sqlite:///:memory:
-DAI_REDIS_URL=redis://localhost:6379/0
+DAIE_DATABASE_URL=sqlite:///:memory:
+DAIE_REDIS_URL=redis://localhost:6379/0
 ```
 
 ## Architecture
@@ -254,54 +254,8 @@ poetry install
 poetry run pytest tests/
 
 # Run the CLI
-poetry run dai --help
+poetry run daie --help
 ```
-
-### Project Structure
-```
-src/decentralized_ai/
-├── __init__.py          # Package initialization
-├── core/                # Core system components
-│   ├── __init__.py
-│   ├── system.py       # DecentralizedAISystem class
-│   ├── node.py         # Node class for system components
-│   └── llm_manager.py  # LLM management
-├── agents/             # Agent implementation
-│   ├── __init__.py
-│   ├── agent.py        # Agent class
-│   ├── config.py       # Agent configuration
-│   └── message.py      # AgentMessage class
-├── tools/              # Tool system
-│   ├── __init__.py
-│   ├── tool.py         # Tool class
-│   └── registry.py     # ToolRegistry class
-├── communication/      # Communication system
-│   ├── __init__.py
-│   └── manager.py      # CommunicationManager class
-├── memory/             # Memory management
-│   ├── __init__.py
-│   └── manager.py      # MemoryManager class
-├── config/             # Configuration system
-│   ├── __init__.py
-│   └── system.py       # SystemConfig class
-├── utils/              # Utility functions
-│   ├── __init__.py
-│   └── logger.py       # Logger configuration
-└── cli/                # CLI interface
-    ├── __init__.py
-    ├── main.py         # Main CLI entry point
-    ├── agent.py        # Agent management commands
-    └── core.py         # Core system commands
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for your changes
-5. Run the tests
-6. Submit a pull request
 
 ## License
 

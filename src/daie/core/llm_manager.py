@@ -39,6 +39,7 @@ class LLMManager:
     """
     
     _instance = None
+    _initialized = False
     
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:

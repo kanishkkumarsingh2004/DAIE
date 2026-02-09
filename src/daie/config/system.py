@@ -318,14 +318,16 @@ class SystemConfig:
         Returns:
             Dictionary representation of configuration
         """
+        from dataclasses import fields
+        
         data = {}
         
-        for field_name in self.__dataclass_fields__:
-            value = getattr(self, field_name)
+        for field in fields(self):
+            value = getattr(self, field.name)
             if isinstance(value, LogLevel):
-                data[field_name] = value.value
+                data[field.name] = value.value
             elif isinstance(value, (list, dict, str, int, float, bool, type(None))):
-                data[field_name] = value
+                data[field.name] = value
                 
         return data
 

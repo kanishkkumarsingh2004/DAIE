@@ -62,7 +62,6 @@ def start_core(
             server_thread.start()
         else:
             # Run server in foreground
-            from daie.core.server import start_server
             start_server("0.0.0.0", port, debug)
         
         console.print(f"\n[bold green]Central core system started successfully![/bold green]")

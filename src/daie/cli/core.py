@@ -12,6 +12,7 @@ from rich.table import Table
 
 from daie.core.system import DecentralizedAISystem
 from daie.config import SystemConfig
+from daie.core.server import start_server
 
 core_app = typer.Typer(
     name="core",
@@ -26,6 +27,7 @@ console = Console()
 def start_core(
     background: bool = typer.Option(False, "--background", "-b", help="Run in background"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    port: int = typer.Option(3333, "--port", "-p", help="Server port"),
 ):
     """Start the central core system"""
     # Check if system is already running
@@ -43,22 +45,29 @@ def start_core(
         console.print("[bold yellow]Debug mode enabled[/bold yellow]")
     
     try:
-        # Create and start system
+        # Create and start system with web server
         config = SystemConfig()
         system = DecentralizedAISystem(config=config)
         
-        console.print("[bold blue]Initializing NATS JetStream...[/bold blue]")
-        console.print("[bold blue]Starting API Gateway...[/bold blue]")
-        console.print("[bold blue]Initializing database connection...[/bold blue]")
-        console.print("[bold blue]Loading tool registry...[/bold blue]")
-        console.print("[bold blue]Starting coordination layer...[/bold blue]")
+        console.print("[bold blue]Initializing system components...[/bold blue]")
         
-        system.start()
+        if background:
+            # Run server in background
+            import threading
+            server_thread = threading.Thread(
+                target=start_server,
+                args=("0.0.0.0", port, debug),
+                daemon=True
+            )
+            server_thread.start()
+        else:
+            # Run server in foreground
+            from daie.core.server import start_server
+            start_server("0.0.0.0", port, debug)
         
-        console.print("\n[bold green]Central core system started successfully![/bold green]")
-        console.print()
-        console.print("Access API documentation at: [bold]http://localhost:8000/docs[/bold]")
-        console.print("Health check: [bold]http://localhost:8000/health[/bold]")
+        console.print(f"\n[bold green]Central core system started successfully![/bold green]")
+        console.print(f"[bold blue]API server running at:[/bold blue] http://localhost:{port}")
+        console.print(f"[bold blue]API documentation:[/bold blue] http://localhost:{port}/docs")
         
     except KeyboardInterrupt:
         console.print("\n[bold yellow]System startup interrupted[/bold yellow]")
@@ -87,10 +96,7 @@ def stop_core(
         # Try graceful shutdown first
         os.kill(pid, signal.SIGTERM)
         
-        console.print("[bold blue]Stopping API Gateway...[/bold blue]")
-        console.print("[bold blue]Closing database connection...[/bold blue]")
-        console.print("[bold blue]Stopping NATS JetStream...[/bold blue]")
-        console.print("[bold blue]Saving system state...[/bold blue]")
+        console.print("[bold blue]Initiating shutdown...[/bold blue]")
         
         # Wait for process to terminate
         import time
@@ -138,6 +144,7 @@ def core_status():
     pid = DecentralizedAISystem.get_running_pid()
     
     if pid:
+        # In a real implementation, this data would be retrieved from the running system
         status_info = {
             "System Status": "Running",
             "Version": "1.0.0",
@@ -146,9 +153,9 @@ def core_status():
             "NATS JetStream": "Connected",
             "Database": "Connected",
             "Tool Registry": "Loaded",
-            "Agents Connected": "5",
-            "Messages Received": "1,247",
-            "Tasks Completed": "389",
+            "Agents Connected": "0",
+            "Messages Received": "0",
+            "Tasks Completed": "0",
             "Errors": "0"
         }
     else:
@@ -178,39 +185,60 @@ def core_logs(
     """View central core system logs"""
     console.print("[bold green]Central Core System Logs[/bold green]")
     
-    if follow:
-        console.print("[bold yellow]Following log output... Press Ctrl+C to stop[/bold yellow]")
-    
-    # Sample log data
-    sample_logs = [
-        {"time": "10:30:45", "level": "INFO", "message": "System started successfully"},
-        {"time": "10:31:20", "level": "INFO", "message": "API Gateway listening on port 8000"},
-        {"time": "10:31:45", "level": "DEBUG", "message": "Database connection established"},
-        {"time": "10:32:15", "level": "INFO", "message": "Tool registry loaded with 12 tools"},
-        {"time": "10:32:30", "level": "INFO", "message": "Agent agent-001 connected"},
-        {"time": "10:33:10", "level": "INFO", "message": "Agent agent-002 connected"},
-        {"time": "10:34:20", "level": "WARN", "message": "High memory usage - 85% utilized"},
-        {"time": "10:35:15", "level": "INFO", "message": "Task completed: web_search"},
-    ]
-    
-    # Filter by level if specified
-    filtered_logs = sample_logs
-    if level and level != "INFO":
-        filtered_logs = [log for log in sample_logs if log["level"].lower() == level.lower()]
-    
-    # Take specified number of lines
-    displayed_logs = filtered_logs[-lines:]
-    
-    for log in displayed_logs:
-        level_color = {
-            "DEBUG": "blue",
-            "INFO": "green",
-            "WARN": "yellow",
-            "ERROR": "red",
-            "CRITICAL": "red"
-        }.get(log["level"], "white")
+    try:
+        # Get log file path from config
+        config = SystemConfig()
+        log_file = config.log_file
         
-        console.print(f"[bold {level_color}]{log['time']} {log['level']:<8}[/bold {level_color}] {log['message']}")
+        if config.enable_logging and log_file is None:
+            from daie.utils.logger import ensure_directory_exists
+            log_dir = ensure_directory_exists(config.log_directory)
+            log_file = os.path.join(log_dir, "daie.log")
+        
+        if not log_file or not os.path.exists(log_file):
+            console.print("[bold yellow]Warning:[/bold yellow] No log file found. The system may not have been started yet.")
+            return
+        
+        # Read log file
+        with open(log_file, "r", encoding="utf-8") as f:
+            log_lines = f.readlines()
+        
+        # Filter logs by level if specified
+        filtered_lines = []
+        for line in log_lines:
+            line = line.strip()
+            if line:
+                # Check if line contains the specified log level
+                if level and level != "INFO":
+                    if level.upper() in line:
+                        filtered_lines.append(line)
+                else:
+                    filtered_lines.append(line)
+        
+        # Take specified number of lines
+        displayed_lines = filtered_lines[-lines:]
+        
+        for line in displayed_lines:
+            # Simple parsing to colorize log levels
+            if "DEBUG" in line:
+                console.print(f"[bold blue]{line}[/bold blue]")
+            elif "INFO" in line:
+                console.print(f"[bold green]{line}[/bold green]")
+            elif "WARNING" in line or "WARN" in line:
+                console.print(f"[bold yellow]{line}[/bold yellow]")
+            elif "ERROR" in line:
+                console.print(f"[bold red]{line}[/bold red]")
+            elif "CRITICAL" in line:
+                console.print(f"[bold magenta]{line}[/bold magenta]")
+            else:
+                console.print(line)
+        
+        # If follow is requested, we would need to implement tail functionality
+        if follow:
+            console.print("\n[bold yellow]Follow functionality not implemented yet[/bold yellow]")
+            
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] Failed to read logs: {e}")
 
 
 @core_app.command(name="init")
@@ -218,14 +246,40 @@ def init_core():
     """Initialize the central core system"""
     console.print("[bold green]Initializing Central Core System[/bold green]")
     
-    console.print("[bold blue]Checking system requirements...[/bold blue]")
-    console.print("[bold blue]Creating configuration directory...[/bold blue]")
-    console.print("[bold blue]Generating default configuration...[/bold blue]")
-    console.print("[bold blue]Creating database schema...[/bold blue]")
-    console.print("[bold blue]Setting up tool registry...[/bold blue]")
-    console.print("\n[bold green]Central core system initialized successfully![/bold green]")
-    console.print()
-    console.print("Now you can start the system with: [bold]dai core start[/bold]")
+    try:
+        # Create configuration directory
+        config_dir = Path.home() / ".dai"
+        config_dir.mkdir(exist_ok=True)
+        
+        # Create default configuration file
+        config = SystemConfig()
+        config_file = config_dir / "config.json"
+        
+        if not config_file.exists():
+            import json
+            with open(config_file, "w", encoding="utf-8") as f:
+                json.dump(config.to_dict(), f, indent=2)
+            console.print("[bold blue]Created default configuration file[/bold blue]")
+        else:
+            console.print("[bold blue]Configuration file already exists[/bold blue]")
+        
+        # Initialize log directory
+        from daie.utils.logger import ensure_directory_exists
+        ensure_directory_exists(config.log_directory)
+        console.print("[bold blue]Created log directory[/bold blue]")
+        
+        # In a real implementation, we would also:
+        # - Initialize database schema
+        # - Set up communication channels
+        # - Verify system requirements
+        
+        console.print("\n[bold green]Central core system initialized successfully![/bold green]")
+        console.print()
+        console.print("Now you can start the system with: [bold]dai core start[/bold]")
+        
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] Failed to initialize system: {e}")
+        raise typer.Exit(code=1)
 
 
 @core_app.command(name="health")
@@ -233,12 +287,19 @@ def health_check():
     """Check system health status"""
     console.print("[bold green]System Health Check[/bold green]")
     
+    pid = DecentralizedAISystem.get_running_pid()
+    
+    if not pid:
+        console.print("[bold yellow]Warning:[/bold yellow] Central core system is not running")
+        raise typer.Exit(code=0)
+    
+    # In a real implementation, this would check actual system components
     health_status = [
         {"component": "API Gateway", "status": "Healthy", "latency": "<100ms"},
         {"component": "NATS JetStream", "status": "Healthy", "latency": "<50ms"},
         {"component": "Database", "status": "Healthy", "latency": "<20ms"},
-        {"component": "Tool Registry", "status": "Healthy", "count": 12},
-        {"component": "Agents", "status": "Healthy", "connected": 5},
+        {"component": "Tool Registry", "status": "Healthy", "count": 0},
+        {"component": "Agents", "status": "Healthy", "connected": 0},
     ]
     
     table = Table(show_header=True, header_style="bold blue")

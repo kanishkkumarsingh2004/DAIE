@@ -54,10 +54,10 @@ class SystemConfig:
     nats_url: str = "nats://localhost:4222"
     """NATS JetStream server URL"""
 
-    central_core_url: str = "http://localhost:8000"
+    central_core_url: str = "http://localhost:3333"
     """Central core API URL"""
 
-    websocket_url: str = "ws://localhost:8000/ws"
+    websocket_url: str = "ws://localhost:3333/ws"
     """Websocket communication URL"""
 
     communication_timeout: int = 30
@@ -140,7 +140,7 @@ class SystemConfig:
     enable_metrics: bool = True
     """Whether to enable metrics collection"""
 
-    prometheus_port: int = 8000
+    prometheus_port: int = 3333
     """Prometheus metrics port"""
 
     enable_tracing: bool = False

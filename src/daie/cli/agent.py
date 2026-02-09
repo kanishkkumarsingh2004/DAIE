@@ -7,6 +7,8 @@ from rich import print
 from rich.console import Console
 from rich.table import Table
 
+from daie.config import SystemConfig
+
 agent_app = typer.Typer(
     name="agent",
     help="Agent management commands",
@@ -26,11 +28,24 @@ def list_agents():
     table.add_column("Role", style="yellow")
     table.add_column("Status", style="green")
     
-    # Get actual agents from the system (currently returns empty list)
-    agents = []
+    # Get actual agents from the system
+    from daie.core.system import DecentralizedAISystem
     
-    for agent_id, name, role, status in agents:
-        table.add_row(agent_id, name, role, status)
+    # In a real implementation, we would connect to the running system
+    # For now, we'll create a temporary system instance to demonstrate
+    # Note: This approach won't show agents from a running system
+    config = SystemConfig()
+    system = DecentralizedAISystem(config=config)
+    
+    agents = system.list_agents()
+    
+    for agent in agents:
+        table.add_row(
+            agent.id,
+            agent.name,
+            agent.role.value,
+            "Running" if agent.is_running else "Stopped"
+        )
     
     console.print(table)
     console.print(f"\nTotal agents: [bold green]{len(agents)}[/bold green]")
@@ -85,18 +100,30 @@ def agent_status(
     """Get agent status and information"""
     console.print(f"[bold green]Agent Status:[/bold green] {agent_id}")
     
+    # Get actual agent from the system
+    from daie.core.system import DecentralizedAISystem
+    from daie.config import SystemConfig
+    
+    config = SystemConfig()
+    system = DecentralizedAISystem(config=config)
+    agent = system.get_agent(agent_id)
+    
+    if not agent:
+        console.print(f"[bold red]Error:[/bold red] Agent with ID {agent_id} not found")
+        raise typer.Exit(code=1)
+    
+    # Collect actual agent status information
     status_info = {
-        "Name": "GreetingAgent",
-        "Role": "General Purpose",
-        "Status": "Running",
-        "Capabilities": ["greeting"],
-        "Memory Items": "12",
-        "Tools": "1",
-        "Peers": "2",
-        "Messages Sent": "42",
-        "Messages Received": "38",
-        "Tasks Completed": "15",
-        "Uptime": "2h 34m"
+        "Name": agent.name,
+        "Role": agent.role.value,
+        "Status": "Running" if agent.is_running else "Stopped",
+        "Capabilities": agent.config.capabilities,
+        "Tools": len(agent.list_tools()),
+        "Peers": 0,  # This would come from communication manager
+        "Messages Sent": 0,  # This would come from communication manager
+        "Messages Received": 0,  # This would come from communication manager
+        "Tasks Completed": 0,  # This would come from task manager
+        "Uptime": "0h 0m"  # This would need to be tracked
     }
     
     for key, value in status_info.items():
@@ -130,30 +157,54 @@ def agent_config(
     show: bool = typer.Option(False, "--show", help="Show current configuration"),
 ):
     """Configure agent settings"""
+    # Get actual agent from the system
+    from daie.core.system import DecentralizedAISystem
+    from daie.config import SystemConfig
+    
+    config = SystemConfig()
+    system = DecentralizedAISystem(config=config)
+    agent = system.get_agent(agent_id)
+    
+    if not agent:
+        console.print(f"[bold red]Error:[/bold red] Agent with ID {agent_id} not found")
+        raise typer.Exit(code=1)
+    
     if show:
         console.print(f"[bold green]Agent Configuration:[/bold green] {agent_id}")
         
-        config = {
-            "name": "GreetingAgent",
-            "role": "general-purpose",
-            "communication_timeout": 30,
-            "heartbeat_interval": 10,
-            "memory_retention_days": 30,
-            "max_memory_size": 1000,
-            "response_delay": 0.5,
-            "max_concurrent_tasks": 5,
-            "task_timeout": 60,
-            "llm_model": "gpt-3.5-turbo",
-            "temperature": 0.7,
-            "max_tokens": 1000
-        }
+        # Convert agent config to dictionary for display
+        config_dict = agent.config.to_dict()
         
-        for param, val in config.items():
+        for param, val in config_dict.items():
             console.print(f"[bold blue]{param:30}[/bold blue]: {val}")
     elif key and value:
         console.print(f"[bold green]Updating Configuration:[/bold green] {agent_id}")
-        console.print(f"[bold blue]{key}:[/bold blue] {value}")
-        console.print("\n[bold green]Configuration updated successfully![/bold green]")
+        
+        # Check if the config parameter exists
+        if hasattr(agent.config, key):
+            # Convert string value to appropriate type
+            current_value = getattr(agent.config, key)
+            try:
+                if isinstance(current_value, bool):
+                    val = value.lower() in ["true", "yes", "1"]
+                elif isinstance(current_value, int):
+                    val = int(value)
+                elif isinstance(current_value, float):
+                    val = float(value)
+                elif isinstance(current_value, list):
+                    val = [v.strip() for v in value.split(",")]
+                else:
+                    val = value
+                
+                setattr(agent.config, key, val)
+                console.print(f"[bold blue]{key}:[/bold blue] {val}")
+                console.print("\n[bold green]Configuration updated successfully![/bold green]")
+            except Exception as e:
+                console.print(f"[bold red]Error:[/bold red] Invalid value for parameter {key}: {e}")
+                raise typer.Exit(code=1)
+        else:
+            console.print(f"[bold red]Error:[/bold red] Unknown configuration parameter '{key}'")
+            raise typer.Exit(code=1)
     else:
         console.print("[bold red]Error:[/bold red] Must specify both --key and --value or use --show")
 

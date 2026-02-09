@@ -102,12 +102,41 @@ class AgentConfig:
     verify_signatures: bool = True
     """Whether to verify message signatures"""
     
-    # Performance settings
+     # Performance settings
     enable_caching: bool = True
     """Whether to enable response caching"""
     
     cache_ttl: int = 3600
     """Cache TTL in seconds"""
+    
+    # Audio settings
+    enable_audio_input: bool = False
+    """Whether to enable microphone access for audio input (default: False)"""
+    
+    enable_audio_output: bool = False
+    """Whether to enable speaker access for audio output (default: False)"""
+    
+    audio_device_index: int = -1
+    """Audio device index to use (-1 for default device)"""
+    
+    audio_sample_rate: int = 16000
+    """Audio sampling rate in Hz (default: 16000)"""
+    
+    audio_chunk_size: int = 1024
+    """Audio chunk size for processing (default: 1024)"""
+    
+    # Camera settings
+    enable_camera: bool = False
+    """Whether to enable camera access for vision input (default: False)"""
+    
+    camera_device_index: int = 0
+    """Camera device index to use (0 for default camera)"""
+    
+    camera_resolution: str = "640x480"
+    """Camera resolution (width x height, default: 640x480)"""
+    
+    camera_fps: int = 30
+    """Camera frames per second (default: 30)"""
     
     # Debug settings
     enable_logging: bool = True
@@ -206,6 +235,34 @@ class AgentConfig:
         if self.log_level not in valid_log_levels:
             errors.append(f"Invalid log level: {self.log_level}")
             
+        # Audio settings validation
+        if self.audio_sample_rate <= 0:
+            errors.append("Audio sample rate must be positive")
+            
+        if self.audio_chunk_size <= 0:
+            errors.append("Audio chunk size must be positive")
+            
+        # Camera settings validation
+        if self.camera_device_index < 0:
+            errors.append("Camera device index cannot be negative")
+            
+        if self.camera_fps <= 0:
+            errors.append("Camera FPS must be positive")
+            
+        # Validate camera resolution format (width x height)
+        if self.camera_resolution:
+            parts = self.camera_resolution.split('x')
+            if len(parts) != 2:
+                errors.append("Camera resolution must be in format 'widthxheight' (e.g., '640x480')")
+            else:
+                try:
+                    width = int(parts[0])
+                    height = int(parts[1])
+                    if width <= 0 or height <= 0:
+                        errors.append("Camera resolution dimensions must be positive")
+                except ValueError:
+                    errors.append("Camera resolution must contain numeric dimensions")
+                    
         return errors
     
     def is_valid(self) -> bool:

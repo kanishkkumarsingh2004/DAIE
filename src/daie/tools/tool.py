@@ -20,6 +20,7 @@ class ToolCategory(Enum):
     WEB = "web"
     DATABASE = "database"
     API = "api"
+    BROWSER_AUTOMATION = "browser_automation"
     CUSTOM = "custom"
 
 

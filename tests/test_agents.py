@@ -190,7 +190,9 @@ class TestAgent:
                 "params": {"text": "test input"}
             })
             
-            assert result is True
+            assert isinstance(result, dict)
+            assert "result" in result
+            assert "test input" in result["result"]
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ class APICallTool(Tool):
     def __init__(self):
         metadata = ToolMetadata(
             name="api_call",
-            description="Make HTTP API calls to external services",
+            description="Tool for making HTTP API calls to external services - use this for operations like fetching data from APIs, sending data to APIs, or interacting with web services using HTTP methods (GET, POST, PUT, DELETE, etc.)",
             category=ToolCategory.API,
             version="1.0.0",
             author="Decentralized AI Ecosystem",

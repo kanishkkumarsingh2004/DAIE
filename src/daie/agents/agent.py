@@ -4,15 +4,11 @@ AI Agent implementation module
 
 import asyncio
 import logging
-import uuid
-from typing import List, Optional, Dict, Any, Callable
-from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any, Callable, Union
 
 from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.message import AgentMessage
-from daie.tools import Tool, ToolRegistry
-from daie.communication import CommunicationManager
-from daie.memory import MemoryManager
+from daie.tools import ToolRegistry
 from daie.utils import generate_id
 
 logger = logging.getLogger(__name__)
@@ -85,7 +81,7 @@ class Agent:
                 system_prompt=system_prompt or "You are a helpful AI agent that can assist with various tasks.",
             )
             
-        self.id = str(uuid.uuid4())
+        self.id = generate_id()
         self.tools: Dict[str, Any] = {}
         self.tool_registry = ToolRegistry()
         self._is_running = False
@@ -136,8 +132,19 @@ class Agent:
         
     @property
     def llm(self):
-        """Get LLM instance from core"""
+        """Get LLM instance from core, configured with agent's LLM settings"""
         if self._llm is None:
+            from daie.core.llm_manager import get_llm_manager, LLMType
+            llm_manager = get_llm_manager()
+            
+            # Configure LLM with agent's settings
+            llm_manager.set_llm(
+                llm_type=LLMType(self.config.llm_provider),
+                model_name=self.config.llm_model,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens
+            )
+            
             from daie.core.llm_manager import get_llm
             self._llm = get_llm()
         return self._llm
@@ -259,11 +266,19 @@ class Agent:
         
         try:
             if self._task_handler:
-                await self._task_handler(task)
+                result = await self._task_handler(task)
             else:
-                await self._default_task_handler(task)
+                result = await self._default_task_handler(task)
+                
+            # If task has result future, set the result
+            if '_result_future' in task and not task['_result_future'].done():
+                task['_result_future'].set_result(result)
+                
         except Exception as e:
             logger.error(f"Error handling task: {e}")
+            # If task has result future, set the exception
+            if '_result_future' in task and not task['_result_future'].done():
+                task['_result_future'].set_exception(e)
             
     async def _default_task_handler(self, task: Dict[str, Any]):
         """Default task handler"""
@@ -277,8 +292,10 @@ class Agent:
             tool = self.tools[task_name]
             result = await tool.execute(task_params)
             logger.info(f"Task {task_name} completed with result: {result}")
+            return result
         else:
             logger.warning(f"Agent {self.name} doesn't have tool for task: {task_name}")
+            return {"success": False, "error": f"Tool '{task_name}' not found"}
             
     async def _run_task_queue(self):
         """Run task processing loop"""
@@ -292,7 +309,7 @@ class Agent:
             except Exception as e:
                 logger.error(f"Error in task queue: {e}")
                 
-    async def send_message(self, message: str or AgentMessage) -> str or bool:
+    async def send_message(self, message: Union[str, AgentMessage]) -> Union[str, bool]:
         """
         Send a message - if string is provided, use LLM to generate response
         
@@ -350,18 +367,183 @@ class Agent:
         
         return await self.send_message(message)
         
-    async def execute_task(self, task: Dict[str, Any]) -> Any:
+    async def execute_task(self, task_input: Union[str, Dict[str, Any]]) -> Any:
         """
         Execute a task locally
-        
+
         Args:
-            task: Task to execute
-            
+            task_input: Task to execute (can be a task description string or dict with name/params)
+
         Returns:
             Task result
         """
-        await self._task_queue.put(task)
-        return True
+        # If task is a string, analyze it using LLM to determine appropriate tool and parameters
+        if isinstance(task_input, str):
+            task_description = task_input
+            logger.info(f"Analyzing task: {task_description}")
+            
+            # Get available tools information
+            available_tools = self.list_tools()
+            # Check for conversational inputs first
+            normalized_task = task_description.lower().strip()
+            
+            # Let the LLM decide if it's conversational or a task that needs tools
+            # Remove hardcoded patterns and let the LLM's natural language understanding handle it
+                
+            if not available_tools:
+                logger.warning("No tools available to execute tasks")
+                return await self.send_message(task_description)
+            
+            # Prepare tools information for LLM
+            tools_info = []
+            for tool in available_tools:
+                tool_info = {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "actions": []
+                }
+                
+                # For tools with metadata (like FileManagerTool), extract possible actions from parameters
+                if hasattr(tool, 'metadata') and hasattr(tool.metadata, 'parameters'):
+                    for param in tool.metadata.parameters:
+                        if param.name == "action" and param.choices:
+                            tool_info["actions"] = param.choices
+                            break
+                
+                # If no specific actions defined, use default execute
+                if not tool_info["actions"]:
+                    tool_info["actions"] = ["execute"]
+                    
+                tools_info.append(tool_info)
+            
+            # First check if task is a simple conversational one (greeting, etc.)
+            simple_greetings = ["hi", "hello", "hey", "greetings", "howdy"]
+            task_lower = task_description.lower().strip()
+            
+            for greeting in simple_greetings:
+                if greeting in task_lower:
+                    logger.info("Recognized simple greeting - responding conversationally")
+                    return await self.send_message("Hello! How can I assist you today?")
+            
+            # Create prompt for LLM to analyze task and select tool
+            tools_info_str = "\n".join([f"- {tool['name']}: {tool['description']}\n  Actions: {', '.join(tool['actions'])}" for tool in tools_info])
+            
+            prompt = f"""Available Tools:
+{tools_info_str}
+
+Task: "{task_description}"
+
+Which tool should be used? Respond with JSON including tool_name and params. 
+
+IMPORTANT RULES:
+1. If the task is a greeting (like "hi", "hello", "hey"), small talk, or a conversational message that doesn't require any tool operation, use "tool_name": "none"
+2. Only select a tool if the task clearly requires one of the available tool's capabilities
+3. If you're unsure which tool to use, select "none"
+
+Example for tool usage:
+{{"tool_name": "file_manager", "params": {{"action": "create_file", "path": "example.txt", "content": "Hello World!"}}}}
+
+Example for conversational task:
+{{"tool_name": "none", "params": {{"response": "Hello! How can I help you today?"}}}}
+"""            
+            try:
+                llm = self.llm
+                response = llm.invoke(prompt)
+                
+                # Parse LLM response to extract tool selection
+                import json
+                logger.debug(f"Raw LLM response: {repr(response)}")
+                
+                # Find JSON in response (handle possible markdown formatting)
+                response = response.strip()
+                if response.startswith("```json"):
+                    response = response[len("```json"):].strip()
+                if response.endswith("```"):
+                    response = response[:-len("```")].strip()
+                
+                # Find JSON object boundaries
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                
+                if json_start != -1 and json_end != 0:
+                    json_str = response[json_start:json_end]
+                    logger.debug(f"Extracted JSON string: {repr(json_str)}")
+                    tool_selection = json.loads(json_str)
+                    logger.info(f"LLM selected tool: {tool_selection.get('tool_name')}")
+                    
+                    if tool_selection.get("tool_name") == "none" or tool_selection.get("tool_name") not in [t.name for t in available_tools]:
+                        logger.info("No suitable tool found - treating as conversational")
+                        return await self.send_message(task_description)
+                    
+                    # Add default parameters for known tools
+                    params = tool_selection.get("params", {})
+                    tool_name = tool_selection["tool_name"]
+                    
+                    if tool_name == "file_manager":
+                        # For file operations, validate required parameters
+                        if "action" not in params:
+                            logger.warning("File manager action not specified - treating as conversational")
+                            return await self.send_message("I need to know what file operation you want to perform (e.g., read_file, create_file, list_contents)")
+                            
+                        action = params["action"]
+                        
+                        # Ensure path is provided for operations that require it
+                        if action in ["read_file", "write_file", "append_file", "delete_file", "create_file", 
+                                     "create_directory", "delete_directory", "file_exists", "directory_exists", 
+                                     "get_file_info", "get_directory_info"]:
+                            if "path" not in params or not params["path"]:
+                                logger.warning("File manager path not specified - treating as conversational")
+                                return await self.send_message("I need a file or directory path to perform that operation")
+                        
+                        # Default path for list operations
+                        if action in ["list_contents", "list"] and ("path" not in params or not params["path"]):
+                            params["path"] = "."
+                        
+                        # Fix common file creation issue when path is not specific
+                        if action in ["create_file", "write_file"] and (params.get("path") == "." or params.get("path") == "./"):
+                            if action == "create_file" and "content" in params:
+                                params["path"] = "index.html"
+                    elif tool_name == "selenium_chrome":
+                        # Fix parameter name mismatch if LLM sends 'actions' instead of 'action'
+                        if "actions" in params and "action" not in params:
+                            params["action"] = params.pop("actions")
+                        # Add default action if not specified
+                        if "action" not in params:
+                            params["action"] = "open_url"
+                        # Set default URL if opening url without specifying
+                        if params.get("action") == "open_url" and "url" not in params:
+                            params["url"] = "https://www.google.com"
+                    
+                    task = {
+                        "name": tool_name,
+                        "params": params
+                    }
+                else:
+                    logger.warning("No valid JSON found in LLM response - treating as conversational")
+                    return await self.send_message(task_description)
+                    
+            except Exception as e:
+                logger.error(f"Error analyzing task with LLM: {e}")
+                logger.info("Falling back to conversational response")
+                return await self.send_message(task_description)
+        else:
+            task = task_input
+        
+        # Continue with regular task execution
+        loop = asyncio.get_event_loop()
+        result_future = loop.create_future()
+        
+        task_with_result = task.copy()
+        task_with_result['_result_future'] = result_future
+        
+        await self._task_queue.put(task_with_result)
+        
+        try:
+            result = await asyncio.wait_for(result_future, timeout=30.0)
+            return result
+        except asyncio.TimeoutError:
+            logger.error(f"Task execution timed out: {task.get('name')}")
+            raise
         
     async def start(self, communication_manager=None, memory_manager=None, tool_registry=None) -> None:
         """

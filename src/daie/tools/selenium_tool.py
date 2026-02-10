@@ -39,7 +39,7 @@ class SeleniumChromeTool(Tool):
     def __init__(self):
         metadata = ToolMetadata(
             name="selenium_chrome",
-            description="Automate Chrome browser using Selenium for web scraping and testing",
+            description="Tool for automating Chrome browser using Selenium - use this for operations like web scraping, browser automation, opening URLs, interacting with web pages, taking screenshots, executing JavaScript, or any task that requires a web browser",
             category=ToolCategory.BROWSER_AUTOMATION,
             version="1.0.0",
             author="Decentralized AI Ecosystem",

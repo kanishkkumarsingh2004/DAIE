@@ -14,36 +14,41 @@ logger = logging.getLogger(__name__)
 
 class FileManagerTool(Tool):
     """
-    A tool for managing files and folders using Create-Edit-Delete operations.
+    A comprehensive file and directory management tool for the Decentralized AI Ecosystem.
     
-    This tool supports various file and directory operations including:
-    - Creating files and directories
-    - Reading, writing, and editing files
-    - Deleting files and directories
-    - Listing directory contents
+    This tool provides a complete set of operations for working with the filesystem, including:
+    - Creating, reading, writing, and appending files
+    - Creating, deleting, and listing directories
     - Copying and moving files/directories
     - Checking file/directory existence and properties
+    - Recursive operations for directories with contents
+    - Handling hidden files and directories
+    - Managing file encodings
+    
+    All operations support async execution and provide detailed result information.
     """
     
     def __init__(self):
         metadata = ToolMetadata(
             name="file_manager",
-            description="Manage files and folders using Create-Edit-Delete operations",
+            description="Comprehensive file and directory management tool for the Decentralized AI Ecosystem - use this for all filesystem operations including creating, reading, writing, deleting, listing, copying, moving files/directories, and checking file system properties",
             category=ToolCategory.FILE,
             version="1.0.0",
             author="Decentralized AI Ecosystem",
             capabilities=[
                 "file_management",
                 "create",
-                "edit",
-                "delete",
                 "read",
                 "write",
+                "append",
+                "delete",
                 "copy",
                 "move",
                 "list",
-                "directory",
-                "filesystem"
+                "directory_management",
+                "filesystem",
+                "recursive_operations",
+                "encoding_handling"
             ],
             parameters=[
                 ToolParameter(
@@ -128,54 +133,50 @@ class FileManagerTool(Tool):
             Dictionary containing operation results
             
         Raises:
-            Exception: If operation fails
+            Exception: If the operation fails (for actions other than delete_file/delete_directory on nonexistent paths)
         """
         try:
             action = params.get("action")
             path = params.get("path")
             
             if not path:
-                raise Exception("Path parameter is required")
+                return {"success": False, "error": "Path parameter is required"}
                 
             path_obj = Path(path)
             
-            if action == "create_file":
-                return self._create_file(path_obj, params)
-            elif action == "create_directory":
-                return self._create_directory(path_obj, params)
-            elif action == "read_file":
-                return self._read_file(path_obj, params)
-            elif action == "write_file":
-                return self._write_file(path_obj, params)
-            elif action == "append_file":
-                return self._append_file(path_obj, params)
-            elif action == "delete_file":
-                return self._delete_file(path_obj, params)
-            elif action == "delete_directory":
-                return self._delete_directory(path_obj, params)
-            elif action == "list_contents":
-                return self._list_contents(path_obj, params)
-            elif action == "copy_file":
-                return self._copy_file(path_obj, params)
-            elif action == "copy_directory":
-                return self._copy_directory(path_obj, params)
-            elif action == "move_file":
-                return self._move_file(path_obj, params)
-            elif action == "move_directory":
-                return self._move_directory(path_obj, params)
-            elif action == "file_exists":
-                return {"exists": path_obj.is_file()}
-            elif action == "directory_exists":
-                return {"exists": path_obj.is_dir()}
-            elif action == "get_file_info":
-                return self._get_file_info(path_obj)
-            elif action == "get_directory_info":
-                return self._get_directory_info(path_obj)
+            # Action handler mapping for O(1) lookup
+            action_handlers = {
+                "create_file": lambda: self._create_file(path_obj, params),
+                "create_directory": lambda: self._create_directory(path_obj, params),
+                "read_file": lambda: self._read_file(path_obj, params),
+                "write_file": lambda: self._write_file(path_obj, params),
+                "append_file": lambda: self._append_file(path_obj, params),
+                "delete_file": lambda: self._delete_file(path_obj, params),
+                "delete_directory": lambda: self._delete_directory(path_obj, params),
+                "list_contents": lambda: self._list_contents(path_obj, params),
+                "copy_file": lambda: self._copy_file(path_obj, params),
+                "copy_directory": lambda: self._copy_directory(path_obj, params),
+                "move_file": lambda: self._move_file(path_obj, params),
+                "move_directory": lambda: self._move_directory(path_obj, params),
+                "file_exists": lambda: {"success": True, "exists": path_obj.is_file()},
+                "directory_exists": lambda: {"success": True, "exists": path_obj.is_dir()},
+                "get_file_info": lambda: self._get_file_info(path_obj),
+                "get_directory_info": lambda: self._get_directory_info(path_obj)
+            }
+            
+            # Get and execute the handler for the specified action
+            handler = action_handlers.get(action)
+            if handler:
+                return handler()
             else:
-                raise Exception(f"Unknown action: {action}")
+                return {"success": False, "error": f"Unknown action: {action}"}
                 
         except Exception as e:
             logger.error(f"File operation failed: {e}")
+            # For delete operations on nonexistent paths, return error without raising
+            if action in ["delete_file", "delete_directory"] and "does not exist" in str(e).lower():
+                return {"success": False, "error": str(e)}
+            # For all other operations, raise the exception
             raise
     
     def _create_file(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -196,7 +197,7 @@ class FileManagerTool(Tool):
                 "message": "File created successfully"
             }
         except Exception as e:
-            raise Exception(f"Failed to create file: {e}")
+            return {"success": False, "error": f"Failed to create file: {e}"}
     
     def _create_directory(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new directory"""
@@ -209,7 +210,7 @@ class FileManagerTool(Tool):
                 "message": "Directory created successfully"
             }
         except Exception as e:
-            raise Exception(f"Failed to create directory: {e}")
+            return {"success": False, "error": f"Failed to create directory: {e}"}
     
     def _read_file(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
         """Read file contents"""
@@ -228,7 +229,7 @@ class FileManagerTool(Tool):
                 "content": content
             }
         except Exception as e:
-            raise Exception(f"Failed to read file: {e}")
+            return {"success": False, "error": f"Failed to read file: {e}"}
     
     def _write_file(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
         """Write to file"""

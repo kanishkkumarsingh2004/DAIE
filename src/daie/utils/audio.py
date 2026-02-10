@@ -5,10 +5,8 @@ Audio handling module using PyAudio
 import logging
 import threading
 import queue
-from typing import Optional, Callable, List, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..agents.config import AgentConfig
+from typing import Optional, Callable, List
+from daie.agents.config import AgentConfig
 
 try:
     import pyaudio

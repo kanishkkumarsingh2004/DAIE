@@ -80,6 +80,13 @@ def setup_logger(
     return logger
 
 
+def setup_logging(*args, **kwargs):
+    """
+    Alias for setup_logger to maintain backward compatibility
+    """
+    return setup_logger(*args, **kwargs)
+
+
 def setup_system_logger(config: SystemConfig):
     """
     Set up logger based on system configuration

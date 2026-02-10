@@ -27,7 +27,7 @@ class TestSeleniumChromeTool:
         tool = SeleniumChromeTool()
         metadata = tool.get_metadata_dict()
         assert metadata["name"] == "selenium_chrome"
-        assert metadata["version"] == "1.0.0"
+        assert metadata["version"] == "2.0.0"
         assert len(metadata["parameters"]) > 0
 
         # Check required parameters

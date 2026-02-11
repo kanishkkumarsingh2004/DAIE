@@ -11,7 +11,7 @@ from daie.core.llm_manager import (
     set_llm,
     get_llm,
     get_llm_config,
-    reset_llm_config
+    reset_llm_config,
 )
 
 __all__ = [
@@ -23,5 +23,5 @@ __all__ = [
     "set_llm",
     "get_llm",
     "get_llm_config",
-    "reset_llm_config"
+    "reset_llm_config",
 ]

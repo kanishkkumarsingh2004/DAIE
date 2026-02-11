@@ -9,7 +9,7 @@ from daie.tools import APICallTool, HTTPGetTool, HTTPPostTool
 
 
 @pytest.mark.asyncio
-@patch('daie.tools.api_tool.requests.request')
+@patch("daie.tools.api_tool.requests.request")
 async def test_api_call_tool_get(mock_request):
     """Test APICallTool with GET method"""
     # Setup mock response
@@ -24,10 +24,9 @@ async def test_api_call_tool_get(mock_request):
     mock_request.return_value = mock_response
 
     tool = APICallTool()
-    result = await tool.execute({
-        "url": "https://api.example.com/data",
-        "method": "GET"
-    })
+    result = await tool.execute(
+        {"url": "https://api.example.com/data", "method": "GET"}
+    )
 
     assert result["status_code"] == 200
     assert result["url"] == "https://api.example.com/data"
@@ -37,7 +36,7 @@ async def test_api_call_tool_get(mock_request):
 
 
 @pytest.mark.asyncio
-@patch('daie.tools.api_tool.requests.get')
+@patch("daie.tools.api_tool.requests.get")
 async def test_http_get_tool(mock_get):
     """Test HTTPGetTool"""
     # Setup mock response
@@ -52,10 +51,9 @@ async def test_http_get_tool(mock_get):
     mock_get.return_value = mock_response
 
     tool = HTTPGetTool()
-    result = await tool.execute({
-        "url": "https://api.example.com/items",
-        "params": {"limit": 3}
-    })
+    result = await tool.execute(
+        {"url": "https://api.example.com/items", "params": {"limit": 3}}
+    )
 
     assert result["status_code"] == 200
     assert "json" in result
@@ -63,7 +61,7 @@ async def test_http_get_tool(mock_get):
 
 
 @pytest.mark.asyncio
-@patch('daie.tools.api_tool.requests.post')
+@patch("daie.tools.api_tool.requests.post")
 async def test_http_post_tool(mock_post):
     """Test HTTPPostTool"""
     # Setup mock response
@@ -78,10 +76,12 @@ async def test_http_post_tool(mock_post):
     mock_post.return_value = mock_response
 
     tool = HTTPPostTool()
-    result = await tool.execute({
-        "url": "https://api.example.com/items",
-        "json": {"name": "Test Item", "value": 42}
-    })
+    result = await tool.execute(
+        {
+            "url": "https://api.example.com/items",
+            "json": {"name": "Test Item", "value": 42},
+        }
+    )
 
     assert result["status_code"] == 201
     assert "json" in result
@@ -89,7 +89,7 @@ async def test_http_post_tool(mock_post):
 
 
 @pytest.mark.asyncio
-@patch('daie.tools.api_tool.requests.request')
+@patch("daie.tools.api_tool.requests.request")
 async def test_api_call_tool_with_headers(mock_request):
     """Test APICallTool with custom headers"""
     # Setup mock response
@@ -102,11 +102,13 @@ async def test_api_call_tool_with_headers(mock_request):
     mock_request.return_value = mock_response
 
     tool = APICallTool()
-    result = await tool.execute({
-        "url": "https://api.example.com/protected",
-        "method": "GET",
-        "headers": {"Authorization": "Bearer token123"}
-    })
+    result = await tool.execute(
+        {
+            "url": "https://api.example.com/protected",
+            "method": "GET",
+            "headers": {"Authorization": "Bearer token123"},
+        }
+    )
 
     assert result["status_code"] == 200
     assert result["json"]["success"] is True
@@ -116,9 +118,7 @@ async def test_api_call_tool_with_headers(mock_request):
 async def test_api_call_tool_validation():
     """Test parameter validation for APICallTool"""
     tool = APICallTool()
-    
+
     # Test missing required parameter (url)
     with pytest.raises(ValueError):
-        await tool.execute({
-            "method": "GET"
-        })
+        await tool.execute({"method": "GET"})

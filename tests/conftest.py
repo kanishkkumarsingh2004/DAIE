@@ -8,13 +8,14 @@ from pydantic_settings import BaseSettings
 @pytest.fixture
 def mock_settings():
     """Mock system settings for testing."""
+
     class MockSettings(BaseSettings):
         NATS_URL: str = "nats://localhost:4222"
         NATS_USERNAME: str = "test_user"
         NATS_PASSWORD: str = "test_password"
         LOG_LEVEL: str = "DEBUG"
         ENCRYPTION_KEY: str = "test_encryption_key_1234"
-    
+
     return MockSettings()
 
 

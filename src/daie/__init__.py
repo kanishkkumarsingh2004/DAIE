@@ -42,7 +42,7 @@ from daie.core import (
     reset_llm_config,
     LLMManager,
     LLMConfig,
-    LLMType
+    LLMType,
 )
 from daie.cli import cli
 
@@ -60,5 +60,5 @@ __all__ = [
     "reset_llm_config",
     "LLMManager",
     "LLMConfig",
-    "LLMType"
+    "LLMType",
 ]

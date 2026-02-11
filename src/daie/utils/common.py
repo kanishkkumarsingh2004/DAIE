@@ -28,7 +28,7 @@ def validate_email(email: str) -> bool:
     Returns:
         True if email is valid, False otherwise
     """
-    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     return re.match(email_regex, email) is not None
 
 
@@ -42,7 +42,7 @@ def validate_url(url: str) -> bool:
     Returns:
         True if URL is valid, False otherwise
     """
-    url_regex = r'^(http|https)://[^\s]+$'
+    url_regex = r"^(http|https)://[^\s]+$"
     return re.match(url_regex, url) is not None
 
 
@@ -57,6 +57,7 @@ def validate_ip_address(ip: str) -> bool:
         True if IP address is valid, False otherwise
     """
     import ipaddress
+
     try:
         ipaddress.ip_address(ip)
         return True
@@ -130,6 +131,7 @@ def memoize(func):
         Decorated function
     """
     import functools
+
     cache = {}
 
     @functools.wraps(func)
@@ -200,18 +202,18 @@ def parse_query_params(query_string: str) -> dict:
         return params
 
     # Remove leading ? if present
-    if query_string.startswith('?'):
+    if query_string.startswith("?"):
         query_string = query_string[1:]
 
-    for param in query_string.split('&'):
-        if '=' in param:
-            key, value = param.split('=', 1)
+    for param in query_string.split("&"):
+        if "=" in param:
+            key, value = param.split("=", 1)
             params[key] = value
 
     return params
 
 
-def truncate(text: str, max_length: int = 100, suffix: str = '...') -> str:
+def truncate(text: str, max_length: int = 100, suffix: str = "...") -> str:
     """
     Truncate text to specified length
 
@@ -225,7 +227,7 @@ def truncate(text: str, max_length: int = 100, suffix: str = '...') -> str:
     """
     if len(text) <= max_length:
         return text
-    return text[:max_length - len(suffix)] + suffix
+    return text[: max_length - len(suffix)] + suffix
 
 
 def format_bytes(size: int, decimal_places: int = 2) -> str:
@@ -239,7 +241,7 @@ def format_bytes(size: int, decimal_places: int = 2) -> str:
     Returns:
         Human readable format
     """
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB', 'PB']:
+    for unit in ["B", "KB", "MB", "GB", "TB", "PB"]:
         if size < 1024.0:
             return f"{size:.{decimal_places}f} {unit}"
         size /= 1024.0
@@ -280,6 +282,7 @@ def is_json(text: str) -> bool:
     """
     try:
         import json
+
         json.loads(text)
         return True
     except Exception:
@@ -299,6 +302,7 @@ def safe_json_loads(text: str, default: Any = None):
     """
     try:
         import json
+
         return json.loads(text)
     except Exception:
         return default
@@ -317,6 +321,7 @@ def safe_json_dumps(obj: Any, default: Any = None):
     """
     try:
         import json
+
         return json.dumps(obj)
     except Exception:
         return default

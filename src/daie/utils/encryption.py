@@ -34,8 +34,8 @@ def encrypt_data(data: str, key: bytes) -> str:
     """
     try:
         fernet = Fernet(key)
-        encrypted_data = fernet.encrypt(data.encode('utf-8'))
-        return base64.urlsafe_b64encode(encrypted_data).decode('utf-8')
+        encrypted_data = fernet.encrypt(data.encode("utf-8"))
+        return base64.urlsafe_b64encode(encrypted_data).decode("utf-8")
     except Exception as e:
         raise Exception(f"Encryption failed: {e}")
 
@@ -53,14 +53,14 @@ def decrypt_data(encrypted_data: str, key: bytes) -> str:
     """
     try:
         fernet = Fernet(key)
-        decoded_data = base64.urlsafe_b64decode(encrypted_data.encode('utf-8'))
+        decoded_data = base64.urlsafe_b64decode(encrypted_data.encode("utf-8"))
         decrypted_data = fernet.decrypt(decoded_data)
-        return decrypted_data.decode('utf-8')
+        return decrypted_data.decode("utf-8")
     except Exception as e:
         raise Exception(f"Decryption failed: {e}")
 
 
-def generate_hash(data: str, algorithm: str = 'sha256') -> str:
+def generate_hash(data: str, algorithm: str = "sha256") -> str:
     """
     Generate hash of data
 
@@ -72,11 +72,11 @@ def generate_hash(data: str, algorithm: str = 'sha256') -> str:
         Hexadecimal hash string
     """
     hash_obj = hashlib.new(algorithm)
-    hash_obj.update(data.encode('utf-8'))
+    hash_obj.update(data.encode("utf-8"))
     return hash_obj.hexdigest()
 
 
-def verify_hash(data: str, expected_hash: str, algorithm: str = 'sha256') -> bool:
+def verify_hash(data: str, expected_hash: str, algorithm: str = "sha256") -> bool:
     """
     Verify data matches expected hash
 
@@ -104,7 +104,9 @@ def generate_salt(size: int = 16) -> bytes:
     return os.urandom(size)
 
 
-def derive_key(password: str, salt: bytes, key_length: int = 32, iterations: int = 100000) -> bytes:
+def derive_key(
+    password: str, salt: bytes, key_length: int = 32, iterations: int = 100000
+) -> bytes:
     """
     Derive a key from password using PBKDF2
 
@@ -118,12 +120,9 @@ def derive_key(password: str, salt: bytes, key_length: int = 32, iterations: int
         Derived key
     """
     kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=key_length,
-        salt=salt,
-        iterations=iterations
+        algorithm=hashes.SHA256(), length=key_length, salt=salt, iterations=iterations
     )
-    return kdf.derive(password.encode('utf-8'))
+    return kdf.derive(password.encode("utf-8"))
 
 
 def secure_random_string(length: int = 32) -> str:
@@ -136,10 +135,12 @@ def secure_random_string(length: int = 32) -> str:
     Returns:
         Secure random string
     """
-    return base64.urlsafe_b64encode(os.urandom(length)).decode('utf-8')[:length]
+    return base64.urlsafe_b64encode(os.urandom(length)).decode("utf-8")[:length]
 
 
-def is_strong_password(password: str, min_length: int = 8, require_special: bool = True) -> bool:
+def is_strong_password(
+    password: str, min_length: int = 8, require_special: bool = True
+) -> bool:
     """
     Check if password is strong
 
@@ -168,6 +169,7 @@ def is_strong_password(password: str, min_length: int = 8, require_special: bool
 
     if require_special:
         import re
+
         # Check for at least one special character
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
             return False
@@ -188,7 +190,8 @@ def sanitize_input(input_str: str, allowed_chars: str = None) -> str:
     """
     if allowed_chars:
         import re
-        return re.sub(f'[^\\{allowed_chars}]', '', input_str)
+
+        return re.sub(f"[^\\{allowed_chars}]", "", input_str)
     else:
         return input_str.strip()
 
@@ -219,6 +222,7 @@ def validate_password_strength(password: str, min_length: int = 8) -> list:
         errors.append("Password must contain at least one digit")
 
     import re
+
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
         errors.append("Password must contain at least one special character")
 
@@ -254,11 +258,11 @@ def mask_secret(secret: str, show_chars: int = 4) -> str:
         Masked secret
     """
     if len(secret) <= show_chars * 2:
-        return '*' * len(secret)
+        return "*" * len(secret)
 
     start = secret[:show_chars]
     end = secret[-show_chars:]
-    mask = '*' * (len(secret) - show_chars * 2)
+    mask = "*" * (len(secret) - show_chars * 2)
     return f"{start}{mask}{end}"
 
 
@@ -273,7 +277,7 @@ def obfuscate_email(email: str) -> str:
         Obfuscated email
     """
     try:
-        username, domain = email.split('@', 1)
+        username, domain = email.split("@", 1)
         if len(username) <= 2:
             return f"{username}@***"
         return f"{username[:2]}***@{domain}"

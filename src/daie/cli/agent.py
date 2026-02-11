@@ -14,9 +14,7 @@ from daie.core.system import DecentralizedAISystem
 from daie.config import SystemConfig
 
 agent_app = typer.Typer(
-    name="agent",
-    help="Agent management commands",
-    add_completion=True
+    name="agent", help="Agent management commands", add_completion=True
 )
 
 console = Console()
@@ -30,39 +28,36 @@ def list_agents():
             "[bold green]List of Agents[/bold green]",
             title="[blue]🤖 Agent Management[/blue]",
             border_style="blue",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
-    
+
     table = Table(
-        show_header=True,
-        header_style="bold blue",
-        border_style="cyan",
-        box=ROUNDED
+        show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
     )
     table.add_column("ID", style="cyan")
     table.add_column("Name", style="magenta")
     table.add_column("Role", style="yellow")
     table.add_column("Status", style="green")
-    
+
     # Get actual agents from the system
-    
+
     # In a real implementation, we would connect to the running system
     # For now, we'll create a temporary system instance to demonstrate
     # Note: This approach won't show agents from a running system
     config = SystemConfig()
     system = DecentralizedAISystem(config=config)
-    
+
     agents = system.list_agents()
-    
+
     for agent in agents:
         table.add_row(
             agent.id,
             agent.name,
             agent.role.value,
-            "Running" if agent.is_running else "Stopped"
+            "Running" if agent.is_running else "Stopped",
         )
-    
+
     console.print(table)
     console.print(f"\nTotal agents: [bold green]{len(agents)}[/bold green]")
 
@@ -71,7 +66,9 @@ def list_agents():
 def create_agent(
     name: str = typer.Option(..., "--name", "-n", help="Agent display name"),
     role: str = typer.Option("general-purpose", "--role", "-r", help="Agent role type"),
-    capabilities: str = typer.Option(None, "--capabilities", "-c", help="Comma-separated list of capabilities"),
+    capabilities: str = typer.Option(
+        None, "--capabilities", "-c", help="Comma-separated list of capabilities"
+    ),
 ):
     """Create a new agent"""
     console.print(
@@ -79,38 +76,41 @@ def create_agent(
             "[bold green]Creating New Agent[/bold green]",
             title="[blue]✨ Agent Creation[/blue]",
             border_style="blue",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
-    
+
     console.print(f"[bold blue]Name:[/bold blue] {name}")
     console.print(f"[bold blue]Role:[/bold blue] {role}")
-    
+
     if capabilities:
         caps = capabilities.split(",")
         console.print(f"[bold blue]Capabilities:[/bold blue] {', '.join(caps)}")
-    
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         transient=True,
     ) as progress:
-        task = progress.add_task(description="Creating agent configuration...", total=None)
+        task = progress.add_task(
+            description="Creating agent configuration...", total=None
+        )
         # Simulate agent creation process
         import time
+
         time.sleep(0.5)
         progress.update(task, description="Registering agent capabilities...")
         time.sleep(0.5)
         progress.update(task, description="Initializing agent memory...")
         time.sleep(0.5)
-    
+
     console.print(
         Panel(
             "[bold green]Agent created successfully![/bold green]\n"
             "To start the agent, use: [bold]dai agent start [agent-id][/bold]",
             title="[green]✅ Creation Complete[/green]",
             border_style="green",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
 
@@ -125,29 +125,32 @@ def start_agent(
             f"[bold green]Starting Agent:[/bold green] {agent_id}",
             title="[blue]🚀 Agent Startup[/blue]",
             border_style="blue",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
-    
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         transient=True,
     ) as progress:
-        task = progress.add_task(description="Connecting to communication system...", total=None)
+        task = progress.add_task(
+            description="Connecting to communication system...", total=None
+        )
         import time
+
         time.sleep(0.5)
         progress.update(task, description="Initializing agent memory...")
         time.sleep(0.5)
         progress.update(task, description="Registering with central core...")
         time.sleep(0.5)
-    
+
     console.print(
         Panel(
             "[bold green]Agent started successfully![/bold green]",
             title="[green]✅ Startup Complete[/green]",
             border_style="green",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
 
@@ -162,29 +165,32 @@ def stop_agent(
             f"[bold yellow]Stopping Agent:[/bold yellow] {agent_id}",
             title="[yellow]⏹️  Agent Shutdown[/yellow]",
             border_style="yellow",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
-    
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         transient=True,
     ) as progress:
-        task = progress.add_task(description="Deregistering from central core...", total=None)
+        task = progress.add_task(
+            description="Deregistering from central core...", total=None
+        )
         import time
+
         time.sleep(0.5)
         progress.update(task, description="Saving agent memory...")
         time.sleep(0.5)
         progress.update(task, description="Closing connections...")
         time.sleep(0.5)
-    
+
     console.print(
         Panel(
             "[bold green]Agent stopped successfully![/bold green]",
             title="[green]✅ Shutdown Complete[/green]",
             border_style="green",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
 
@@ -199,10 +205,10 @@ def agent_status(
             f"[bold blue]Agent Status:[/bold blue] {agent_id}",
             title="[cyan]📊 Agent Information[/cyan]",
             border_style="cyan",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
-    
+
     # Sample status data
     status_data = {
         "ID": agent_id,
@@ -212,20 +218,17 @@ def agent_status(
         "Version": "1.0.0",
         "Uptime": "2 hours, 34 minutes",
         "Memory Usage": "156 MB",
-        "Connections": ["core-system", "agent-001"]
+        "Connections": ["core-system", "agent-001"],
     }
-    
+
     # Display status in a table
     table = Table(
-        show_header=True,
-        header_style="bold blue",
-        border_style="cyan",
-        box=ROUNDED
+        show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
     )
     table.add_column("Property", style="magenta")
     table.add_column("Value", style="cyan")
-    
+
     for key, value in status_data.items():
         table.add_row(key, str(value))
-    
+
     console.print(table)

@@ -11,6 +11,7 @@ from daie.agents.config import AgentConfig
 try:
     import pyaudio
     import wave
+
     PYAUDIO_AVAILABLE = True
 except ImportError:
     pyaudio = None
@@ -87,13 +88,21 @@ class AudioManager:
             for i in range(self.pyaudio.get_device_count()):
                 try:
                     device_info = self.pyaudio.get_device_info_by_index(i)
-                    devices.append({
-                        "id": i,
-                        "name": device_info.get("name", "Unknown"),
-                        "max_input_channels": device_info.get("maxInputChannels", 0),
-                        "max_output_channels": device_info.get("maxOutputChannels", 0),
-                        "default_sample_rate": device_info.get("defaultSampleRate", 0)
-                    })
+                    devices.append(
+                        {
+                            "id": i,
+                            "name": device_info.get("name", "Unknown"),
+                            "max_input_channels": device_info.get(
+                                "maxInputChannels", 0
+                            ),
+                            "max_output_channels": device_info.get(
+                                "maxOutputChannels", 0
+                            ),
+                            "default_sample_rate": device_info.get(
+                                "defaultSampleRate", 0
+                            ),
+                        }
+                    )
                 except Exception as e:
                     logger.warning("Error getting device info for index %d: %s", i, e)
         except Exception as e:
@@ -136,7 +145,7 @@ class AudioManager:
                 input=True,
                 input_device_index=device_index if device_index >= 0 else None,
                 frames_per_buffer=chunk_size,
-                stream_callback=self._input_callback
+                stream_callback=self._input_callback,
             )
 
             self.is_recording = True
@@ -144,9 +153,7 @@ class AudioManager:
 
             if callback:
                 self.recording_thread = threading.Thread(
-                    target=self._processing_thread,
-                    args=(callback,),
-                    daemon=True
+                    target=self._processing_thread, args=(callback,), daemon=True
                 )
                 self.recording_thread.start()
 
@@ -231,9 +238,7 @@ class AudioManager:
         try:
             self.output_queue.put(audio_data)
             self.playback_thread = threading.Thread(
-                target=self._playback_thread,
-                args=(sample_rate,),
-                daemon=True
+                target=self._playback_thread, args=(sample_rate,), daemon=True
             )
             self.playback_thread.start()
 
@@ -257,7 +262,7 @@ class AudioManager:
                 rate=sample_rate,
                 output=True,
                 output_device_index=device_index if device_index >= 0 else None,
-                frames_per_buffer=chunk_size
+                frames_per_buffer=chunk_size,
             )
 
             audio_data = self.output_queue.get()
@@ -265,7 +270,7 @@ class AudioManager:
             # Play audio data in chunks
             chunk_size = min(1024, len(audio_data))
             for i in range(0, len(audio_data), chunk_size):
-                chunk = audio_data[i:i + chunk_size]
+                chunk = audio_data[i : i + chunk_size]
                 self.output_stream.write(chunk)
 
             logger.info("Audio playback completed")
@@ -303,8 +308,13 @@ class AudioManager:
         self.cleanup()
 
 
-def record_audio_file(file_path: str, duration: float, sample_rate: int = 16000,
-                      chunk_size: int = 1024, device_index: int = -1) -> bool:
+def record_audio_file(
+    file_path: str,
+    duration: float,
+    sample_rate: int = 16000,
+    chunk_size: int = 1024,
+    device_index: int = -1,
+) -> bool:
     """
     Record audio to a WAV file
 
@@ -335,7 +345,7 @@ def record_audio_file(file_path: str, duration: float, sample_rate: int = 16000,
             rate=sample_rate,
             input=True,
             input_device_index=device_index if device_index >= 0 else None,
-            frames_per_buffer=chunk_size
+            frames_per_buffer=chunk_size,
         )
 
         logger.info("Recording for %f seconds to %s", duration, file_path)
@@ -347,11 +357,11 @@ def record_audio_file(file_path: str, duration: float, sample_rate: int = 16000,
         stream.stop_stream()
         stream.close()
 
-        wf = wave.open(file_path, 'wb')
+        wf = wave.open(file_path, "wb")
         wf.setnchannels(1)
         wf.setsampwidth(audio_manager.pyaudio.get_sample_size(pyaudio.paInt16))
         wf.setframerate(sample_rate)
-        wf.writeframes(b''.join(frames))
+        wf.writeframes(b"".join(frames))
         wf.close()
 
         logger.info("Recording saved to %s", file_path)
@@ -359,7 +369,7 @@ def record_audio_file(file_path: str, duration: float, sample_rate: int = 16000,
 
     except Exception as e:
         logger.error("Error recording to file: %s", e)
-        if 'stream' in locals() and stream:
+        if "stream" in locals() and stream:
             try:
                 stream.stop_stream()
                 stream.close()
@@ -389,20 +399,20 @@ def play_audio_file(file_path: str) -> bool:
         return False
 
     try:
-        wf = wave.open(file_path, 'rb')
+        wf = wave.open(file_path, "rb")
 
         stream = audio_manager.pyaudio.open(
             format=audio_manager.pyaudio.get_format_from_width(wf.getsampwidth()),
             channels=wf.getnchannels(),
             rate=wf.getframerate(),
-            output=True
+            output=True,
         )
 
         logger.info("Playing audio from %s", file_path)
 
         chunk_size = 1024
         data = wf.readframes(chunk_size)
-        while data != b'':
+        while data != b"":
             stream.write(data)
             data = wf.readframes(chunk_size)
 
@@ -415,7 +425,7 @@ def play_audio_file(file_path: str) -> bool:
 
     except Exception as e:
         logger.error("Error playing audio file: %s", e)
-        if 'stream' in locals() and stream:
+        if "stream" in locals() and stream:
             try:
                 stream.stop_stream()
                 stream.close()

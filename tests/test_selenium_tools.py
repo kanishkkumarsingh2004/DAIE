@@ -41,10 +41,7 @@ class TestSeleniumChromeTool:
         with pytest.raises(Exception):
             # This should fail if Chrome driver is not available
             tool = SeleniumChromeTool()
-            await tool.execute({
-                "action": "open_url",
-                "url": "https://example.com"
-            })
+            await tool.execute({"action": "open_url", "url": "https://example.com"})
 
     def test_screenshot_creation(self, tmp_path):
         """Test if screenshot file is created (mocked test)"""
@@ -54,7 +51,9 @@ class TestSeleniumChromeTool:
 
         # Test default screenshot path
         params1 = {"action": "screenshot"}
-        param_def = next(p for p in tool.metadata.parameters if p.name == "screenshot_path")
+        param_def = next(
+            p for p in tool.metadata.parameters if p.name == "screenshot_path"
+        )
         assert param_def.default == "screenshot.png"
 
         # Test custom screenshot path
@@ -104,21 +103,25 @@ class TestSeleniumChromeToolCapabilities:
             "execute_script",
             "navigate",
             "get_page_source",
-            "get_title"
+            "get_title",
         ]
         assert all(action in action_param.choices for action in expected_actions)
 
     def test_selector_types(self):
         """Test supported selector types"""
         tool = SeleniumChromeTool()
-        selector_param = next(p for p in tool.metadata.parameters if p.name == "selector_type")
+        selector_param = next(
+            p for p in tool.metadata.parameters if p.name == "selector_type"
+        )
         assert "css" in selector_param.choices
         assert "xpath" in selector_param.choices
 
     def test_navigation_actions(self):
         """Test navigation actions support"""
         tool = SeleniumChromeTool()
-        navigate_param = next(p for p in tool.metadata.parameters if p.name == "navigate_action")
+        navigate_param = next(
+            p for p in tool.metadata.parameters if p.name == "navigate_action"
+        )
         assert "back" in navigate_param.choices
         assert "forward" in navigate_param.choices
         assert "refresh" in navigate_param.choices
@@ -126,7 +129,9 @@ class TestSeleniumChromeToolCapabilities:
     def test_screenshot_configuration(self):
         """Test screenshot configuration options"""
         tool = SeleniumChromeTool()
-        screenshot_param = next(p for p in tool.metadata.parameters if p.name == "screenshot_path")
+        screenshot_param = next(
+            p for p in tool.metadata.parameters if p.name == "screenshot_path"
+        )
         assert screenshot_param.default == "screenshot.png"
 
 

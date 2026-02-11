@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PeerInfo:
     """Peer information"""
+
     peer_id: str
     name: str
     role: str
@@ -103,10 +104,12 @@ class CommunicationManager:
 
         self._agents[agent.id] = agent
         logger.info(f"Agent {agent.name} (ID: {agent.id}) registered for communication")
-        
+
         # Create a message handler for the agent
-        self._message_handlers[agent.id] = lambda msg: self._handle_message(agent.id, msg)
-        
+        self._message_handlers[agent.id] = lambda msg: self._handle_message(
+            agent.id, msg
+        )
+
         return self
 
     def deregister_agent(self, agent_id: str) -> "CommunicationManager":
@@ -126,9 +129,11 @@ class CommunicationManager:
         agent = self._agents.pop(agent_id)
         if agent_id in self._message_handlers:
             del self._message_handlers[agent_id]
-            
-        logger.info(f"Agent {agent.name} (ID: {agent_id}) deregistered from communication")
-        
+
+        logger.info(
+            f"Agent {agent.name} (ID: {agent_id}) deregistered from communication"
+        )
+
         return self
 
     def get_agent(self, agent_id: str) -> Optional["Agent"]:
@@ -176,7 +181,7 @@ class CommunicationManager:
             self for method chaining
         """
         import time
-        
+
         if peer_id in self._peers:
             for key, value in info.items():
                 if hasattr(self._peers[peer_id], key):
@@ -189,9 +194,9 @@ class CommunicationManager:
                 role=info.get("role", "unknown"),
                 capabilities=info.get("capabilities", []),
                 last_seen=time.time(),
-                is_connected=True
+                is_connected=True,
             )
-            
+
         return self
 
     def get_peer_count(self) -> int:
@@ -218,18 +223,20 @@ class CommunicationManager:
             return False
 
         try:
-            logger.debug(f"Sending message from {message.sender_id} to {message.receiver_id}")
-            
+            logger.debug(
+                f"Sending message from {message.sender_id} to {message.receiver_id}"
+            )
+
             # Handle broadcast messages
             if message.receiver_id == "*":
                 await self.broadcast_message(message)
             else:
                 # In real implementation, this would use NATS JetStream or P2P
                 await self._send_message_internal(message)
-            
+
             logger.debug(f"Message sent successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error sending message: {e}")
             return False
@@ -239,13 +246,13 @@ class CommunicationManager:
         # For development and testing, use a simple in-memory communication
         if not hasattr(self, "_inbox"):
             self._inbox = {}
-            
+
         if message.receiver_id not in self._inbox:
             self._inbox[message.receiver_id] = []
-            
+
         # Store message in inbox for testing
         self._inbox[message.receiver_id].append(message)
-        
+
         if message.receiver_id in self._agents:
             # Direct agent-to-agent communication
             receiver = self._agents[message.receiver_id]
@@ -264,11 +271,11 @@ class CommunicationManager:
             Number of agents that received the message
         """
         count = 0
-        
+
         # For testing, we'll store the broadcast message in each agent's inbox
         if not hasattr(self, "_inbox"):
             self._inbox = {}
-            
+
         # Send to all agents (including those not registered) for testing purposes
         for agent_id in ["agent2", "agent3"]:
             if agent_id != message.sender_id:
@@ -279,11 +286,11 @@ class CommunicationManager:
                     receiver_id=agent_id,
                     content=message.content,
                     message_type=message.message_type,
-                    metadata=message.metadata
+                    metadata=message.metadata,
                 )
                 self._inbox[agent_id].append(broadcast_msg)
                 count += 1
-                
+
         logger.debug(f"Broadcast message sent to {count} agents")
         return count
 
@@ -311,22 +318,22 @@ class CommunicationManager:
             return
 
         logger.info("Starting communication manager...")
-        
+
         try:
             self._loop = asyncio.get_event_loop()
-            
+
             # Initialize communication connection
             self._connection = await self._initialize_connection()
-            
+
             # Start message listener
             self._loop.create_task(self._listen_for_messages())
-            
+
             # Start peer discovery
             self._loop.create_task(self._discover_peers())
-            
+
             self._is_running = True
             logger.info("Communication manager started successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to start communication manager: {e}")
             self._is_running = False
@@ -339,10 +346,10 @@ class CommunicationManager:
             return
 
         logger.info("Stopping communication manager...")
-        
+
         try:
             self._is_running = False
-            
+
             # Close connection
             if self._connection:
                 # Check if loop is already running
@@ -350,9 +357,9 @@ class CommunicationManager:
                     asyncio.create_task(self._close_connection())
                 else:
                     self._loop.run_until_complete(self._close_connection())
-                
+
             logger.info("Communication manager stopped successfully")
-            
+
         except Exception as e:
             logger.error(f"Error stopping communication manager: {e}")
 
@@ -378,7 +385,9 @@ class CommunicationManager:
             await asyncio.sleep(10)  # Discover peers every 10 seconds
             logger.debug("Discovering peers...")
 
-    def on_message_received(self, agent_id: str, handler: Callable[[AgentMessage], None]):
+    def on_message_received(
+        self, agent_id: str, handler: Callable[[AgentMessage], None]
+    ):
         """
         Register a message handler for an agent
 
@@ -404,26 +413,26 @@ class CommunicationManager:
             "agents_registered": len(self._agents),
             "peers_connected": self.get_peer_count(),
             "total_peers": len(self._peers),
-            "message_handlers": len(self._message_handlers)
+            "message_handlers": len(self._message_handlers),
         }
-        
+
     def receive_messages(self, agent_id: str) -> List[AgentMessage]:
         """
         Receive messages for a specific agent
-        
+
         Args:
             agent_id: Agent ID to receive messages for
-            
+
         Returns:
             List of messages received
         """
         # For testing purposes, we'll track messages in memory
         if not hasattr(self, "_inbox"):
             self._inbox = {}
-            
+
         if agent_id not in self._inbox:
             self._inbox[agent_id] = []
-            
+
         messages = self._inbox[agent_id]
         # Clear the inbox after reading
         self._inbox[agent_id] = []

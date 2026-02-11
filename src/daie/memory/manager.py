@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MemoryItem:
     """Memory item structure"""
+
     id: str
     content: str
     memory_type: str
@@ -87,17 +88,17 @@ class MemoryManager:
             return
 
         logger.info("Starting memory manager...")
-        
+
         try:
             # Initialize storage
             self._initialize_storage()
-            
+
             # Load existing agent memories
             self._load_agent_memories()
-            
+
             self._is_initialized = True
             logger.info("Memory manager started successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to start memory manager: {e}")
             raise
@@ -107,11 +108,11 @@ class MemoryManager:
         if not self._is_initialized:
             logger.warning("Memory manager already stopped")
             return
-            
+
         # Save all agent memories to file system
         for agent_id in self._agent_memories:
             self._save_agent_memory(agent_id)
-            
+
         self._is_initialized = False
         logger.info("Memory manager stopped")
 
@@ -122,8 +123,10 @@ class MemoryManager:
         elif self.config.memory_storage_type == "in-memory":
             logger.info("Using in-memory storage (non-persistent)")
         else:
-            logger.warning("Unsupported storage type: %s, using file system instead", 
-                        self.config.memory_storage_type)
+            logger.warning(
+                "Unsupported storage type: %s, using file system instead",
+                self.config.memory_storage_type,
+            )
             self.config.memory_storage_type = "file"
 
     def _get_agent_directory(self, agent_id: str) -> str:
@@ -136,10 +139,10 @@ class MemoryManager:
         """Load agent memory from file system"""
         if self.config.memory_storage_type != "file":
             return
-            
+
         agent_dir = self._get_agent_directory(agent_id)
         memory_file = os.path.join(agent_dir, "memory.json")
-        
+
         if os.path.exists(memory_file):
             try:
                 with open(memory_file, "r", encoding="utf-8") as f:
@@ -149,9 +152,13 @@ class MemoryManager:
                         self._agent_memories[agent_id][memory_type] = [
                             MemoryItem(**item) for item in items
                         ]
-                logger.debug("Loaded memory for agent %s: %d items", 
-                           agent_id, 
-                           sum(len(items) for items in self._agent_memories[agent_id].values()))
+                logger.debug(
+                    "Loaded memory for agent %s: %d items",
+                    agent_id,
+                    sum(
+                        len(items) for items in self._agent_memories[agent_id].values()
+                    ),
+                )
             except Exception as e:
                 logger.error(f"Failed to load memory for agent {agent_id}: {e}")
                 self._agent_memories[agent_id] = {}
@@ -162,13 +169,13 @@ class MemoryManager:
         """Save agent memory to file system"""
         if self.config.memory_storage_type != "file":
             return
-            
+
         if agent_id not in self._agent_memories:
             return
-            
+
         agent_dir = self._get_agent_directory(agent_id)
         memory_file = os.path.join(agent_dir, "memory.json")
-        
+
         try:
             data = {}
             for memory_type, items in self._agent_memories[agent_id].items():
@@ -179,16 +186,19 @@ class MemoryManager:
                         "memory_type": item.memory_type,
                         "timestamp": item.timestamp,
                         "metadata": item.metadata,
-                        "tags": item.tags
-                    } for item in items
+                        "tags": item.tags,
+                    }
+                    for item in items
                 ]
-                
+
             with open(memory_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-                
-            logger.debug("Saved memory for agent %s: %d items", 
-                       agent_id, 
-                       sum(len(items) for items in self._agent_memories[agent_id].values()))
+
+            logger.debug(
+                "Saved memory for agent %s: %d items",
+                agent_id,
+                sum(len(items) for items in self._agent_memories[agent_id].values()),
+            )
         except Exception as e:
             logger.error(f"Failed to save memory for agent {agent_id}: {e}")
 
@@ -196,7 +206,7 @@ class MemoryManager:
         """Load all agent memories from storage"""
         logger.debug("Loading agent memories from storage...")
         self._agent_memories = {}
-        
+
         if self.config.memory_storage_type == "file":
             try:
                 # List all directories in the root path
@@ -225,10 +235,10 @@ class MemoryManager:
                 self._agent_memories[agent_id] = {
                     "working": [],
                     "semantic": [],
-                    "episodic": []
+                    "episodic": [],
                 }
             logger.info(f"Memory initialized for agent: {agent_id}")
-            
+
         return self
 
     def store_memory(
@@ -237,7 +247,7 @@ class MemoryManager:
         content: str,
         memory_type: str = "working",
         metadata: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ) -> str:
         """
         Store a memory item
@@ -261,7 +271,7 @@ class MemoryManager:
             memory_type=memory_type,
             timestamp=time.time(),
             metadata=metadata or {},
-            tags=tags or []
+            tags=tags or [],
         )
 
         # Check if memory type exists
@@ -274,15 +284,17 @@ class MemoryManager:
         max_items = self.config.max_memory_items or 1000
         if len(self._agent_memories[agent_id][memory_type]) > max_items:
             # Remove oldest items
-            self._agent_memories[agent_id][memory_type] = self._agent_memories[agent_id][memory_type][-max_items:]
+            self._agent_memories[agent_id][memory_type] = self._agent_memories[
+                agent_id
+            ][memory_type][-max_items:]
 
         # Handle case where content might not be a string (like a dictionary)
         content_str = str(content)
         logger.debug(f"Memory stored for agent {agent_id}: {content_str[:50]}...")
-        
+
         # Save to persistent storage
         self._save_agent_memory(agent_id)
-        
+
         return memory_item.id
 
     def retrieve_memories(
@@ -290,7 +302,7 @@ class MemoryManager:
         agent_id: str,
         memory_type: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[MemoryItem]:
         """
         Retrieve memories for an agent
@@ -308,7 +320,7 @@ class MemoryManager:
             return []
 
         all_memories = []
-        
+
         if memory_type:
             if memory_type in self._agent_memories[agent_id]:
                 all_memories.extend(self._agent_memories[agent_id][memory_type])
@@ -319,8 +331,7 @@ class MemoryManager:
         # Filter by tags if specified
         if tags:
             all_memories = [
-                item for item in all_memories
-                if any(tag in tags for tag in item.tags)
+                item for item in all_memories if any(tag in tags for tag in item.tags)
             ]
 
         # Sort by timestamp (newest first) and apply limit
@@ -336,7 +347,7 @@ class MemoryManager:
         """
         if agent_id in self._agent_memories:
             del self._agent_memories[agent_id]
-            
+
             if self.config.memory_storage_type == "file":
                 agent_dir = self._get_agent_directory(agent_id)
                 memory_file = os.path.join(agent_dir, "memory.json")
@@ -345,7 +356,9 @@ class MemoryManager:
                         os.remove(memory_file)
                         logger.debug(f"Cleared memory for agent: {agent_id}")
                     except Exception as e:
-                        logger.error(f"Failed to clear memory for agent {agent_id}: {e}")
+                        logger.error(
+                            f"Failed to clear memory for agent {agent_id}: {e}"
+                        )
 
     def get_memory_count(self, agent_id: str, memory_type: Optional[str] = None) -> int:
         """
@@ -366,4 +379,6 @@ class MemoryManager:
                 return len(self._agent_memories[agent_id][memory_type])
             return 0
         else:
-            return sum(len(memories) for memories in self._agent_memories[agent_id].values())
+            return sum(
+                len(memories) for memories in self._agent_memories[agent_id].values()
+            )

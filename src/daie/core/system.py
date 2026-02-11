@@ -54,6 +54,7 @@ class DecentralizedAISystem:
 
         # Set up logging
         from daie.utils.logger import setup_system_logger
+
         setup_system_logger(self.config)
 
     def add_agent(self, agent: Agent) -> "DecentralizedAISystem":
@@ -68,7 +69,7 @@ class DecentralizedAISystem:
         """
         if agent.id in self.agents:
             raise ValueError(f"Agent with ID {agent.id} already exists")
-        
+
         self.agents[agent.id] = agent
         logger.info(f"Agent {agent.name} (ID: {agent.id}) added to system")
         return self
@@ -120,35 +121,37 @@ class DecentralizedAISystem:
             return
 
         logger.info("Starting Decentralized AI System...")
-        
+
         try:
             # Create PID file
             self._create_pid_file()
-            
+
             # Initialize communication manager
             self.communication_manager.start()
-            
+
             # Initialize memory manager
             self.memory_manager.start()
-            
+
             # Start all agents
             for agent in self.agents.values():
-                agent.start(self.communication_manager, self.memory_manager, self.tool_registry)
-            
+                agent.start(
+                    self.communication_manager, self.memory_manager, self.tool_registry
+                )
+
             self._is_running = True
             logger.info(f"System started successfully with {len(self.agents)} agents")
-            
+
             # Run event loop with shutdown handlers
             self._loop = asyncio.get_event_loop()
             self._shutdown_event = asyncio.Event()
-            
+
             # Set up signal handlers
             self._loop.add_signal_handler(signal.SIGINT, self._signal_handler)
             self._loop.add_signal_handler(signal.SIGTERM, self._signal_handler)
-            
+
             # Run event loop until shutdown
             self._loop.run_until_complete(self._run_event_loop())
-            
+
         except Exception as e:
             logger.error(f"Failed to start system: {e}")
             self.stop()
@@ -178,32 +181,32 @@ class DecentralizedAISystem:
             return
 
         logger.info("Stopping Decentralized AI System...")
-        
+
         try:
             # Stop all agents
             for agent in self.agents.values():
                 agent.stop()
-            
+
             # Stop memory manager
             self.memory_manager.stop()
-            
+
             # Stop communication manager
             self.communication_manager.stop()
-            
+
             # Stop event loop
             if self._loop and self._loop.is_running():
                 try:
                     self._loop.stop()
                 except Exception:
                     pass
-            
+
             self._is_running = False
-            
+
             # Remove PID file
             self._remove_pid_file()
-            
+
             logger.info("System stopped successfully")
-            
+
         except Exception as e:
             logger.error(f"Error during system shutdown: {e}")
 
@@ -280,16 +283,14 @@ class DecentralizedAISystem:
                     "id": agent.id,
                     "name": agent.name,
                     "role": agent.role,
-                    "status": "running" if agent.is_running else "stopped"
+                    "status": "running" if agent.is_running else "stopped",
                 }
                 for agent in self.agents.values()
             ],
             "tool_count": len(self.tool_registry.list_tools()),
             "communication": {
                 "connected": self.communication_manager.is_connected,
-                "peers": self.communication_manager.get_peer_count()
+                "peers": self.communication_manager.get_peer_count(),
             },
-            "memory": {
-                "initialized": self.memory_manager.is_initialized
-            }
+            "memory": {"initialized": self.memory_manager.is_initialized},
         }

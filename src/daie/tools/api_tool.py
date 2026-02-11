@@ -33,14 +33,14 @@ class APICallTool(Tool):
                 "http_put",
                 "http_delete",
                 "http_patch",
-                "api_requests"
+                "api_requests",
             ],
             parameters=[
                 ToolParameter(
                     name="url",
                     type="string",
                     description="API endpoint URL to call",
-                    required=True
+                    required=True,
                 ),
                 ToolParameter(
                     name="method",
@@ -48,51 +48,51 @@ class APICallTool(Tool):
                     description="HTTP method to use (GET, POST, PUT, DELETE, PATCH)",
                     required=True,
                     default="GET",
-                    choices=["GET", "POST", "PUT", "DELETE", "PATCH"]
+                    choices=["GET", "POST", "PUT", "DELETE", "PATCH"],
                 ),
                 ToolParameter(
                     name="headers",
                     type="object",
                     description="HTTP headers to send with the request",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="params",
                     type="object",
                     description="Query parameters to include in the URL",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="data",
                     type="object",
                     description="Form data to send with the request (for POST/PUT)",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="json",
                     type="object",
                     description="JSON data to send with the request (for POST/PUT)",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="timeout",
                     type="number",
                     description="Request timeout in seconds",
                     required=False,
-                    default=30
+                    default=30,
                 ),
                 ToolParameter(
                     name="verify_ssl",
                     type="boolean",
                     description="Whether to verify SSL certificates",
                     required=False,
-                    default=True
-                )
-            ]
+                    default=True,
+                ),
+            ],
         )
         super().__init__(metadata)
 
@@ -126,7 +126,7 @@ class APICallTool(Tool):
                 "headers": headers,
                 "params": params_dict,
                 "timeout": timeout,
-                "verify": verify_ssl
+                "verify": verify_ssl,
             }
 
             if data:
@@ -144,7 +144,7 @@ class APICallTool(Tool):
                 "headers": dict(response.headers),
                 "encoding": response.encoding,
                 "reason": response.reason,
-                "elapsed": response.elapsed.total_seconds()
+                "elapsed": response.elapsed.total_seconds(),
             }
 
             # Try to parse JSON response
@@ -153,7 +153,9 @@ class APICallTool(Tool):
             except Exception:
                 result["text"] = response.text
 
-            logger.debug(f"API call completed: {response.status_code} {response.reason}")
+            logger.debug(
+                f"API call completed: {response.status_code} {response.reason}"
+            )
 
             return result
 
@@ -180,37 +182,37 @@ class HTTPGetTool(Tool):
                     name="url",
                     type="string",
                     description="API endpoint URL to call",
-                    required=True
+                    required=True,
                 ),
                 ToolParameter(
                     name="headers",
                     type="object",
                     description="HTTP headers to send with the request",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="params",
                     type="object",
                     description="Query parameters to include in the URL",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="timeout",
                     type="number",
                     description="Request timeout in seconds",
                     required=False,
-                    default=30
+                    default=30,
                 ),
                 ToolParameter(
                     name="verify_ssl",
                     type="boolean",
                     description="Whether to verify SSL certificates",
                     required=False,
-                    default=True
-                )
-            ]
+                    default=True,
+                ),
+            ],
         )
         super().__init__(metadata)
 
@@ -238,7 +240,7 @@ class HTTPGetTool(Tool):
                 headers=headers,
                 params=params_dict,
                 timeout=timeout,
-                verify=verify_ssl
+                verify=verify_ssl,
             )
 
             result = {
@@ -247,7 +249,7 @@ class HTTPGetTool(Tool):
                 "headers": dict(response.headers),
                 "encoding": response.encoding,
                 "reason": response.reason,
-                "elapsed": response.elapsed.total_seconds()
+                "elapsed": response.elapsed.total_seconds(),
             }
 
             try:
@@ -255,7 +257,9 @@ class HTTPGetTool(Tool):
             except Exception:
                 result["text"] = response.text
 
-            logger.debug(f"GET request completed: {response.status_code} {response.reason}")
+            logger.debug(
+                f"GET request completed: {response.status_code} {response.reason}"
+            )
 
             return result
 
@@ -282,51 +286,51 @@ class HTTPPostTool(Tool):
                     name="url",
                     type="string",
                     description="API endpoint URL to call",
-                    required=True
+                    required=True,
                 ),
                 ToolParameter(
                     name="headers",
                     type="object",
                     description="HTTP headers to send with the request",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="params",
                     type="object",
                     description="Query parameters to include in the URL",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="data",
                     type="object",
                     description="Form data to send with the request",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="json",
                     type="object",
                     description="JSON data to send with the request",
                     required=False,
-                    default=None
+                    default=None,
                 ),
                 ToolParameter(
                     name="timeout",
                     type="number",
                     description="Request timeout in seconds",
                     required=False,
-                    default=30
+                    default=30,
                 ),
                 ToolParameter(
                     name="verify_ssl",
                     type="boolean",
                     description="Whether to verify SSL certificates",
                     required=False,
-                    default=True
-                )
-            ]
+                    default=True,
+                ),
+            ],
         )
         super().__init__(metadata)
 
@@ -355,7 +359,7 @@ class HTTPPostTool(Tool):
                 "headers": headers,
                 "params": params_dict,
                 "timeout": timeout,
-                "verify": verify_ssl
+                "verify": verify_ssl,
             }
 
             if data:
@@ -371,7 +375,7 @@ class HTTPPostTool(Tool):
                 "headers": dict(response.headers),
                 "encoding": response.encoding,
                 "reason": response.reason,
-                "elapsed": response.elapsed.total_seconds()
+                "elapsed": response.elapsed.total_seconds(),
             }
 
             try:
@@ -379,7 +383,9 @@ class HTTPPostTool(Tool):
             except Exception:
                 result["text"] = response.text
 
-            logger.debug(f"POST request completed: {response.status_code} {response.reason}")
+            logger.debug(
+                f"POST request completed: {response.status_code} {response.reason}"
+            )
 
             return result
 
@@ -401,8 +407,4 @@ class APIToolkit:
         Returns:
             List of API tool instances
         """
-        return [
-            APICallTool(),
-            HTTPGetTool(),
-            HTTPPostTool()
-        ]
+        return [APICallTool(), HTTPGetTool(), HTTPPostTool()]

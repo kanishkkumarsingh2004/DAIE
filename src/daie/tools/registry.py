@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ToolRegistration:
     """Tool registration information"""
+
     tool: Tool
     metadata: ToolMetadata
     registered_at: float
@@ -52,24 +53,21 @@ class ToolRegistry:
         """Initialize tool registry"""
         self._tools: Dict[str, ToolRegistration] = {}
         self._categories: Dict[str, List[Tool]] = {}
-        self._tool_events = {
-            "register": [],
-            "unregister": [],
-            "update": []
-        }
+        self._tool_events = {"register": [], "unregister": [], "update": []}
         self._usage_counts: Dict[str, int] = {}
         logger.info("Tool registry initialized")
-        
+
     def register_tool(self, name: str):
         """
         Decorator for registering a tool with the registry
-        
+
         Args:
             name: Tool name
-            
+
         Returns:
             Decorator function
         """
+
         def decorator(cls):
             # Check if this is already an instance or a class
             if isinstance(cls, Tool):
@@ -77,42 +75,43 @@ class ToolRegistry:
             else:
                 # If it's a class, instantiate it
                 tool_instance = cls()
-                
+
             tool_instance.name = name
             self.register(tool_instance)
             return cls
+
         return decorator
-        
+
     def unregister_tool(self, tool_name: str) -> "ToolRegistry":
         """
         Unregister a tool from the registry (alias for unregister)
-        
+
         Args:
             tool_name: Name of tool to unregister
-            
+
         Returns:
             self for method chaining
         """
         return self.unregister(tool_name)
-        
+
     def invoke_tool(self, tool_name: str, **kwargs) -> Any:
         """
         Invoke a tool with the given parameters
-        
+
         Args:
             tool_name: Name of tool to invoke
             **kwargs: Parameters to pass to the tool
-            
+
         Returns:
             Result of tool invocation
-            
+
         Raises:
             ValueError: If tool not found
         """
         tool = self.get_tool(tool_name)
         if not tool:
             raise ValueError(f"Tool '{tool_name}' not found")
-            
+
         return tool.execute(**kwargs)
 
     def register(self, tool: Tool) -> "ToolRegistry":
@@ -129,20 +128,18 @@ class ToolRegistry:
             ValueError: If tool with same name already exists
         """
         tool_name = tool.name
-        
+
         if tool_name in self._tools:
             raise ValueError(f"Tool '{tool_name}' already registered")
 
         import time
+
         registration = ToolRegistration(
-            tool=tool,
-            metadata=tool.metadata,
-            registered_at=time.time(),
-            usage_count=0
+            tool=tool, metadata=tool.metadata, registered_at=time.time(), usage_count=0
         )
 
         self._tools[tool_name] = registration
-        
+
         # Add to category index
         category = tool.category.value
         if category not in self._categories:
@@ -154,7 +151,7 @@ class ToolRegistry:
 
         logger.info(f"Tool '{tool_name}' registered successfully")
         self._notify_event("register", tool)
-        
+
         return self
 
     def unregister(self, tool_name: str) -> "ToolRegistry":
@@ -172,7 +169,7 @@ class ToolRegistry:
             return self
 
         tool = self._tools[tool_name].tool
-        
+
         # Remove from category index
         category = tool.category.value
         if category in self._categories and tool in self._categories[category]:
@@ -182,14 +179,14 @@ class ToolRegistry:
 
         # Remove from tools dictionary
         del self._tools[tool_name]
-        
+
         # Remove usage count
         if tool_name in self._usage_counts:
             del self._usage_counts[tool_name]
 
         logger.info(f"Tool '{tool_name}' unregistered successfully")
         self._notify_event("unregister", tool)
-        
+
         return self
 
     def get_tool(self, tool_name: str) -> Optional[Tool]:
@@ -209,7 +206,7 @@ class ToolRegistry:
         # Increment usage count
         self._usage_counts[tool_name] = self._usage_counts.get(tool_name, 0) + 1
         self._tools[tool_name].usage_count += 1
-        
+
         return self._tools[tool_name].tool
 
     def list_tools(self) -> List[Tool]:
@@ -254,15 +251,17 @@ class ToolRegistry:
         """
         keyword = keyword.lower()
         matching_tools = []
-        
+
         for registration in self._tools.values():
             if (
-                keyword in registration.metadata.name.lower() or
-                keyword in registration.metadata.description.lower() or
-                any(keyword in cap.lower() for cap in registration.metadata.capabilities)
+                keyword in registration.metadata.name.lower()
+                or keyword in registration.metadata.description.lower()
+                or any(
+                    keyword in cap.lower() for cap in registration.metadata.capabilities
+                )
             ):
                 matching_tools.append(registration.tool)
-                
+
         return matching_tools
 
     def get_tool_metadata(self, tool_name: str) -> Optional[ToolMetadata]:
@@ -277,7 +276,7 @@ class ToolRegistry:
         """
         if tool_name not in self._tools:
             return None
-            
+
         return self._tools[tool_name].metadata
 
     def get_usage_count(self, tool_name: str) -> int:
@@ -303,11 +302,9 @@ class ToolRegistry:
             List of tool instances sorted by usage count
         """
         sorted_tools = sorted(
-            self._tools.values(),
-            key=lambda x: x.usage_count,
-            reverse=True
+            self._tools.values(), key=lambda x: x.usage_count, reverse=True
         )
-        
+
         return [registration.tool for registration in sorted_tools[:count]]
 
     def get_tool_count(self) -> int:
@@ -341,11 +338,13 @@ class ToolRegistry:
         tools_to_remove = list(self._tools.keys())
         for tool_name in tools_to_remove:
             self.unregister(tool_name)
-            
+
         logger.info("All tools unregistered")
         return self
 
-    def on_event(self, event_type: str, handler: Callable[[Tool], None]) -> "ToolRegistry":
+    def on_event(
+        self, event_type: str, handler: Callable[[Tool], None]
+    ) -> "ToolRegistry":
         """
         Register an event handler for tool events
 
@@ -358,7 +357,7 @@ class ToolRegistry:
         """
         if event_type in self._tool_events:
             self._tool_events[event_type].append(handler)
-            
+
         return self
 
     def _notify_event(self, event_type: str, tool: Tool):
@@ -385,9 +384,9 @@ class ToolRegistry:
 
         self.unregister(old_tool_name)
         self.register(new_tool)
-        
+
         self._notify_event("update", new_tool)
-        
+
         return self
 
     def get_tool_registration_info(self, tool_name: str) -> Optional[ToolRegistration]:
@@ -410,21 +409,18 @@ class ToolRegistry:
             Dictionary with registry statistics
         """
         from collections import defaultdict
-        
+
         category_counts = defaultdict(int)
         for registration in self._tools.values():
             category_counts[registration.metadata.category.value] += 1
-            
+
         return {
             "total_tools": self.get_tool_count(),
             "categories": list(category_counts.keys()),
             "category_counts": dict(category_counts),
             "total_usage": sum(self._usage_counts.values()),
             "top_used": [
-                {
-                    "name": tool.name,
-                    "usage": self._usage_counts[tool.name]
-                }
+                {"name": tool.name, "usage": self._usage_counts[tool.name]}
                 for tool in self.get_top_used_tools(10)
-            ]
+            ],
         }

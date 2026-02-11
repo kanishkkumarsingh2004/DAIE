@@ -118,7 +118,7 @@ def load_json_file(file_path: str) -> Any:
         Parsed object
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         raise Exception(f"Failed to load JSON file: {e}")
@@ -135,7 +135,7 @@ def save_json_file(obj: Any, file_path: str, indent: int = 2, sort_keys: bool = 
         sort_keys: Whether to sort keys
     """
     try:
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(obj, f, indent=indent, sort_keys=sort_keys, default=str)
     except Exception as e:
         raise Exception(f"Failed to save JSON file: {e}")
@@ -152,7 +152,7 @@ def load_yaml_file(file_path: str) -> Any:
         Parsed object
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
     except Exception as e:
         raise Exception(f"Failed to load YAML file: {e}")
@@ -168,7 +168,7 @@ def save_yaml_file(obj: Any, file_path: str, indent: int = 2):
         indent: Indentation for pretty printing
     """
     try:
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             yaml.dump(obj, f, default_flow_style=False, indent=indent)
     except Exception as e:
         raise Exception(f"Failed to save YAML file: {e}")
@@ -185,7 +185,7 @@ def load_pickle_file(file_path: str) -> Any:
         Deserialized object
     """
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             return pickle.load(f)
     except Exception as e:
         raise Exception(f"Failed to load pickle file: {e}")
@@ -200,7 +200,7 @@ def save_pickle_file(obj: Any, file_path: str):
         file_path: Path to save file
     """
     try:
-        with open(file_path, 'wb') as f:
+        with open(file_path, "wb") as f:
             pickle.dump(obj, f)
     except Exception as e:
         raise Exception(f"Failed to save pickle file: {e}")
@@ -221,7 +221,9 @@ def to_csv(data: list, headers: list = None) -> str:
     from io import StringIO
 
     output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=headers) if headers else csv.writer(output)
+    writer = (
+        csv.DictWriter(output, fieldnames=headers) if headers else csv.writer(output)
+    )
 
     if headers:
         writer.writeheader()
@@ -264,6 +266,7 @@ def format_json_for_display(data: Any, indent: int = 2, sort_keys: bool = True) 
     """
     try:
         import json
+
         return json.dumps(data, indent=indent, sort_keys=sort_keys, default=str)
     except Exception:
         return str(data)
@@ -282,6 +285,7 @@ def format_yaml_for_display(data: Any, indent: int = 2) -> str:
     """
     try:
         import yaml
+
         return yaml.dump(data, default_flow_style=False, indent=indent)
     except Exception:
         return str(data)
@@ -307,13 +311,13 @@ class Serializer:
     def __init__(self):
         """Initialize serializer with support for various formats"""
         self._format_handlers = {
-            'json': (to_json, from_json),
-            'yaml': (to_yaml, from_yaml),
-            'pickle': (to_pickle, from_pickle),
-            'csv': (to_csv, from_csv),
+            "json": (to_json, from_json),
+            "yaml": (to_yaml, from_yaml),
+            "pickle": (to_pickle, from_pickle),
+            "csv": (to_csv, from_csv),
         }
 
-    def serialize(self, obj: Any, format: str = 'json', **kwargs) -> Any:
+    def serialize(self, obj: Any, format: str = "json", **kwargs) -> Any:
         """
         Serialize object to specified format
 
@@ -331,7 +335,7 @@ class Serializer:
         serializer, _ = self._format_handlers[format]
         return serializer(obj, **kwargs)
 
-    def deserialize(self, data: Any, format: str = 'json', **kwargs) -> Any:
+    def deserialize(self, data: Any, format: str = "json", **kwargs) -> Any:
         """
         Deserialize data from specified format
 
@@ -362,13 +366,14 @@ class Serializer:
         """
         if not format:
             import os
+
             format = os.path.splitext(file_path)[1][1:].lower()
 
-        if format == 'json':
+        if format == "json":
             return load_json_file(file_path)
-        elif format == 'yaml' or format == 'yml':
+        elif format == "yaml" or format == "yml":
             return load_yaml_file(file_path)
-        elif format == 'pickle' or format == 'pkl':
+        elif format == "pickle" or format == "pkl":
             return load_pickle_file(file_path)
         else:
             raise ValueError(f"Unsupported file format: {format}")
@@ -385,13 +390,14 @@ class Serializer:
         """
         if not format:
             import os
+
             format = os.path.splitext(file_path)[1][1:].lower()
 
-        if format == 'json':
+        if format == "json":
             save_json_file(obj, file_path, **kwargs)
-        elif format == 'yaml' or format == 'yml':
+        elif format == "yaml" or format == "yml":
             save_yaml_file(obj, file_path, **kwargs)
-        elif format == 'pickle' or format == 'pkl':
+        elif format == "pickle" or format == "pkl":
             save_pickle_file(obj, file_path)
         else:
             raise ValueError(f"Unsupported file format: {format}")

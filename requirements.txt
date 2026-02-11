@@ -37,6 +37,16 @@ typing_extensions==4.15.0
 # Daemon support
 # python-daemon==3.0.1
 
+# RAG (Retrieval-Augmented Generation) support (install with pip install "daie[rag]")
+# langchain==0.1.0
+# langchain-community==0.0.1
+# langchain-core==0.1.0
+# pdfminer.six==20221105
+# python-docx==0.8.11
+# textract==1.6.5
+# chromadb==0.4.15
+# faiss-cpu==1.7.4
+
 # Test dependencies (install with pip install "daie[dev]")
 # pytest==9.0.2
 # pytest-asyncio==1.3.0

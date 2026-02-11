@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Decentralized AI Ecosystem API",
     description="API for managing the Decentralized AI Ecosystem",
-    version="1.0.1"
+    version="1.0.1",
 )
 
 # Enable CORS
@@ -56,6 +56,7 @@ async def shutdown_event():
 async def root():
     """Root endpoint"""
     from daie import __version__
+
     return {"message": "Decentralized AI Ecosystem API", "version": __version__}
 
 
@@ -70,7 +71,7 @@ async def get_system_status():
     """Get system status"""
     if not system:
         raise HTTPException(status_code=500, detail="System not initialized")
-    
+
     return system.get_status()
 
 
@@ -79,7 +80,7 @@ async def list_agents():
     """List all agents"""
     if not system:
         raise HTTPException(status_code=500, detail="System not initialized")
-    
+
     agents = system.list_agents()
     return {
         "count": len(agents),
@@ -88,10 +89,10 @@ async def list_agents():
                 "id": agent.id,
                 "name": agent.name,
                 "role": agent.role.value,
-                "status": "running" if agent.is_running else "stopped"
+                "status": "running" if agent.is_running else "stopped",
             }
             for agent in agents
-        ]
+        ],
     }
 
 
@@ -100,22 +101,23 @@ async def get_agent(agent_id: str):
     """Get agent details"""
     if not system:
         raise HTTPException(status_code=500, detail="System not initialized")
-    
+
     agent = system.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     return {
         "id": agent.id,
         "name": agent.name,
         "role": agent.role.value,
         "status": "running" if agent.is_running else "stopped",
-        "config": agent.config.to_dict()
+        "config": agent.config.to_dict(),
     }
 
 
 class AgentCreateRequest(BaseModel):
     """Request model for creating an agent"""
+
     name: str
     role: str = "general-purpose"
     goal: Optional[str] = None
@@ -129,32 +131,29 @@ async def create_agent(request: AgentCreateRequest):
     """Create a new agent"""
     if not system:
         raise HTTPException(status_code=500, detail="System not initialized")
-    
+
     try:
         role = AgentRole(request.role)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid role")
-    
+
     config = AgentConfig(
         name=request.name,
         role=role,
         goal=request.goal,
         backstory=request.backstory,
         system_prompt=request.system_prompt,
-        capabilities=request.capabilities
+        capabilities=request.capabilities,
     )
-    
+
     from daie.agents import Agent
+
     agent = Agent(config=config)
     system.add_agent(agent)
-    
+
     return {
         "message": "Agent created successfully",
-        "agent": {
-            "id": agent.id,
-            "name": agent.name,
-            "role": agent.role.value
-        }
+        "agent": {"id": agent.id, "name": agent.name, "role": agent.role.value},
     }
 
 
@@ -163,11 +162,11 @@ async def start_agent(agent_id: str):
     """Start an agent"""
     if not system:
         raise HTTPException(status_code=500, detail="System not initialized")
-    
+
     agent = system.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     try:
         agent.start()
         return {"message": "Agent started successfully"}
@@ -180,11 +179,11 @@ async def stop_agent(agent_id: str):
     """Stop an agent"""
     if not system:
         raise HTTPException(status_code=500, detail="System not initialized")
-    
+
     agent = system.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     try:
         agent.stop()
         return {"message": "Agent stopped successfully"}
@@ -197,11 +196,11 @@ async def delete_agent(agent_id: str):
     """Delete an agent"""
     if not system:
         raise HTTPException(status_code=500, detail="System not initialized")
-    
+
     agent = system.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     try:
         del system.agents[agent_id]
         return {"message": "Agent deleted successfully"}
@@ -212,11 +211,7 @@ async def delete_agent(agent_id: str):
 def start_server(host: str = "0.0.0.0", port: int = 3333, reload: bool = False):
     """Start the central core server"""
     uvicorn.run(
-        "daie.core.server:app",
-        host=host,
-        port=port,
-        reload=reload,
-        log_level="info"
+        "daie.core.server:app", host=host, port=port, reload=reload, log_level="info"
     )
 
 

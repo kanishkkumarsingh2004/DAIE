@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ToolCategory(Enum):
     """Tool categories for classification"""
+
     GENERAL = "general"
     SEARCH = "search"
     FILE = "file"
@@ -27,6 +28,7 @@ class ToolCategory(Enum):
 @dataclass
 class ToolParameter:
     """Parameter definition for tools"""
+
     name: str
     type: str = "string"
     description: str = ""
@@ -38,6 +40,7 @@ class ToolParameter:
 @dataclass
 class ToolMetadata:
     """Tool metadata"""
+
     name: str
     description: str
     category: ToolCategory = ToolCategory.GENERAL
@@ -107,7 +110,9 @@ class Tool(ABC):
         # Validate the tool metadata
         self._validate_metadata()
         if self._validation_errors:
-            logger.warning(f"Tool {metadata.name} has validation errors: {self._validation_errors}")
+            logger.warning(
+                f"Tool {metadata.name} has validation errors: {self._validation_errors}"
+            )
 
     @property
     def name(self) -> str:
@@ -160,13 +165,15 @@ class Tool(ABC):
             if not param.name:
                 self._validation_errors.append("Parameter name cannot be empty")
                 continue
-            
+
             if param.name in param_names:
                 self._validation_errors.append(f"Duplicate parameter: {param.name}")
             param_names.append(param.name)
 
             if param.required and param.default is not None:
-                logger.warning(f"Parameter {param.name} is required but has a default value")
+                logger.warning(
+                    f"Parameter {param.name} is required but has a default value"
+                )
 
     async def initialize(self) -> bool:
         """
@@ -187,7 +194,7 @@ class Tool(ABC):
             self._is_initialized = True
             logger.info(f"Tool {self.metadata.name} initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize tool {self.metadata.name}: {e}")
             return False
@@ -219,7 +226,7 @@ class Tool(ABC):
             self._is_initialized = False
             logger.info(f"Tool {self.metadata.name} shut down successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to shut down tool {self.metadata.name}: {e}")
             return False
@@ -251,7 +258,7 @@ class Tool(ABC):
 
             if param.name in params:
                 value = params[param.name]
-                
+
                 # Type validation
                 if param.type == "integer" and not isinstance(value, int):
                     errors.append(f"Parameter '{param.name}' must be an integer")
@@ -266,13 +273,17 @@ class Tool(ABC):
 
                 # Choice validation
                 if param.choices and value not in param.choices:
-                    errors.append(f"Parameter '{param.name}' must be one of the allowed choices: {', '.join(param.choices)}")
+                    errors.append(
+                        f"Parameter '{param.name}' must be one of the allowed choices: {', '.join(param.choices)}"
+                    )
 
         # Check for extra parameters
         allowed_params = {param.name for param in self.metadata.parameters}
         for param_name in params:
             if param_name not in allowed_params:
-                logger.warning(f"Unknown parameter '{param_name}' for tool '{self.metadata.name}'")
+                logger.warning(
+                    f"Unknown parameter '{param_name}' for tool '{self.metadata.name}'"
+                )
 
         return errors
 
@@ -306,11 +317,13 @@ class Tool(ABC):
                 prepared_params[param.name] = param.default
 
         try:
-            logger.debug(f"Executing tool '{self.metadata.name}' with params: {prepared_params}")
+            logger.debug(
+                f"Executing tool '{self.metadata.name}' with params: {prepared_params}"
+            )
             result = await self._execute(prepared_params)
             logger.debug(f"Tool '{self.metadata.name}' executed successfully")
             return result
-            
+
         except Exception as e:
             logger.error(f"Error executing tool '{self.metadata.name}': {e}")
             raise
@@ -352,10 +365,10 @@ class Tool(ABC):
                     "description": param.description,
                     "required": param.required,
                     "default": param.default,
-                    "choices": param.choices
+                    "choices": param.choices,
                 }
                 for param in self.metadata.parameters
-            ]
+            ],
         }
 
 
@@ -365,7 +378,7 @@ def tool(
     category: str = "general",
     version: str = "1.0.0",
     author: str = "Unknown",
-    capabilities: Optional[List[str]] = None
+    capabilities: Optional[List[str]] = None,
 ):
     """
     Decorator to create a tool from a function
@@ -382,30 +395,31 @@ def tool(
         Decorator function
     """
     capabilities = capabilities or []
-    
+
     def decorator(func: Callable):
         class FunctionTool(Tool):
             def __init__(self):
                 # Extract function parameters from signature
                 import inspect
+
                 signature = inspect.signature(func)
                 parameters = []
-                
+
                 for param_name, param in signature.parameters.items():
                     if param_name == "self":
                         continue
-                        
+
                     param_info = ToolParameter(
                         name=param_name,
                         type="string",  # Default type
-                        required=param.default == param.empty
+                        required=param.default == param.empty,
                     )
-                    
+
                     if param.default != param.empty:
                         param_info.default = param.default
-                        
+
                     parameters.append(param_info)
-                
+
                 metadata = ToolMetadata(
                     name=name,
                     description=description,
@@ -413,17 +427,17 @@ def tool(
                     version=version,
                     author=author,
                     capabilities=capabilities,
-                    parameters=parameters
+                    parameters=parameters,
                 )
-                
+
                 super().__init__(metadata)
-                
+
             async def _execute(self, params: Dict[str, Any]) -> Any:
                 try:
                     return await func(**params)
                 except TypeError:
                     return func(**params)
-        
+
         return FunctionTool()
-        
+
     return decorator

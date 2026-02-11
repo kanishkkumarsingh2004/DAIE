@@ -16,9 +16,7 @@ from daie.cli.agent import agent_app
 from daie.cli.core import core_app
 
 cli = typer.Typer(
-    name="dai",
-    help="Decentralized AI Ecosystem CLI",
-    add_completion=True
+    name="dai", help="Decentralized AI Ecosystem CLI", add_completion=True
 )
 
 cli.add_typer(agent_app, name="agent", help="Agent management commands")
@@ -30,12 +28,15 @@ console = Console()
 @cli.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    version: bool = typer.Option(False, "--version", "-v", help="Show version information")
+    version: bool = typer.Option(
+        False, "--version", "-v", help="Show version information"
+    ),
 ):
     """Decentralized AI Ecosystem CLI"""
     if ctx.invoked_subcommand is None:
         if version:
             from daie import __version__
+
             console.print(
                 Panel(
                     f"[bold green]Decentralized AI Library[/bold green]\n"
@@ -43,7 +44,7 @@ def main(
                     f"[bold blue]Repository:[/bold blue] https://github.com/decentralized-ai/daie_ecosystem",
                     title="[blue]📦 Library Information[/blue]",
                     border_style="blue",
-                    box=ROUNDED
+                    box=ROUNDED,
                 )
             )
         else:
@@ -65,49 +66,48 @@ def show_help(ctx: typer.Context):
 ║                                                                              ║
 ╚════════════════════════════════════════════════════════════════════════════╝
     """
-    
-    console.print(Panel(
-        logo,
-        title="[bold blue]Decentralized AI Ecosystem[/bold blue]",
-        border_style="blue",
-        box=ROUNDED
-    ))
-    
+
+    console.print(
+        Panel(
+            logo,
+            title="[bold blue]Decentralized AI Ecosystem[/bold blue]",
+            border_style="blue",
+            box=ROUNDED,
+        )
+    )
+
     console.print()
-    
+
     # Description
     console.print(
         Panel(
             "A command-line interface for managing the Decentralized AI Ecosystem",
             border_style="cyan",
-            box=SIMPLE
+            box=SIMPLE,
         )
     )
-    
+
     console.print()
-    
+
     # Create commands table with premium styling
     table = Table(
-        show_header=True,
-        header_style="bold blue",
-        border_style="cyan",
-        box=ROUNDED
+        show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
     )
     table.add_column("Command", style="cyan")
     table.add_column("Description", style="magenta")
-    
+
     # Core commands
     core_commands = [
         ("dai agent", "Manage AI agents"),
         ("dai core", "Manage central core system"),
     ]
-    
+
     for cmd, desc in core_commands:
         table.add_row(cmd, desc)
-    
+
     console.print(table)
     console.print()
-    
+
     # Quick start examples with premium formatting
     console.print(
         Panel(
@@ -119,12 +119,12 @@ def show_help(ctx: typer.Context):
             "5. Start agents: [bold]dai agent start[/bold]",
             title="[blue]🚀 Getting Started[/blue]",
             border_style="blue",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
-    
+
     console.print()
-    
+
     # Example with tool
     console.print(
         Panel(
@@ -134,27 +134,29 @@ def show_help(ctx: typer.Context):
             "from daie.tools import tool\n"
             "from daie.agents import AgentConfig, AgentRole\n\n"
             "@tool(\n"
-            "    name=\"greeting\",\n"
-            "    description=\"Generate a greeting message\",\n"
-            "    category=\"general\",\n"
-            "    version=\"1.0.0\"\n"
+            '    name="greeting",\n'
+            '    description="Generate a greeting message",\n'
+            '    category="general",\n'
+            '    version="1.0.0"\n'
             ")\n"
             "async def greeting_tool(name: str) -> str:\n"
-            "    return f\"Hello, {name}! Welcome to the Decentralized AI Ecosystem!\"\n\n"
+            '    return f"Hello, {name}! Welcome to the Decentralized AI Ecosystem!"\n\n'
             "# Create agent configuration\n"
             "config = AgentConfig(\n"
-            "    name=\"GreetingAgent\",\n"
+            '    name="GreetingAgent",\n'
             "    role=AgentRole.GENERAL_PURPOSE,\n"
-            "    capabilities=[\"greeting\"]\n"
+            '    capabilities=["greeting"]\n'
             ")\n\n"
             "# Create and configure agent\n"
             "agent = Agent(config=config)\n"
             "agent.add_tool(greeting_tool)",
             title="[green]💡 Agent Example[/green]",
             border_style="green",
-            box=ROUNDED
+            box=ROUNDED,
         )
     )
-    
+
     console.print()
-    console.print("Use [bold]dai [command] --help[/bold] for more information about a specific command")
+    console.print(
+        "Use [bold]dai [command] --help[/bold] for more information about a specific command"
+    )

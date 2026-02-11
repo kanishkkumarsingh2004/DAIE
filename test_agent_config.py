@@ -12,9 +12,9 @@ from daie.utils import AudioManager, CameraManager
 
 async def main():
     """Test agent configuration with audio and camera settings"""
-    
+
     print("=== Agent Configuration Test ===\n")
-    
+
     # Create an agent with audio and camera access
     config = AgentConfig(
         name="AudioVisualAgent",
@@ -30,9 +30,9 @@ async def main():
         enable_camera=True,
         camera_device_index=0,
         camera_resolution="640x480",
-        camera_fps=30
+        camera_fps=30,
     )
-    
+
     print("1. Agent Configuration:")
     print(f"   - Name: {config.name}")
     print(f"   - Role: {config.role}")
@@ -44,7 +44,7 @@ async def main():
     print(f"   - Camera Resolution: {config.camera_resolution}")
     print(f"   - Camera FPS: {config.camera_fps}")
     print()
-    
+
     # Validate configuration
     validation_errors = config.validate()
     if validation_errors:
@@ -54,7 +54,7 @@ async def main():
     else:
         print("2. Configuration Validation: ✓ PASSED")
     print()
-    
+
     # Test AudioManager
     print("3. Audio Manager Test:")
     audio_manager = AudioManager(config)
@@ -66,7 +66,7 @@ async def main():
     else:
         print("   - PyAudio not available")
     print()
-    
+
     # Test CameraManager
     print("4. Camera Manager Test:")
     camera_manager = CameraManager(config)
@@ -78,31 +78,31 @@ async def main():
     else:
         print("   - Camera not available")
     print()
-    
+
     # Create and test the agent
     print("5. Agent Creation Test:")
     try:
         tool_registry = ToolRegistry()
         agent = Agent(config, tool_registry)
-        
+
         print(f"   - Agent Created: ✓ {agent.config.name}")
         print(f"   - Agent Role: {agent.config.role}")
-        
+
         # Start and stop agent (to test lifecycle)
         await agent.start()
         await asyncio.sleep(0.5)
         await agent.stop()
-        
+
         print(f"   - Agent Lifecycle: ✓ Start/Stop Tested")
-        
+
     except Exception as e:
         print(f"   - Error: {e}")
     print()
-    
+
     # Cleanup
     audio_manager.cleanup()
     camera_manager.release()
-    
+
     print("=== Test Completed ===\n")
 
 

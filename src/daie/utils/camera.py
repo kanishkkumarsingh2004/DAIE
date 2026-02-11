@@ -10,6 +10,7 @@ from daie.agents.config import AgentConfig
 
 try:
     import cv2
+
     CV2_AVAILABLE = True
 except ImportError:
     cv2 = None
@@ -62,7 +63,7 @@ class CameraManager:
             if self.capture.isOpened():
                 # Set camera properties from config if specified
                 if self.config:
-                    resolution = self.config.camera_resolution.split('x')
+                    resolution = self.config.camera_resolution.split("x")
                     if len(resolution) == 2:
                         width = int(resolution[0])
                         height = int(resolution[1])
@@ -129,8 +130,7 @@ class CameraManager:
             self.frame_callback = callback
             self.is_streaming = True
             self.streaming_thread = threading.Thread(
-                target=self._streaming_thread,
-                daemon=True
+                target=self._streaming_thread, daemon=True
             )
             self.streaming_thread.start()
 
@@ -188,30 +188,30 @@ class CameraManager:
     def get_frame(self, timeout: float = 0.5) -> Optional[object]:
         """
         Get a single frame from the camera
-        
+
         Args:
             timeout: Timeout in seconds for frame capture
-            
+
         Returns:
             Frame as numpy array, or None if capture failed
         """
         if not CV2_AVAILABLE:
             logger.error("OpenCV not available for camera access")
             return None
-            
+
         if not self.capture:
             if not self.initialize_camera():
                 return None
-                
+
         try:
             ret, frame = self.capture.read()
-            
+
             if ret:
                 return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                
+
             logger.warning("Failed to capture frame")
             return None
-                
+
         except Exception as e:
             logger.error("Error capturing frame: %s", e)
             return None
@@ -241,8 +241,7 @@ class CameraManager:
 
         return False
 
-    def show_preview(self, window_name: str = "Camera Preview",
-                    preview_time: int = 0):
+    def show_preview(self, window_name: str = "Camera Preview", preview_time: int = 0):
         """
         Show camera preview (blocks until window is closed)
 
@@ -266,12 +265,14 @@ class CameraManager:
                     cv2.imshow(window_name, frame)
 
                 key = cv2.waitKey(1)
-                if key == ord('q') or key == 27:
+                if key == ord("q") or key == 27:
                     logger.info("Preview closed by user")
                     break
 
                 if preview_time > 0:
-                    elapsed_time = (cv2.getTickCount() - start_time) / cv2.getTickFrequency()
+                    elapsed_time = (
+                        cv2.getTickCount() - start_time
+                    ) / cv2.getTickFrequency()
                     if elapsed_time >= preview_time:
                         logger.info(f"Preview completed after {preview_time} seconds")
                         break
@@ -296,11 +297,7 @@ class CameraManager:
             width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = int(self.capture.get(cv2.CAP_PROP_FPS))
-            return {
-                "width": width,
-                "height": height,
-                "fps": fps
-            }
+            return {"width": width, "height": height, "fps": fps}
         except Exception as e:
             logger.error(f"Error getting camera info: {e}")
             return None
@@ -342,38 +339,39 @@ def list_camera_devices() -> List[int]:
     return devices
 
 
-def capture_image(file_path: str, device_index: int = 0, 
-                  width: int = 640, height: int = 480) -> bool:
+def capture_image(
+    file_path: str, device_index: int = 0, width: int = 640, height: int = 480
+) -> bool:
     """
     Capture a single image from camera
-    
+
     Args:
         file_path: Output file path
         device_index: Camera device index (default: 0)
         width: Frame width (default: 640)
         height: Frame height (default: 480)
-        
+
     Returns:
         True if image capture succeeded
     """
     manager = CameraManager()
-    
+
     try:
         manager.initialize_camera(device_index)
-        
+
         frame = manager.get_frame()
         if frame is not None:
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             cv2.imwrite(file_path, frame)
             logger.info("Image saved to %s", file_path)
             return True
-            
+
     except Exception as e:
         logger.error("Error capturing image: %s", e)
-        
+
     finally:
         manager.release()
-        
+
     return False
 
 
@@ -420,4 +418,3 @@ if __name__ == "__main__":
         test_camera(devices[0], duration=3)
     else:
         print("No cameras detected")
-

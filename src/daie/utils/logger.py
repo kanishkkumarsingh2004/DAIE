@@ -31,7 +31,7 @@ def setup_logger(
     name: str = "daie",
     level: str = "INFO",
     log_file: Optional[str] = None,
-    format_str: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format_str: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 ):
     """
     Set up a logger with specified configuration
@@ -61,12 +61,13 @@ def setup_logger(
     if log_file:
         try:
             from logging.handlers import RotatingFileHandler
+
             # Rotate log files when they reach 10MB, keep 5 backup files
             file_handler = RotatingFileHandler(
                 log_file,
-                maxBytes=10*1024*1024,  # 10MB
+                maxBytes=10 * 1024 * 1024,  # 10MB
                 backupCount=5,
-                encoding="utf-8"
+                encoding="utf-8",
             )
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
@@ -98,23 +99,19 @@ def setup_system_logger(config: SystemConfig):
         Configured logger instance
     """
     log_file = config.log_file
-    
+
     if config.enable_logging and log_file is None:
         # Create log directory if it doesn't exist
         log_dir = ensure_directory_exists(config.log_directory)
         log_file = os.path.join(log_dir, "daie.log")
-    
+
     return setup_logger(
-        level=config.log_level.value,
-        log_file=log_file,
-        format_str=config.log_format
+        level=config.log_level.value, log_file=log_file, format_str=config.log_format
     )
 
 
 def log_exception(
-    logger: logging.Logger,
-    exception: Exception,
-    message: str = "Exception occurred"
+    logger: logging.Logger, exception: Exception, message: str = "Exception occurred"
 ):
     """
     Log an exception with detailed information
@@ -127,16 +124,12 @@ def log_exception(
     import traceback
 
     logger.error(
-        f"{message}: {str(exception)}\n"
-        f"Stack trace:\n{traceback.format_exc()}"
+        f"{message}: {str(exception)}\n" f"Stack trace:\n{traceback.format_exc()}"
     )
 
 
 def log_performance(
-    logger: logging.Logger,
-    operation: str,
-    duration: float,
-    level: int = logging.INFO
+    logger: logging.Logger, operation: str, duration: float, level: int = logging.INFO
 ):
     """
     Log performance information
@@ -147,17 +140,10 @@ def log_performance(
         duration: Duration in seconds
         level: Logging level
     """
-    logger.log(
-        level,
-        f"Performance: {operation} took {duration:.2f} seconds"
-    )
+    logger.log(level, f"Performance: {operation} took {duration:.2f} seconds")
 
 
-def log_metrics(
-    logger: logging.Logger,
-    metrics: dict,
-    level: int = logging.INFO
-):
+def log_metrics(logger: logging.Logger, metrics: dict, level: int = logging.INFO):
     """
     Log metrics as a single log entry
 
@@ -190,7 +176,7 @@ class LogContext:
         operation: str,
         start_level: int = logging.DEBUG,
         end_level: int = logging.INFO,
-        error_level: int = logging.ERROR
+        error_level: int = logging.ERROR,
     ):
         """
         Initialize log context
@@ -211,10 +197,7 @@ class LogContext:
 
     def __enter__(self):
         self.start_time = datetime.now()
-        self.logger.log(
-            self.start_level,
-            f"Starting: {self.operation}"
-        )
+        self.logger.log(self.start_level, f"Starting: {self.operation}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -223,12 +206,11 @@ class LogContext:
         if exc_type:
             self.logger.log(
                 self.error_level,
-                f"Failed: {self.operation} after {duration:.2f} seconds - {exc_val}"
+                f"Failed: {self.operation} after {duration:.2f} seconds - {exc_val}",
             )
         else:
             self.logger.log(
-                self.end_level,
-                f"Completed: {self.operation} in {duration:.2f} seconds"
+                self.end_level, f"Completed: {self.operation} in {duration:.2f} seconds"
             )
 
 
@@ -247,10 +229,7 @@ class LogTimer:
     """
 
     def __init__(
-        self,
-        logger: logging.Logger,
-        operation: str,
-        level: int = logging.INFO
+        self, logger: logging.Logger, operation: str, level: int = logging.INFO
     ):
         """
         Initialize log timer
@@ -288,10 +267,7 @@ class LogMemoryUsage:
     """
 
     def __init__(
-        self,
-        logger: logging.Logger,
-        operation: str,
-        level: int = logging.DEBUG
+        self, logger: logging.Logger, operation: str, level: int = logging.DEBUG
     ):
         """
         Initialize log memory usage
@@ -309,6 +285,7 @@ class LogMemoryUsage:
     def __enter__(self):
         try:
             import psutil
+
             self.start_memory = psutil.virtual_memory().used
         except ImportError:
             self.logger.warning("psutil not installed, cannot measure memory usage")
@@ -317,6 +294,7 @@ class LogMemoryUsage:
         if self.start_memory is not None:
             try:
                 import psutil
+
                 end_memory = psutil.virtual_memory().used
                 memory_used = end_memory - self.start_memory
 
@@ -325,7 +303,7 @@ class LogMemoryUsage:
 
                 self.logger.log(
                     self.level,
-                    f"Memory Usage: {self.operation} used {memory_used_mb:.2f} MB"
+                    f"Memory Usage: {self.operation} used {memory_used_mb:.2f} MB",
                 )
             except Exception as e:
                 self.logger.warning(f"Failed to measure memory usage: {e}")

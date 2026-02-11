@@ -293,7 +293,22 @@ class Agent:
 
         if task_name in self.tools:
             tool = self.tools[task_name]
-            result = await tool.execute(task_params)
+            
+            # Handle different tool types
+            if hasattr(tool, "execute"):
+                # Tool with execute method
+                result = await tool.execute(task_params)
+            elif callable(tool):
+                # Direct callable (function)
+                import inspect
+                if inspect.iscoroutinefunction(tool):
+                    result = await tool(**task_params)
+                else:
+                    result = tool(**task_params)
+            else:
+                logger.error(f"Tool {task_name} is not callable or executable")
+                return {"success": False, "error": f"Tool '{task_name}' is not executable"}
+            
             logger.info(f"Task {task_name} completed with result: {result}")
             return result
         else:
@@ -372,7 +387,7 @@ class Agent:
 
     async def execute_task(self, task_input: Union[str, Dict[str, Any]]) -> Any:
         """
-        Execute a task locally
+        Execute a task locally - the agent acts like a human using tools
 
         Args:
             task_input: Task to execute (can be a task description string or dict with name/params)
@@ -380,192 +395,70 @@ class Agent:
         Returns:
             Task result
         """
+        # Ensure agent is running
+        if not self._is_running:
+            await self.start()
+        
         # If task is a string, analyze it using LLM to determine appropriate tool and parameters
         if isinstance(task_input, str):
             task_description = task_input
-            logger.info(f"Analyzing task: {task_description}")
+            logger.info(f"Agent analyzing task: {task_description}")
 
             # Get available tools information
             available_tools = self.list_tools()
-            # Check for conversational inputs first
-            normalized_task = task_description.lower().strip()
 
-            # Let the LLM decide if it's conversational or a task that needs tools
-            # Remove hardcoded patterns and let the LLM's natural language understanding handle it
-
+            # If no tools available, respond conversationally
             if not available_tools:
-                logger.warning("No tools available to execute tasks")
+                logger.info("No tools available - responding conversationally")
                 return await self.send_message(task_description)
 
-            # Prepare tools information for LLM
-            tools_info = []
-            for tool in available_tools:
-                tool_info = {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "actions": [],
-                }
+            # Build a clear tool description for the LLM
+            tools_description = self._build_tools_description(available_tools)
 
-                # For tools with metadata (like FileManagerTool), extract possible actions from parameters
-                if hasattr(tool, "metadata") and hasattr(tool.metadata, "parameters"):
-                    for param in tool.metadata.parameters:
-                        if param.name == "action" and param.choices:
-                            tool_info["actions"] = param.choices
-                            break
+            # Create a structured prompt for the LLM
+            prompt = self._create_tool_selection_prompt(task_description, tools_description)
 
-                # If no specific actions defined, use default execute
-                if not tool_info["actions"]:
-                    tool_info["actions"] = ["execute"]
-
-                tools_info.append(tool_info)
-
-            # First check if task is a simple conversational one (greeting, etc.)
-            simple_greetings = ["hi", "hello", "hey", "greetings", "howdy"]
-            task_lower = task_description.lower().strip()
-
-            for greeting in simple_greetings:
-                if greeting in task_lower:
-                    logger.info(
-                        "Recognized simple greeting - responding conversationally"
-                    )
-                    return await self.send_message("Hello! How can I assist you today?")
-
-            # Create prompt for LLM to analyze task and select tool
-            tools_info_str = "\n".join(
-                [
-                    f"- {tool['name']}: {tool['description']}\n  Actions: {', '.join(tool['actions'])}"
-                    for tool in tools_info
-                ]
-            )
-
-            prompt = f"""Available Tools:
-{tools_info_str}
-
-Task: "{task_description}"
-
-Which tool should be used? Respond with JSON including tool_name and params. 
-
-IMPORTANT RULES:
-1. If the task is a greeting (like "hi", "hello", "hey"), small talk, or a conversational message that doesn't require any tool operation, use "tool_name": "none"
-2. Only select a tool if the task clearly requires one of the available tool's capabilities
-3. If you're unsure which tool to use, select "none"
-
-Example for tool usage:
-{{"tool_name": "file_manager", "params": {{"action": "create_file", "path": "example.txt", "content": "Hello World!"}}}}
-
-Example for conversational task:
-{{"tool_name": "none", "params": {{"response": "Hello! How can I help you today?"}}}}
-"""
             try:
                 llm = self.llm
                 response = llm.invoke(prompt)
+                logger.debug(f"LLM response: {response[:200]}...")
 
-                # Parse LLM response to extract tool selection
-                import json
+                # Parse the LLM response
+                tool_call = self._parse_tool_response(response)
 
-                logger.debug(f"Raw LLM response: {repr(response)}")
-
-                # Find JSON in response (handle possible markdown formatting)
-                response = response.strip()
-                if response.startswith("```json"):
-                    response = response[len("```json") :].strip()
-                if response.endswith("```"):
-                    response = response[: -len("```")].strip()
-
-                # Find JSON object boundaries
-                json_start = response.find("{")
-                json_end = response.rfind("}") + 1
-
-                if json_start != -1 and json_end != 0:
-                    json_str = response[json_start:json_end]
-                    logger.debug(f"Extracted JSON string: {repr(json_str)}")
-                    tool_selection = json.loads(json_str)
-                    logger.info(f"LLM selected tool: {tool_selection.get('tool_name')}")
-
-                    if tool_selection.get("tool_name") == "none" or tool_selection.get(
-                        "tool_name"
-                    ) not in [t.name for t in available_tools]:
-                        logger.info(
-                            "No suitable tool found - treating as conversational"
-                        )
-                        return await self.send_message(task_description)
-
-                    # Add default parameters for known tools
-                    params = tool_selection.get("params", {})
-                    tool_name = tool_selection["tool_name"]
-
-                    if tool_name == "file_manager":
-                        # For file operations, validate required parameters
-                        if "action" not in params:
-                            logger.warning(
-                                "File manager action not specified - treating as conversational"
-                            )
-                            return await self.send_message(
-                                "I need to know what file operation you want to perform (e.g., read_file, create_file, list_contents)"
-                            )
-
-                        action = params["action"]
-
-                        # Ensure path is provided for operations that require it
-                        if action in [
-                            "read_file",
-                            "write_file",
-                            "append_file",
-                            "delete_file",
-                            "create_file",
-                            "create_directory",
-                            "delete_directory",
-                            "file_exists",
-                            "directory_exists",
-                            "get_file_info",
-                            "get_directory_info",
-                        ]:
-                            if "path" not in params or not params["path"]:
-                                logger.warning(
-                                    "File manager path not specified - treating as conversational"
-                                )
-                                return await self.send_message(
-                                    "I need a file or directory path to perform that operation"
-                                )
-
-                        # Default path for list operations
-                        if action in ["list_contents", "list"] and (
-                            "path" not in params or not params["path"]
-                        ):
-                            params["path"] = "."
-
-                        # Fix common file creation issue when path is not specific
-                        if action in ["create_file", "write_file"] and (
-                            params.get("path") == "." or params.get("path") == "./"
-                        ):
-                            if action == "create_file" and "content" in params:
-                                params["path"] = "index.html"
-                    elif tool_name == "selenium_chrome":
-                        # Fix parameter name mismatch if LLM sends 'actions' instead of 'action'
-                        if "actions" in params and "action" not in params:
-                            params["action"] = params.pop("actions")
-                        # Add default action if not specified
-                        if "action" not in params:
-                            params["action"] = "open_url"
-                        # Set default URL if opening url without specifying
-                        if params.get("action") == "open_url" and "url" not in params:
-                            params["url"] = "https://www.google.com"
-
-                    task = {"name": tool_name, "params": params}
-                else:
-                    logger.warning(
-                        "No valid JSON found in LLM response - treating as conversational"
-                    )
+                # If no tool needed, respond conversationally
+                if tool_call is None or tool_call.get("tool_name") == "none":
+                    logger.info("No tool needed - responding conversationally")
                     return await self.send_message(task_description)
 
+                # Validate and execute the tool
+                tool_name = tool_call.get("tool_name")
+                params = tool_call.get("params", {})
+
+                # Check if tool exists
+                if tool_name not in [t.name for t in available_tools]:
+                    logger.warning(f"Tool '{tool_name}' not found - responding conversationally")
+                    return await self.send_message(task_description)
+
+                # Validate and fix parameters
+                params = self._validate_and_fix_params(tool_name, params, task_description)
+                if params is None:
+                    # Parameters couldn't be fixed, respond conversationally
+                    return await self.send_message(
+                        f"I understand you want to use {tool_name}, but I need more information. {task_description}"
+                    )
+
+                task = {"name": tool_name, "params": params}
+                logger.info(f"Executing tool '{tool_name}' with params: {params}")
+
             except Exception as e:
-                logger.error(f"Error analyzing task with LLM: {e}")
+                logger.error(f"Error analyzing task with LLM: {e}", exc_info=True)
                 logger.info("Falling back to conversational response")
                 return await self.send_message(task_description)
         else:
             task = task_input
 
-        # Continue with regular task execution
+        # Execute the task
         loop = asyncio.get_event_loop()
         result_future = loop.create_future()
 
@@ -575,11 +468,194 @@ Example for conversational task:
         await self._task_queue.put(task_with_result)
 
         try:
-            result = await asyncio.wait_for(result_future, timeout=30.0)
+            result = await asyncio.wait_for(result_future, timeout=60.0)
             return result
         except asyncio.TimeoutError:
             logger.error(f"Task execution timed out: {task.get('name')}")
             raise
+
+    def _build_tools_description(self, tools: List) -> str:
+        """Build a clear description of available tools"""
+        descriptions = []
+        for tool in tools:
+            tool_desc = f"Tool: {tool.name}\nDescription: {tool.description}"
+            
+            # Add parameter information
+            if hasattr(tool, "metadata") and hasattr(tool.metadata, "parameters"):
+                params_desc = []
+                for param in tool.metadata.parameters:
+                    param_info = f"  - {param.name} ({param.type})"
+                    if param.required:
+                        param_info += " [REQUIRED]"
+                    if param.choices:
+                        param_info += f" [choices: {', '.join(map(str, param.choices))}]"
+                    if param.description:
+                        param_info += f": {param.description}"
+                    params_desc.append(param_info)
+                
+                if params_desc:
+                    tool_desc += "\nParameters:\n" + "\n".join(params_desc)
+            
+            descriptions.append(tool_desc)
+        
+        return "\n\n".join(descriptions)
+
+    def _create_tool_selection_prompt(self, task: str, tools_description: str) -> str:
+        """Create a structured prompt for tool selection"""
+        return f"""{self.config.system_prompt}
+
+You are an AI agent with access to tools. Your job is to analyze the user's request and decide:
+1. If you need to use a tool to complete the task
+2. If so, which tool and what parameters
+
+Available Tools:
+{tools_description}
+
+User Request: "{task}"
+
+Instructions:
+- If the request is conversational (greeting, question, chat), respond with: {{"tool_name": "none", "response": "your conversational response"}}
+- If you need to use a tool, respond with: {{"tool_name": "tool_name", "params": {{"param1": "value1", "param2": "value2"}}}}
+- Be precise with parameter names and values
+- Extract specific values from the user's request (file names, URLs, content, etc.)
+- If a required parameter is missing, respond with: {{"tool_name": "none", "response": "ask for the missing information"}}
+
+Respond ONLY with a valid JSON object, nothing else."""
+
+    def _parse_tool_response(self, response: str) -> Optional[Dict[str, Any]]:
+        """Parse the LLM response to extract tool call information"""
+        import json
+        import re
+
+        # Try to extract JSON from the response
+        tool_call = None
+
+        # Method 1: Look for JSON in code blocks
+        code_block_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        matches = re.findall(code_block_pattern, response, re.DOTALL)
+        if matches:
+            for match in matches:
+                try:
+                    tool_call = json.loads(match)
+                    if isinstance(tool_call, dict):
+                        break
+                except json.JSONDecodeError:
+                    continue
+
+        # Method 2: Look for JSON object in the text
+        if tool_call is None:
+            json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            matches = re.findall(json_pattern, response, re.DOTALL)
+            for match in matches:
+                try:
+                    tool_call = json.loads(match)
+                    if isinstance(tool_call, dict) and "tool_name" in tool_call:
+                        break
+                except json.JSONDecodeError:
+                    continue
+
+        # Method 3: Try parsing the entire response
+        if tool_call is None:
+            try:
+                tool_call = json.loads(response.strip())
+            except json.JSONDecodeError:
+                pass
+
+        return tool_call
+
+    def _validate_and_fix_params(
+        self, tool_name: str, params: Dict[str, Any], task_description: str
+    ) -> Optional[Dict[str, Any]]:
+        """Validate and fix tool parameters"""
+        
+        # Get the tool
+        tool = self.get_tool(tool_name)
+        if not tool:
+            return None
+
+        # Tool-specific parameter validation and fixing
+        if tool_name == "file_manager":
+            return self._fix_file_manager_params(params, task_description)
+        elif tool_name == "selenium_chrome":
+            return self._fix_selenium_params(params, task_description)
+        elif tool_name == "api_call" or "http" in tool_name.lower():
+            return self._fix_api_params(params, task_description)
+        
+        # For other tools, just return the params as-is
+        return params
+
+    def _fix_file_manager_params(
+        self, params: Dict[str, Any], task_description: str
+    ) -> Optional[Dict[str, Any]]:
+        """Fix file manager tool parameters"""
+        
+        # Ensure action is specified
+        if "action" not in params:
+            logger.warning("File manager action not specified")
+            return None
+
+        action = params["action"]
+
+        # Actions that require a path
+        path_required_actions = [
+            "read_file", "write_file", "append_file", "delete_file",
+            "create_file", "create_directory", "delete_directory",
+            "file_exists", "directory_exists", "get_file_info", "get_directory_info"
+        ]
+
+        if action in path_required_actions:
+            if "path" not in params or not params["path"]:
+                logger.warning(f"File manager action '{action}' requires a path")
+                return None
+
+        # Default path for list operations
+        if action in ["list_contents", "list"]:
+            if "path" not in params or not params["path"]:
+                params["path"] = "."
+
+        # For write/create operations, ensure content is provided
+        if action in ["write_file", "create_file", "append_file"]:
+            if "content" not in params:
+                logger.warning(f"File manager action '{action}' requires content")
+                return None
+
+        return params
+
+    def _fix_selenium_params(
+        self, params: Dict[str, Any], task_description: str
+    ) -> Optional[Dict[str, Any]]:
+        """Fix selenium tool parameters"""
+        
+        # Fix parameter name mismatch
+        if "actions" in params and "action" not in params:
+            params["action"] = params.pop("actions")
+
+        # Default action
+        if "action" not in params:
+            params["action"] = "open_url"
+
+        # Ensure URL is provided for open_url action
+        if params.get("action") == "open_url" and "url" not in params:
+            logger.warning("Selenium open_url action requires a URL")
+            return None
+
+        return params
+
+    def _fix_api_params(
+        self, params: Dict[str, Any], task_description: str
+    ) -> Optional[Dict[str, Any]]:
+        """Fix API tool parameters"""
+        
+        # Ensure URL is provided
+        if "url" not in params:
+            logger.warning("API tool requires a URL")
+            return None
+
+        # Default method
+        if "method" not in params:
+            params["method"] = "GET"
+
+        return params
 
     async def start(
         self, communication_manager=None, memory_manager=None, tool_registry=None

@@ -16,7 +16,7 @@ from daie.cli.agent import agent_app
 from daie.cli.core import core_app
 
 cli = typer.Typer(
-    name="dai", help="Decentralized AI Ecosystem CLI", add_completion=True
+    name="daie", help="Decentralized AI Ecosystem CLI", add_completion=True
 )
 
 cli.add_typer(agent_app, name="agent", help="Agent management commands")
@@ -56,21 +56,21 @@ def show_help(ctx: typer.Context):
     # ASCII Art Logo
     logo = """
 ╔════════════════════════════════════════════════════════════════════════════╗
-║                                                                              ║
+║                                                                            ║
 ║    ██████╗ ███████╗███████╗████████╗██████╗  ██████╗  ██████╗              ║
 ║    ██╔══██╗██╔════╝██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔═══██╗             ║
 ║    ██████╔╝█████╗  ███████╗   ██║   ██████╔╝██║   ██║██║   ██║             ║
 ║    ██╔═══╝ ██╔══╝  ╚════██║   ██║   ██╔══██╗██║   ██║██║   ██║             ║
 ║    ██║     ███████╗███████║   ██║   ██║  ██║╚██████╔╝╚██████╔╝             ║
 ║    ╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝  ╚═════╝              ║
-║                                                                              ║
+║                                                                            ║
 ╚════════════════════════════════════════════════════════════════════════════╝
     """
 
     console.print(
         Panel(
             logo,
-            title="[bold blue]Decentralized AI Ecosystem[/bold blue]",
+            title="[bold blue]DAIE[/bold blue]",
             border_style="blue",
             box=ROUNDED,
         )
@@ -98,8 +98,8 @@ def show_help(ctx: typer.Context):
 
     # Core commands
     core_commands = [
-        ("dai agent", "Manage AI agents"),
-        ("dai core", "Manage central core system"),
+        ("daie agent", "Manage AI agents"),
+        ("daie core", "Manage central core system"),
     ]
 
     for cmd, desc in core_commands:
@@ -112,11 +112,11 @@ def show_help(ctx: typer.Context):
     console.print(
         Panel(
             "[bold]Quick Start Guide:[/bold]\n"
-            "1. Initialize the system: [bold]dai core init[/bold]\n"
-            "2. Create an agent: [bold]dai agent create[/bold]\n"
-            "3. Start the system: [bold]dai core start --background[/bold]\n"
-            "4. Check system status: [bold]dai core status[/bold]\n"
-            "5. Start agents: [bold]dai agent start[/bold]",
+            "1. Initialize the system: [bold]daie core init[/bold]\n"
+            "2. Create an agent: [bold]daie agent create[/bold]\n"
+            "3. Start the system: [bold]daie core start --background[/bold]\n"
+            "4. Check system status: [bold]daie core status[/bold]\n"
+            "5. Start agents: [bold]daie agent start[/bold]",
             title="[blue]🚀 Getting Started[/blue]",
             border_style="blue",
             box=ROUNDED,
@@ -158,5 +158,5 @@ def show_help(ctx: typer.Context):
 
     console.print()
     console.print(
-        "Use [bold]dai [command] --help[/bold] for more information about a specific command"
+        "Use [bold]daie [command] --help[/bold] for more information about a specific command"
     )

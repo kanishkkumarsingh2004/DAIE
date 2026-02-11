@@ -79,9 +79,8 @@ rag = [
     "langchain>=0.1.0",
     "langchain-community>=0.0.1",
     "langchain-core>=0.1.0",
-    "pdfminer.six>=20251107",
+    "pdfminer.six>=20221105",
     "python-docx>=0.8.11",
-    "textract>=1.6.5",
     "chromadb>=0.4.15",
     "faiss-cpu>=1.7.4",
 ]

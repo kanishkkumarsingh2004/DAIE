@@ -6,9 +6,6 @@ import typer
 import os
 import signal
 import time
-import daemon
-from daemon.pidfile import PIDLockFile
-
 from pathlib import Path
 from rich import print
 from rich.console import Console
@@ -20,6 +17,14 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from daie.core.system import DecentralizedAISystem
 from daie.config import SystemConfig
 from daie.core.server import start_server
+
+# Optional daemon support
+try:
+    import daemon
+    from daemon.pidfile import PIDLockFile
+    DAEMON_AVAILABLE = True
+except ImportError:
+    DAEMON_AVAILABLE = False
 
 core_app = typer.Typer(
     name="core", help="Central core system commands", add_completion=True
@@ -106,8 +111,19 @@ def start_core(
 
     try:
         if background:
-            # Run as daemon using python-daemon
+            # Check if daemon is available
+            if not DAEMON_AVAILABLE:
+                console.print(
+                    Panel(
+                        "[bold red]Error:[/bold red] Daemon mode requires 'python-daemon' package.\n"
+                        "Install it with: [bold]pip install python-daemon[/bold]",
+                        title="[red]❌ Missing Dependency[/red]",
+                        border_style="red",
+                    )
+                )
+                raise typer.Exit(code=1)
 
+            # Run as daemon using python-daemon
             pid_file = get_pid_file()
 
             # Show progress while initializing

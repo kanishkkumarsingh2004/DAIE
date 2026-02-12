@@ -197,12 +197,22 @@ class LLMManager:
             def __init__(self, config: LLMConfig):
                 self.config = config
                 self.base_url = config.base_url or "http://localhost:11434"
+                # Reuse session for better performance
+                self._session = None
+
+            def _get_session(self):
+                """Get or create requests session"""
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
+                return self._session
 
             def invoke(self, prompt: str, **kwargs) -> str:
                 """Invoke the LLM with a prompt"""
                 try:
-                    import requests
                     import json
+
+                    session = self._get_session()
 
                     # Create message payload
                     messages = [{"role": "user", "content": prompt}]
@@ -211,45 +221,28 @@ class LLMManager:
                         "model": self.config.model_name,
                         "messages": messages,
                         "temperature": self.config.temperature,
-                        "max_tokens": self.config.max_tokens,
+                        "stream": False,  # Disable streaming for simpler parsing
                     }
 
+                    # Add max_tokens if supported
+                    if self.config.max_tokens:
+                        payload["options"] = {"num_predict": self.config.max_tokens}
+
                     # Call ollama API
-                    response = requests.post(
-                        f"{self.base_url}/api/chat", json=payload, timeout=60
+                    response = session.post(
+                        f"{self.base_url}/api/chat", 
+                        json=payload, 
+                        timeout=60
                     )
 
-                    # Parse response - Ollama might stream responses
+                    # Parse response
                     if response.status_code == 200:
-                        # Check if response is streamed
-                        response_text = response.text
-                        if "\n" in response_text:
-                            # If there are newlines, parse each line
-                            full_content = []
-                            for line in response_text.split("\n"):
-                                if line.strip():
-                                    try:
-                                        data = json.loads(line)
-                                        if (
-                                            "message" in data
-                                            and "content" in data["message"]
-                                        ):
-                                            full_content.append(
-                                                data["message"]["content"]
-                                            )
-                                    except json.JSONDecodeError:
-                                        logger.debug(f"Failed to parse line: {line}")
-                                        continue
-                            if full_content:
-                                return "".join(full_content)
-                        else:
-                            # Single response
-                            data = response.json()
-                            if "message" in data and "content" in data["message"]:
-                                return data["message"]["content"]
+                        data = response.json()
+                        if "message" in data and "content" in data["message"]:
+                            return data["message"]["content"]
 
                         logger.error(
-                            f"Ollama API returned unexpected format: {response.text}"
+                            f"Ollama API returned unexpected format: {response.text[:200]}"
                         )
                         return "Error: Failed to parse Ollama response format"
 
@@ -257,18 +250,25 @@ class LLMManager:
                         logger.error(
                             f"Ollama API error: Status code {response.status_code}"
                         )
-                        logger.error(f"Error response: {response.text}")
+                        logger.error(f"Error response: {response.text[:200]}")
                         return f"Error: Failed to communicate with Ollama (Status: {response.status_code})"
 
-                except requests.exceptions.ConnectionError:
-                    logger.error("Ollama connection error: Could not connect to server")
-                    return "Error: Could not connect to Ollama server. Is it running?"
-                except requests.exceptions.Timeout:
-                    logger.error("Ollama timeout error: Request timed out")
-                    return "Error: Request timed out. Ollama may be taking too long to respond."
                 except Exception as e:
-                    logger.error(f"Ollama LLM error: {e}")
-                    return f"Error: {e}"
+                    import requests
+                    if isinstance(e, requests.exceptions.ConnectionError):
+                        logger.error("Ollama connection error: Could not connect to server")
+                        return "Error: Could not connect to Ollama server. Is it running?"
+                    elif isinstance(e, requests.exceptions.Timeout):
+                        logger.error("Ollama timeout error: Request timed out")
+                        return "Error: Request timed out. Ollama may be taking too long to respond."
+                    else:
+                        logger.error(f"Ollama LLM error: {e}")
+                        return f"Error: {e}"
+
+            def __del__(self):
+                """Cleanup session on deletion"""
+                if self._session:
+                    self._session.close()
 
         return OllamaLLM(self.config)
 

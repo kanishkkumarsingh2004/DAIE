@@ -86,12 +86,13 @@ class Agent:
         self.tools: Dict[str, Any] = {}
         self.tool_registry = ToolRegistry()
         self._is_running = False
-        self._task_queue: asyncio.Queue = asyncio.Queue()
+        self._task_queue: Optional[asyncio.Queue] = None
         self._message_handler: Optional[Callable] = None
         self._task_handler: Optional[Callable] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._task_processor: Optional[asyncio.Task] = None
 
-        # Initialize LLM from core
+        # Initialize LLM from core (lazy loading)
         self._llm = None
 
         # Add initial tools
@@ -459,7 +460,7 @@ class Agent:
             task = task_input
 
         # Execute the task
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         result_future = loop.create_future()
 
         task_with_result = task.copy()
@@ -468,7 +469,7 @@ class Agent:
         await self._task_queue.put(task_with_result)
 
         try:
-            result = await asyncio.wait_for(result_future, timeout=60.0)
+            result = await asyncio.wait_for(result_future, timeout=self.config.task_timeout)
             return result
         except asyncio.TimeoutError:
             logger.error(f"Task execution timed out: {task.get('name')}")
@@ -689,7 +690,12 @@ Respond ONLY with a valid JSON object, nothing else."""
 
             # Start task processing
             self._is_running = True
-            self._loop = asyncio.get_event_loop()
+            try:
+                self._loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self._loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self._loop)
+            
             self._loop.create_task(self._run_task_queue())
 
             logger.info(f"Agent {self.name} started successfully")

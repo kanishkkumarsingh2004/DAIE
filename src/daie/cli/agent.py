@@ -32,34 +32,38 @@ def list_agents():
         )
     )
 
-    table = Table(
-        show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
-    )
-    table.add_column("ID", style="cyan")
-    table.add_column("Name", style="magenta")
-    table.add_column("Role", style="yellow")
-    table.add_column("Status", style="green")
+    try:
+        # Get actual agents from the system
+        config = SystemConfig()
+        system = DecentralizedAISystem(config=config)
+        agents = system.list_agents()
 
-    # Get actual agents from the system
+        if not agents:
+            console.print("[yellow]No agents found[/yellow]")
+            return
 
-    # In a real implementation, we would connect to the running system
-    # For now, we'll create a temporary system instance to demonstrate
-    # Note: This approach won't show agents from a running system
-    config = SystemConfig()
-    system = DecentralizedAISystem(config=config)
-
-    agents = system.list_agents()
-
-    for agent in agents:
-        table.add_row(
-            agent.id,
-            agent.name,
-            agent.role.value,
-            "Running" if agent.is_running else "Stopped",
+        table = Table(
+            show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
         )
+        table.add_column("ID", style="cyan")
+        table.add_column("Name", style="magenta")
+        table.add_column("Role", style="yellow")
+        table.add_column("Status", style="green")
 
-    console.print(table)
-    console.print(f"\nTotal agents: [bold green]{len(agents)}[/bold green]")
+        for agent in agents:
+            table.add_row(
+                agent.id[:8] + "...",  # Truncate ID for display
+                agent.name,
+                agent.role.value,
+                "Running" if agent.is_running else "Stopped",
+            )
+
+        console.print(table)
+        console.print(f"\nTotal agents: [bold green]{len(agents)}[/bold green]")
+    
+    except Exception as e:
+        console.print(f"[red]Error listing agents: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @agent_app.command(name="create")
@@ -84,35 +88,37 @@ def create_agent(
     console.print(f"[bold blue]Role:[/bold blue] {role}")
 
     if capabilities:
-        caps = capabilities.split(",")
+        caps = [c.strip() for c in capabilities.split(",")]
         console.print(f"[bold blue]Capabilities:[/bold blue] {', '.join(caps)}")
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as progress:
-        task = progress.add_task(
-            description="Creating agent configuration...", total=None
-        )
-        # Simulate agent creation process
-        import time
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                description="Creating agent configuration...", total=None
+            )
+            import time
+            time.sleep(0.3)
+            progress.update(task, description="Registering agent capabilities...")
+            time.sleep(0.3)
+            progress.update(task, description="Initializing agent memory...")
+            time.sleep(0.3)
 
-        time.sleep(0.5)
-        progress.update(task, description="Registering agent capabilities...")
-        time.sleep(0.5)
-        progress.update(task, description="Initializing agent memory...")
-        time.sleep(0.5)
-
-    console.print(
-        Panel(
-            "[bold green]Agent created successfully![/bold green]\n"
-            "To start the agent, use: [bold]dai agent start [agent-id][/bold]",
-            title="[green]✅ Creation Complete[/green]",
-            border_style="green",
-            box=ROUNDED,
+        console.print(
+            Panel(
+                "[bold green]Agent created successfully![/bold green]\n"
+                "To start the agent, use: [bold]daie agent start [agent-id][/bold]",
+                title="[green]✅ Creation Complete[/green]",
+                border_style="green",
+                box=ROUNDED,
+            )
         )
-    )
+    except Exception as e:
+        console.print(f"[red]Error creating agent: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @agent_app.command(name="start")
@@ -129,30 +135,33 @@ def start_agent(
         )
     )
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as progress:
-        task = progress.add_task(
-            description="Connecting to communication system...", total=None
-        )
-        import time
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                description="Connecting to communication system...", total=None
+            )
+            import time
+            time.sleep(0.3)
+            progress.update(task, description="Initializing agent memory...")
+            time.sleep(0.3)
+            progress.update(task, description="Registering with central core...")
+            time.sleep(0.3)
 
-        time.sleep(0.5)
-        progress.update(task, description="Initializing agent memory...")
-        time.sleep(0.5)
-        progress.update(task, description="Registering with central core...")
-        time.sleep(0.5)
-
-    console.print(
-        Panel(
-            "[bold green]Agent started successfully![/bold green]",
-            title="[green]✅ Startup Complete[/green]",
-            border_style="green",
-            box=ROUNDED,
+        console.print(
+            Panel(
+                "[bold green]Agent started successfully![/bold green]",
+                title="[green]✅ Startup Complete[/green]",
+                border_style="green",
+                box=ROUNDED,
+            )
         )
-    )
+    except Exception as e:
+        console.print(f"[red]Error starting agent: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @agent_app.command(name="stop")
@@ -169,30 +178,33 @@ def stop_agent(
         )
     )
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as progress:
-        task = progress.add_task(
-            description="Deregistering from central core...", total=None
-        )
-        import time
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                description="Deregistering from central core...", total=None
+            )
+            import time
+            time.sleep(0.3)
+            progress.update(task, description="Saving agent memory...")
+            time.sleep(0.3)
+            progress.update(task, description="Closing connections...")
+            time.sleep(0.3)
 
-        time.sleep(0.5)
-        progress.update(task, description="Saving agent memory...")
-        time.sleep(0.5)
-        progress.update(task, description="Closing connections...")
-        time.sleep(0.5)
-
-    console.print(
-        Panel(
-            "[bold green]Agent stopped successfully![/bold green]",
-            title="[green]✅ Shutdown Complete[/green]",
-            border_style="green",
-            box=ROUNDED,
+        console.print(
+            Panel(
+                "[bold green]Agent stopped successfully![/bold green]",
+                title="[green]✅ Shutdown Complete[/green]",
+                border_style="green",
+                box=ROUNDED,
+            )
         )
-    )
+    except Exception as e:
+        console.print(f"[red]Error stopping agent: {e}[/red]")
+        raise typer.Exit(code=1)
 
 
 @agent_app.command(name="status")
@@ -209,26 +221,31 @@ def agent_status(
         )
     )
 
-    # Sample status data
-    status_data = {
-        "ID": agent_id,
-        "Name": "Example Agent",
-        "Role": "general-purpose",
-        "Status": "Running",
-        "Version": "1.0.0",
-        "Uptime": "2 hours, 34 minutes",
-        "Memory Usage": "156 MB",
-        "Connections": ["core-system", "agent-001"],
-    }
+    try:
+        # Sample status data - in production, fetch from actual system
+        status_data = {
+            "ID": agent_id[:8] + "...",
+            "Name": "Example Agent",
+            "Role": "general-purpose",
+            "Status": "Running",
+            "Version": "1.0.1",
+            "Uptime": "2 hours, 34 minutes",
+            "Memory Usage": "156 MB",
+            "Active Tasks": "3",
+        }
 
-    # Display status in a table
-    table = Table(
-        show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
-    )
-    table.add_column("Property", style="magenta")
-    table.add_column("Value", style="cyan")
+        # Display status in a table
+        table = Table(
+            show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
+        )
+        table.add_column("Property", style="magenta")
+        table.add_column("Value", style="cyan")
 
-    for key, value in status_data.items():
-        table.add_row(key, str(value))
+        for key, value in status_data.items():
+            table.add_row(key, str(value))
 
-    console.print(table)
+        console.print(table)
+    
+    except Exception as e:
+        console.print(f"[red]Error getting agent status: {e}[/red]")
+        raise typer.Exit(code=1)

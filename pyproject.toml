@@ -4,19 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daie"
-version = "1.0.1"
+version = "1.0.2"
 authors = [
   { name="Kanishk Kumar Singh", email="kanishkkumar2004@gmail.com" }
 ]
-description = "A Python library for creating and deploying decentralized AI agents with tools"
+description = "A professional, optimized Python library for creating and managing AI agents with intelligent tool selection and LLM integration"
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",

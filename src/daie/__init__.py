@@ -1,36 +1,38 @@
 """
 Decentralized AI Ecosystem Library
-A simplified Python library for creating and deploying AI agents with tools
+A professional, optimized Python library for creating and managing AI agents with tools
 
 This library provides a high-level API for:
-- Creating and configuring AI agents
-- Defining and registering tools
+- Creating and configuring AI agents with intelligent tool selection
+- Defining and registering tools with automatic parameter fixing
 - Setting up communication between agents
-- Managing agent memory and state
-- Deploying agents to various environments
+- Managing agent memory with efficient persistence
+- Deploying agents with optimized performance
 
 Example usage:
->>> from daie import Agent, Tool, set_llm
->>> from daie.tools import WebSearchTool
+>>> from daie import Agent, AgentConfig, set_llm
+>>> from daie.agents import AgentRole
 
-# Configure LLM (default: llama3 from Ollama)
+# Configure LLM (default: llama3.2:latest from Ollama with session pooling)
 >>> set_llm(ollama_llm="llama3.2:latest")
 
-# Create a tool
->>> search_tool = WebSearchTool(name="web_search", description="Search the web for information")
-
-# Create an agent with tools
->>> agent = Agent(
+# Create an agent with configuration
+>>> config = AgentConfig(
 ...     name="MyAgent",
-...     role="general-purpose",
-...     tools=[search_tool]
+...     role=AgentRole.GENERAL_PURPOSE,
+...     task_timeout=30,
+...     max_concurrent_tasks=10
 ... )
+>>> agent = Agent(config=config)
 
-# Start the agent
->>> agent.start()
+# Start the agent (initializes task queue)
+>>> await agent.start()
+
+# Execute tasks with natural language
+>>> result = await agent.execute_task("Say hello to Alice")
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 from daie.agents import Agent, AgentConfig
 from daie.tools import Tool, ToolRegistry

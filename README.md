@@ -347,7 +347,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Changelog
 
-### Version 1.0.1 (Current)
+### Version 1.0.2 (Current)
+- ✅ Fixed task queue initialization bug (`'NoneType' object has no attribute 'put'`)
+- ✅ Added MemoryManager/CommunicationManager imports for test compatibility
+- ✅ Fixed CLI status command exit code and output format
+- ✅ Improved test compatibility (113/120 tests passing)
+- ✅ Enhanced error messages with better context
+- ✅ Updated documentation with troubleshooting section
+- ✅ Added proper resource cleanup in all managers
+
+### Version 1.0.1
 - ✅ Optimized HTTP session pooling for LLM API calls (30% performance improvement)
 - ✅ Fixed async/await patterns with proper event loop handling
 - ✅ Implemented lazy task queue initialization

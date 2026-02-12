@@ -272,7 +272,7 @@ class SeleniumChromeTool(Tool):
 
     def _initialize_driver(self, params: Dict[str, Any]) -> None:
         """
-        Initialize Chrome webdriver
+        Initialize Chrome webdriver with optimized settings
         """
         if self.driver is not None:
             return
@@ -282,16 +282,27 @@ class SeleniumChromeTool(Tool):
             headless = params.get("headless", True)
             if headless:
                 chrome_options.add_argument("--headless=new")
+            
+            # Performance optimizations
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-logging")
+            chrome_options.add_argument("--log-level=3")
+            chrome_options.add_argument("--silent")
+            
+            # Memory optimizations
+            chrome_options.add_argument("--disable-software-rasterizer")
+            chrome_options.add_argument("--disable-dev-tools")
 
             window_size = params.get("window_size", "1920,1080")
             chrome_options.add_argument(f"--window-size={window_size}")
 
             logger.debug("Initializing Chrome webdriver")
             self.driver = webdriver.Chrome(
-                service=Service(ChromeDriverManager().install()), options=chrome_options
+                service=Service(ChromeDriverManager().install()), 
+                options=chrome_options
             )
 
             timeout = params.get("timeout", 30)

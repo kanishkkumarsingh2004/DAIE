@@ -13,6 +13,15 @@ from daie.utils import generate_id
 
 logger = logging.getLogger(__name__)
 
+# Import managers for test compatibility (lazy loaded in actual usage)
+try:
+    from daie.communication import CommunicationManager
+    from daie.memory import MemoryManager
+except ImportError:
+    # Allow module to load even if optional dependencies are missing
+    CommunicationManager = None  # type: ignore
+    MemoryManager = None  # type: ignore
+
 
 class Agent:
     """
@@ -695,6 +704,10 @@ Respond ONLY with a valid JSON object, nothing else."""
             except RuntimeError:
                 self._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._loop)
+            
+            # Initialize task queue
+            if self._task_queue is None:
+                self._task_queue = asyncio.Queue()
             
             self._loop.create_task(self._run_task_queue())
 

@@ -63,4 +63,3 @@ build/
 *.tmp
 *.temp
 .cache/
-examples

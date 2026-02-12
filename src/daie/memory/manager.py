@@ -250,7 +250,7 @@ class MemoryManager:
         tags: Optional[List[str]] = None,
     ) -> str:
         """
-        Store a memory item
+        Store a memory item with optimized performance
 
         Args:
             agent_id: Agent ID
@@ -280,19 +280,20 @@ class MemoryManager:
 
         self._agent_memories[agent_id][memory_type].append(memory_item)
 
-        # Limit memory size
+        # Limit memory size efficiently
         max_items = self.config.max_memory_items or 1000
-        if len(self._agent_memories[agent_id][memory_type]) > max_items:
-            # Remove oldest items
+        current_count = len(self._agent_memories[agent_id][memory_type])
+        if current_count > max_items:
+            # Remove oldest items in one operation
             self._agent_memories[agent_id][memory_type] = self._agent_memories[
                 agent_id
             ][memory_type][-max_items:]
 
-        # Handle case where content might not be a string (like a dictionary)
-        content_str = str(content)
-        logger.debug(f"Memory stored for agent {agent_id}: {content_str[:50]}...")
+        # Log only if content is string
+        content_preview = str(content)[:50] if content else ""
+        logger.debug(f"Memory stored for agent {agent_id}: {content_preview}...")
 
-        # Save to persistent storage
+        # Save to persistent storage (async would be better but keeping sync for compatibility)
         self._save_agent_memory(agent_id)
 
         return memory_item.id

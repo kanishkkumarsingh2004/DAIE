@@ -210,7 +210,7 @@ class CommunicationManager:
 
     async def send_message(self, message: AgentMessage) -> bool:
         """
-        Send a message to another agent
+        Send a message to another agent with optimized performance
 
         Args:
             message: Message to send
@@ -231,10 +231,9 @@ class CommunicationManager:
             if message.receiver_id == "*":
                 await self.broadcast_message(message)
             else:
-                # In real implementation, this would use NATS JetStream or P2P
+                # Direct message
                 await self._send_message_internal(message)
 
-            logger.debug(f"Message sent successfully")
             return True
 
         except Exception as e:

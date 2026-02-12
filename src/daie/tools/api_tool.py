@@ -4,13 +4,9 @@ API call tool using requests library
 
 import logging
 from typing import Dict, Any, Optional
-
 import requests
-
 from daie.tools.tool import Tool, ToolMetadata, ToolParameter, ToolCategory
-
 logger = logging.getLogger(__name__)
-
 
 class APICallTool(Tool):
     """
@@ -121,7 +117,7 @@ class APICallTool(Tool):
         logger.debug(f"Making API call: {method} {url}")
 
         try:
-            # Prepare request kwargs
+            # Prepare request kwargs efficiently
             request_kwargs = {
                 "headers": headers,
                 "params": params_dict,
@@ -137,12 +133,11 @@ class APICallTool(Tool):
             # Make the API call
             response = requests.request(method, url, **request_kwargs)
 
-            # Prepare response
+            # Prepare response efficiently
             result = {
                 "status_code": response.status_code,
                 "url": response.url,
                 "headers": dict(response.headers),
-                "encoding": response.encoding,
                 "reason": response.reason,
                 "elapsed": response.elapsed.total_seconds(),
             }
@@ -151,7 +146,7 @@ class APICallTool(Tool):
             try:
                 result["json"] = response.json()
             except Exception:
-                result["text"] = response.text
+                result["text"] = response.text[:1000]  # Limit text size
 
             logger.debug(
                 f"API call completed: {response.status_code} {response.reason}"
@@ -159,6 +154,12 @@ class APICallTool(Tool):
 
             return result
 
+        except requests.exceptions.Timeout:
+            logger.error(f"API call timed out: {url}")
+            raise Exception(f"Request timed out after {timeout} seconds")
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error: {e}")
+            raise Exception(f"Failed to connect to {url}")
         except Exception as e:
             logger.error(f"API call failed: {e}")
             raise

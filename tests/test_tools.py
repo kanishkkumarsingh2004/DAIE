@@ -1,4 +1,27 @@
-"""Tests for tools module."""
+"""Tests for tools module - Tool Framework and Registry System.
+
+Use Case Description:
+This test file validates the tool framework and registry system in the Decentralized AI Ecosystem (DAIE), which enables agents to use and manage tools. Key functionalities tested include:
+
+1. **Tool Base Class**: Foundation for tool development
+   - Tool creation and initialization
+   - Parameter validation
+   - Tool execution and result handling
+
+2. **Tool Registry**: Central tool management
+   - Registry creation and initialization
+   - Registering tools with metadata
+   - Retrieving tools by name
+   - Unregistering tools
+   - Listing available tools
+
+3. **Tool Integration**: Advanced tool management
+   - Tool chain creation and execution
+   - Handling duplicate tool registrations
+   - Separate registry instances for isolation
+
+These tests ensure that the tool system provides a robust framework for developing, registering, and using tools, enabling agents to extend their capabilities beyond built-in functionality.
+"""
 
 import pytest
 from unittest.mock import Mock, patch

@@ -1,4 +1,31 @@
-"""Tests for memory module."""
+"""Tests for memory module - Agent Memory Management System.
+
+Use Case Description:
+This test file validates the memory management system in the Decentralized AI Ecosystem (DAIE), which enables agents to store, retrieve, and manage memories. Key functionalities tested include:
+
+1. **Memory Manager**: Core memory orchestrator
+   - Memory manager creation and initialization
+   - Starting and stopping memory services
+   - Agent memory initialization
+
+2. **Memory Operations**: Basic memory management
+   - Storing memories with different types and metadata
+   - Retrieving memories by agent ID
+   - Filtering memories by type and tags
+   - Limiting retrieval results
+
+3. **Memory Types**: Different memory categories
+   - Working memory (temporary storage)
+   - Semantic memory (knowledge storage)
+   - Episodic memory (event storage)
+
+4. **Memory Management**: Advanced operations
+   - Clearing agent memory
+   - Counting memories by type
+   - Memory persistence across sessions
+
+These tests ensure that agents can effectively manage their memories, enabling them to learn from experiences, recall information, and maintain context across interactions in the decentralized environment.
+"""
 
 import pytest
 from unittest.mock import Mock, patch

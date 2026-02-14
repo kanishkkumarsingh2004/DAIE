@@ -1,6 +1,28 @@
 #!/usr/bin/env python3
-"""
-Test script for the new RAG configuration parameters
+"""Tests for RAG configuration parameters - Retrieval-Augmented Generation Setup.
+
+Use Case Description:
+This test file validates the Retrieval-Augmented Generation (RAG) configuration parameters in the Decentralized AI Ecosystem (DAIE). RAG enables agents to access external knowledge sources to enhance their responses. Key functionalities tested include:
+
+1. **System Configuration**: Global RAG settings
+   - RAG document path configuration
+   - Enabling/disabling RAG functionality
+   - Validation of document path
+   - System configuration serialization/deserialization
+
+2. **Agent Configuration**: Per-agent RAG settings
+   - Agent-specific RAG document path
+   - Enabling/disabling RAG per agent
+   - Configuration validation
+   - Agent configuration serialization/deserialization
+
+3. **Validation**: Configuration verification
+   - Validating RAG configuration parameters
+   - Temporary directory validation for testing
+   - Error handling for invalid paths
+   - Configuration merging and updating
+
+These tests ensure that the RAG configuration system functions correctly, enabling agents to access external knowledge bases and provide more informed responses.
 """
 
 import os

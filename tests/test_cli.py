@@ -1,4 +1,29 @@
-"""Tests for CLI module."""
+"""Tests for CLI module - Command-Line Interface for System Management.
+
+Use Case Description:
+This test file validates the Command-Line Interface (CLI) for managing the Decentralized AI Ecosystem (DAIE). The CLI provides users with direct control over system operations through terminal commands. Key functionalities tested include:
+
+1. **Main CLI Functionality**: Core command structure
+   - Help command and usage information
+   - Command chain execution and validation
+
+2. **Core System Management**: Central system operations
+   - Starting and stopping the decentralized AI system
+   - Checking system status
+   - Error handling for system operations
+
+3. **Agent Management**: Individual agent control
+   - Starting and stopping agents
+   - Checking agent status
+   - Configuring agents with custom settings
+
+4. **Configuration and Options**: CLI customization
+   - Custom configuration file handling
+   - Log level configuration (debug mode)
+   - Command parameter validation
+
+These tests ensure that the CLI commands function correctly, providing users with a reliable interface for managing the DAIE system and its components.
+"""
 
 import pytest
 from unittest.mock import Mock, patch

@@ -1,4 +1,24 @@
-"""Tests for core module."""
+"""Tests for core module - Decentralized AI Ecosystem Core Functionality.
+
+Use Case Description:
+This test file validates the core functionality of the Decentralized AI Ecosystem (DAIE), focusing on two primary components:
+
+1. **Node Management**: Tests the Node class which represents individual computing nodes in the decentralized network.
+   - Node creation and initialization
+   - Starting and stopping nodes
+   - Adding/removing agents to/from nodes
+   - Managing node connections
+   - Resource management (CPU, memory, disk)
+   - Retrieving node status information
+
+2. **Decentralized AI System**: Tests the DecentralizedAISystem class which orchestrates the entire network of nodes and agents.
+   - System creation and initialization
+   - Adding and retrieving agents
+   - Starting and stopping the entire system
+   - Managing system-level operations
+
+These tests ensure that the core infrastructure of the DAIE functions correctly, providing the foundation for building and running decentralized AI applications that leverage distributed computing resources across a network of nodes.
+"""
 
 import pytest
 from unittest.mock import Mock, patch

@@ -1,5 +1,29 @@
-"""
-Tests for Selenium Chrome automation tool
+"""Tests for Selenium Chrome automation tool - Browser Automation for Web Interactions.
+
+Use Case Description:
+This test file validates the Selenium Chrome automation tool in the Decentralized AI Ecosystem (DAIE), providing agents with browser automation capabilities for web scraping and interaction. Key functionalities tested include:
+
+1. **Tool Initialization**: Chrome browser automation setup
+   - Tool creation and initialization
+   - Browser driver management
+   - Tool metadata and capabilities
+
+2. **Tool Configuration**: Browser automation settings
+   - Action parameter validation (required field)
+   - Screenshot configuration
+   - Navigation and interaction actions
+
+3. **Error Handling**: Edge case scenarios
+   - Initialization failure handling
+   - Missing required parameters
+   - Browser driver unavailability
+
+4. **Toolkit Integration**: Chrome-specific capabilities
+   - SeleniumToolkit functionality
+   - Browser automation capabilities (web scraping, navigation)
+   - Supported selector types (CSS, XPath)
+
+These tests ensure that agents can automate Chrome browser interactions, enabling them to scrape web content, interact with web applications, and integrate with external web services through browser automation.
 """
 
 import pytest

@@ -1,5 +1,23 @@
-"""
-Tests for API call tools
+"""Tests for API call tools - HTTP Communication Utilities for Agents.
+
+Use Case Description:
+This test file validates the API call tools in the Decentralized AI Ecosystem (DAIE), providing HTTP communication capabilities for agents to interact with external web services. Key functionalities tested include:
+
+1. **APICallTool**: Generic HTTP request tool
+   - Making HTTP GET requests with mock responses
+   - Handling HTTP responses with various status codes
+   - Custom header management for authentication and content negotiation
+   - Parameter validation for required fields (e.g., URL)
+
+2. **HTTPGetTool**: Specialized GET request tool
+   - Simple GET requests with query parameters
+   - Response parsing and error handling
+
+3. **HTTPPostTool**: Specialized POST request tool
+   - Sending JSON data in POST requests
+   - Handling creation operations and response codes (e.g., 201 Created)
+
+These tools enable agents to access external APIs, retrieve data from web services, and integrate with third-party systems, expanding the capabilities of the DAIE beyond its internal computational resources.
 """
 
 import pytest

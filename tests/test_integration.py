@@ -1,4 +1,30 @@
-"""Integration tests for the entire system."""
+"""Integration tests for the entire system - System-Wide Functionality Testing.
+
+Use Case Description:
+This test file validates the entire Decentralized AI Ecosystem (DAIE) through integration tests, testing how all components work together. Key functionalities tested include:
+
+1. **System Integration**: Core system functionality
+   - System with multiple agents and nodes
+   - Agent lifecycle management (creation, startup, shutdown)
+   - Distributed system behavior across multiple nodes
+
+2. **Agent-System Interactions**: Agent management
+   - Adding multiple agents to system
+   - Agent communication within system
+   - Memory persistence across sessions
+
+3. **Network Communication**: Decentralized messaging
+   - Message propagation through system
+   - Node-to-node communication
+   - Agent-to-agent communication across nodes
+
+4. **Performance**: Scalability and efficiency
+   - System scalability with multiple nodes
+   - Performance of distributed operations
+   - System behavior under load
+
+These integration tests ensure that all components of the DAIE system work together seamlessly, providing a comprehensive validation of the entire ecosystem's functionality.
+"""
 
 import pytest
 import asyncio
@@ -11,7 +37,6 @@ from daie.agents.message import AgentMessage
 
 
 class TestSystemIntegration:
-    """Integration tests for the entire system."""
 
     @patch("daie.core.system.Agent")
     def test_system_with_multiple_agents(self, mock_agent, mock_logger):

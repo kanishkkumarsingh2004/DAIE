@@ -1,4 +1,27 @@
-"""Tests for agents module."""
+"""Tests for agents module - Decentralized AI Ecosystem Agent System.
+
+Use Case Description:
+This test file validates the agent system in the Decentralized AI Ecosystem (DAIE), focusing on three main components:
+
+1. **Agent Configuration**: Tests for AgentConfig class which defines agent behavior
+   - Basic AgentConfig creation and initialization
+   - Default values for agent configurations
+   - Configuration validation and schema
+
+2. **Agent Communication**: Tests for AgentMessage class which enables agent-to-agent communication
+   - Message creation and initialization
+   - Message serialization and deserialization
+   - Timestamps and message type handling
+
+3. **Agent Management**: Tests for Agent class which represents individual AI agents
+   - Agent creation and initialization
+   - Starting and stopping agent operations
+   - Adding and removing tools
+   - Message sending and receiving
+   - Task execution with tools
+
+These tests ensure that agents can be properly configured, communicate effectively, and execute tasks in the decentralized environment, forming the core of the DAIE's computational capabilities.
+"""
 
 import pytest
 import asyncio

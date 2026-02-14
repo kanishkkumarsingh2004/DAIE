@@ -1,6 +1,34 @@
 #!/usr/bin/env python3
-"""
-Tests for FileManagerTool operations on files and folders
+"""Tests for FileManagerTool operations - File System Management for Agents.
+
+Use Case Description:
+This test file validates the FileManagerTool in the Decentralized AI Ecosystem (DAIE), providing agents with file system operations capabilities. Key functionalities tested include:
+
+1. **File Operations**: Basic file management
+   - Creating files with content
+   - Reading file contents
+   - Writing and appending to files
+   - Deleting files
+   - Copying and moving files
+
+2. **Directory Operations**: Folder management
+   - Creating directories
+   - Deleting directories (with and without recursion)
+   - Listing directory contents
+   - Copying directories
+   - Checking directory existence
+
+3. **File Information**: Metadata and statistics
+   - Getting file information (size, type, timestamps)
+   - Getting directory information (item count, structure)
+   - Checking file/directory existence
+
+4. **Error Handling**: Edge case scenarios
+   - Operations on nonexistent paths
+   - Incorrect path types (file as directory and vice versa)
+   - Recursive operations on nested structures
+
+These tests ensure that agents can effectively manage files and directories, enabling them to read from, write to, and organize data in the file system.
 """
 
 import os

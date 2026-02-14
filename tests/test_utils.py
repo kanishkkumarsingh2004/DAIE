@@ -1,4 +1,31 @@
-"""Tests for utils module."""
+"""Tests for utils module - Utility Functions for System Operations.
+
+Use Case Description:
+This test file validates the utility functions in the Decentralized AI Ecosystem (DAIE), which provide core functionality used across the system. Key functionalities tested include:
+
+1. **Common Utils**: General utility functions
+   - ID generation for unique identifiers
+   - JSON validation and manipulation
+   - Retry decorator for error handling
+   - Deep merge functionality for dictionaries
+
+2. **Encryption Utils**: Data security functions
+   - Data encryption and decryption
+   - Encryption key generation
+   - Handling incorrect keys and data
+
+3. **Logger Utils**: Logging system
+   - Logger creation and configuration
+   - Logging at different levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+   - Log record handling
+
+4. **Serialization Utils**: Data serialization
+   - JSON serialization/deserialization
+   - Serializer class for multiple formats
+   - Handling special types (datetime, None, booleans)
+
+These utility functions form the foundation of the DAIE system, providing essential capabilities for system operations, security, and data management.
+"""
 
 import pytest
 import json

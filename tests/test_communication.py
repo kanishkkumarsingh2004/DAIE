@@ -1,4 +1,30 @@
-"""Tests for communication module."""
+"""Tests for communication module - Agent Communication and Peer Management.
+
+Use Case Description:
+This test file validates the communication system in the Decentralized AI Ecosystem (DAIE), which enables agents to communicate and share information across the decentralized network. Key functionalities tested include:
+
+1. **Communication Manager**: Core communication orchestrator
+   - Communication manager creation and initialization
+   - Starting and stopping communication services
+   - Connection status management
+
+2. **Message Handling**: Agent communication
+   - Sending and receiving AgentMessage objects
+   - Broadcasting messages to all connected agents
+   - Message serialization and deserialization
+
+3. **Agent Registration**: Managing agent connections
+   - Registering agents with communication manager
+   - Deregistering agents from communication manager
+   - Retrieving agent information
+
+4. **Peer Management**: Network node discovery
+   - Updating peer node information
+   - Retrieving peer information
+   - Managing network topology
+
+These tests ensure that agents can communicate reliably across the network, forming the communication backbone of the decentralized AI system.
+"""
 
 import pytest
 import asyncio

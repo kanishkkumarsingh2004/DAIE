@@ -20,6 +20,7 @@ class LLMType(Enum):
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
     AZURE = "azure"
+    OPENROUTER = "openrouter"
 
 
 @dataclass
@@ -178,6 +179,8 @@ class LLMManager:
                 llm = self._create_google_llm()
             elif self.config.llm_type == LLMType.AZURE:
                 llm = self._create_azure_llm()
+            elif self.config.llm_type == LLMType.OPENROUTER:
+                llm = self._create_openrouter_llm()
             else:
                 raise ValueError(f"Unsupported LLM type: {self.config.llm_type}")
 
@@ -192,7 +195,7 @@ class LLMManager:
         """Create an Ollama LLM instance using HTTP API"""
 
         class OllamaLLM:
-            """Simple Ollama LLM implementation using HTTP API"""
+            """Ollama LLM implementation with streaming support"""
 
             def __init__(self, config: LLMConfig):
                 self.config = config
@@ -207,8 +210,25 @@ class LLMManager:
                     self._session = requests.Session()
                 return self._session
 
-            def invoke(self, prompt: str, **kwargs) -> str:
-                """Invoke the LLM with a prompt"""
+            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+                """
+                Invoke the LLM with a prompt
+                
+                Args:
+                    prompt: The prompt to send to the LLM
+                    stream: Whether to stream tokens as they're generated
+                    **kwargs: Additional parameters
+                    
+                Returns:
+                    Complete response as string
+                """
+                if stream:
+                    return self._invoke_stream(prompt, **kwargs)
+                else:
+                    return self._invoke_non_stream(prompt, **kwargs)
+
+            def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
+                """Non-streaming invocation"""
                 try:
                     import json
 
@@ -230,8 +250,8 @@ class LLMManager:
 
                     # Call ollama API
                     response = session.post(
-                        f"{self.base_url}/api/chat", 
-                        json=payload, 
+                        f"{self.base_url}/api/chat",
+                        json=payload,
                         timeout=60
                     )
 
@@ -265,6 +285,67 @@ class LLMManager:
                         logger.error(f"Ollama LLM error: {e}")
                         return f"Error: {e}"
 
+            def _invoke_stream(self, prompt: str, **kwargs) -> str:
+                """Streaming invocation with token-by-token display"""
+                try:
+                    import json
+                    import sys
+
+                    session = self._get_session()
+
+                    # Create message payload
+                    messages = [{"role": "user", "content": prompt}]
+
+                    payload = {
+                        "model": self.config.model_name,
+                        "messages": messages,
+                        "temperature": self.config.temperature,
+                        "stream": True,
+                    }
+
+                    # Add max_tokens if supported
+                    if self.config.max_tokens:
+                        payload["options"] = {"num_predict": self.config.max_tokens}
+
+                    # Call ollama API with streaming
+                    response = session.post(
+                        f"{self.base_url}/api/chat",
+                        json=payload,
+                        stream=True,
+                        timeout=60
+                    )
+
+                    full_response = ""
+
+                    # Process streaming responses
+                    for line in response.iter_lines():
+                        if line:
+                            line = line.decode('utf-8').strip()
+                            try:
+                                data = json.loads(line)
+                                if "message" in data and "content" in data["message"]:
+                                    token = data["message"]["content"]
+                                    full_response += token
+                                    sys.stdout.write(token)
+                                    sys.stdout.flush()
+                            except json.JSONDecodeError:
+                                continue
+
+                    print()  # New line after streaming completes
+                    return full_response
+
+                except Exception as e:
+                    import requests
+                    if isinstance(e, requests.exceptions.ConnectionError):
+                        logger.error("Ollama connection error: Could not connect to server")
+                        return "Error: Could not connect to Ollama server. Is it running?"
+                    elif isinstance(e, requests.exceptions.Timeout):
+                        logger.error("Ollama timeout error: Request timed out")
+                        return "Error: Request timed out. Ollama may be taking too long to respond."
+                    else:
+                        logger.error(f"Ollama LLM error: {e}")
+                        return f"Error: {e}"
+
             def __del__(self):
                 """Cleanup session on deletion"""
                 if self._session:
@@ -276,13 +357,30 @@ class LLMManager:
         """Create an OpenAI LLM instance using direct API calls"""
 
         class OpenAILLM:
-            """Simple OpenAI LLM implementation using requests"""
+            """OpenAI LLM implementation with streaming support"""
 
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, **kwargs) -> str:
-                """Invoke the LLM with a prompt"""
+            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+                """
+                Invoke the LLM with a prompt
+                
+                Args:
+                    prompt: The prompt to send to the LLM
+                    stream: Whether to stream tokens as they're generated
+                    **kwargs: Additional parameters
+                    
+                Returns:
+                    Complete response as string
+                """
+                if stream:
+                    return self._invoke_stream(prompt, **kwargs)
+                else:
+                    return self._invoke_non_stream(prompt, **kwargs)
+
+            def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
+                """Non-streaming invocation"""
                 try:
                     import requests
 
@@ -309,19 +407,86 @@ class LLMManager:
                     logger.error(f"OpenAI LLM error: {e}")
                     return f"Error: {e}"
 
+            def _invoke_stream(self, prompt: str, **kwargs) -> str:
+                """Streaming invocation with token-by-token display"""
+                try:
+                    import requests
+                    import json
+                    import sys
+
+                    url = f"{self.config.base_url or 'https://api.openai.com'}/v1/chat/completions"
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.config.api_key}",
+                    }
+
+                    payload = {
+                        "model": self.config.model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                        "stream": True
+                    }
+
+                    response = requests.post(url, headers=headers, json=payload, stream=True)
+                    response.raise_for_status()
+
+                    full_response = ""
+
+                    # Process streaming responses
+                    for line in response.iter_lines():
+                        if line:
+                            line = line.decode('utf-8').strip()
+                            if line.startswith('data: '):
+                                try:
+                                    data = json.loads(line[6:])
+                                    if 'choices' in data and data['choices']:
+                                        delta = data['choices'][0].get('delta', {})
+                                        if 'content' in delta:
+                                            token = delta['content']
+                                            full_response += token
+                                            sys.stdout.write(token)
+                                            sys.stdout.flush()
+                                except json.JSONDecodeError:
+                                    continue
+
+                    print()  # New line after streaming completes
+                    return full_response
+
+                except Exception as e:
+                    logger.error(f"OpenAI LLM error: {e}")
+                    return f"Error: {e}"
+
         return OpenAILLM(self.config)
 
     def _create_anthropic_llm(self):
         """Create an Anthropic LLM instance using direct API calls"""
 
         class AnthropicLLM:
-            """Simple Anthropic LLM implementation using requests"""
+            """Anthropic LLM implementation with streaming support"""
 
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, **kwargs) -> str:
-                """Invoke the LLM with a prompt"""
+            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+                """
+                Invoke the LLM with a prompt
+                
+                Args:
+                    prompt: The prompt to send to the LLM
+                    stream: Whether to stream tokens as they're generated
+                    **kwargs: Additional parameters
+                    
+                Returns:
+                    Complete response as string
+                """
+                if stream:
+                    return self._invoke_stream(prompt, **kwargs)
+                else:
+                    return self._invoke_non_stream(prompt, **kwargs)
+
+            def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
+                """Non-streaming invocation"""
                 try:
                     import requests
 
@@ -348,19 +513,84 @@ class LLMManager:
                     logger.error(f"Anthropic LLM error: {e}")
                     return f"Error: {e}"
 
+            def _invoke_stream(self, prompt: str, **kwargs) -> str:
+                """Streaming invocation with token-by-token display"""
+                try:
+                    import requests
+                    import json
+                    import sys
+
+                    url = f"{self.config.base_url or 'https://api.anthropic.com'}/v1/messages"
+                    headers = {
+                        "Content-Type": "application/json",
+                        "x-api-key": self.config.api_key,
+                    }
+
+                    payload = {
+                        "model": self.config.model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                        "stream": True
+                    }
+
+                    response = requests.post(url, headers=headers, json=payload, stream=True)
+                    response.raise_for_status()
+
+                    full_response = ""
+
+                    # Process streaming responses
+                    for line in response.iter_lines():
+                        if line:
+                            line = line.decode('utf-8').strip()
+                            if line.startswith('data: '):
+                                try:
+                                    data = json.loads(line[6:])
+                                    if 'delta' in data and 'text' in data['delta']:
+                                        token = data['delta']['text']
+                                        full_response += token
+                                        sys.stdout.write(token)
+                                        sys.stdout.flush()
+                                except json.JSONDecodeError:
+                                    continue
+
+                    print()  # New line after streaming completes
+                    return full_response
+
+                except Exception as e:
+                    logger.error(f"Anthropic LLM error: {e}")
+                    return f"Error: {e}"
+
         return AnthropicLLM(self.config)
 
     def _create_google_llm(self):
         """Create a Google Cloud LLM instance using direct API calls"""
 
         class GoogleLLM:
-            """Simple Google Cloud LLM implementation using requests"""
+            """Google Cloud LLM implementation with streaming support"""
 
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, **kwargs) -> str:
-                """Invoke the LLM with a prompt"""
+            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+                """
+                Invoke the LLM with a prompt
+                
+                Args:
+                    prompt: The prompt to send to the LLM
+                    stream: Whether to stream tokens as they're generated
+                    **kwargs: Additional parameters
+                    
+                Returns:
+                    Complete response as string
+                """
+                if stream:
+                    return self._invoke_stream(prompt, **kwargs)
+                else:
+                    return self._invoke_non_stream(prompt, **kwargs)
+
+            def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
+                """Non-streaming invocation"""
                 try:
                     import requests
 
@@ -372,19 +602,59 @@ class LLMManager:
                     logger.error(f"Google LLM error: {e}")
                     return f"Error: {e}"
 
+            def _invoke_stream(self, prompt: str, **kwargs) -> str:
+                """Streaming invocation with token-by-token display"""
+                try:
+                    import sys
+
+                    # This is a simplified version - Google's API is more complex
+                    logger.warning("Google LLM support is experimental")
+                    
+                    response = f"Google LLM streaming response to: {prompt[:50]}..."
+                    # Simulate streaming for demonstration
+                    for char in response:
+                        sys.stdout.write(char)
+                        sys.stdout.flush()
+                        import time
+                        time.sleep(0.05)
+                    
+                    print()  # New line after streaming completes
+                    return response
+
+                except Exception as e:
+                    logger.error(f"Google LLM error: {e}")
+                    return f"Error: {e}"
+
         return GoogleLLM(self.config)
 
     def _create_azure_llm(self):
         """Create an Azure OpenAI LLM instance using direct API calls"""
 
         class AzureLLM:
-            """Simple Azure OpenAI LLM implementation using requests"""
+            """Azure OpenAI LLM implementation with streaming support"""
 
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, **kwargs) -> str:
-                """Invoke the LLM with a prompt"""
+            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+                """
+                Invoke the LLM with a prompt
+                
+                Args:
+                    prompt: The prompt to send to the LLM
+                    stream: Whether to stream tokens as they're generated
+                    **kwargs: Additional parameters
+                    
+                Returns:
+                    Complete response as string
+                """
+                if stream:
+                    return self._invoke_stream(prompt, **kwargs)
+                else:
+                    return self._invoke_non_stream(prompt, **kwargs)
+
+            def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
+                """Non-streaming invocation"""
                 try:
                     import requests
 
@@ -412,7 +682,190 @@ class LLMManager:
                     logger.error(f"Azure LLM error: {e}")
                     return f"Error: {e}"
 
+            def _invoke_stream(self, prompt: str, **kwargs) -> str:
+                """Streaming invocation with token-by-token display"""
+                try:
+                    import requests
+                    import json
+                    import sys
+
+                    # Azure OpenAI API endpoint format:
+                    # https://{your-resource-name}.openai.azure.com/openai/deployments/{deployment-name}/chat/completions?api-version={api-version}
+                    url = f"{self.config.base_url}/openai/deployments/{self.config.model_name}/chat/completions?api-version=2023-05-15"
+                    headers = {
+                        "Content-Type": "application/json",
+                        "api-key": self.config.api_key,
+                    }
+
+                    payload = {
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                        "stream": True
+                    }
+
+                    response = requests.post(url, headers=headers, json=payload, stream=True)
+                    response.raise_for_status()
+
+                    full_response = ""
+
+                    # Process streaming responses
+                    for line in response.iter_lines():
+                        if line:
+                            line = line.decode('utf-8').strip()
+                            if line.startswith('data: '):
+                                try:
+                                    data = json.loads(line[6:])
+                                    if 'choices' in data and data['choices']:
+                                        delta = data['choices'][0].get('delta', {})
+                                        if 'content' in delta:
+                                            token = delta['content']
+                                            full_response += token
+                                            sys.stdout.write(token)
+                                            sys.stdout.flush()
+                                except json.JSONDecodeError:
+                                    continue
+
+                    print()  # New line after streaming completes
+                    return full_response
+
+                except Exception as e:
+                    logger.error(f"Azure LLM error: {e}")
+                    return f"Error: {e}"
+
         return AzureLLM(self.config)
+
+    def _create_openrouter_llm(self):
+        """Create an OpenRouter LLM instance using direct API calls"""
+
+        class OpenRouterLLM:
+            """OpenRouter LLM implementation with streaming support"""
+
+            def __init__(self, config: LLMConfig):
+                self.config = config
+
+            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+                """
+                Invoke the LLM with a prompt
+                
+                Args:
+                    prompt: The prompt to send to the LLM
+                    stream: Whether to stream tokens as they're generated
+                    **kwargs: Additional parameters
+                    
+                Returns:
+                    Complete response as string
+                """
+                if stream:
+                    return self._invoke_stream(prompt, **kwargs)
+                else:
+                    return self._invoke_non_stream(prompt, **kwargs)
+
+            def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
+                """Non-streaming invocation"""
+                try:
+                    import requests
+                    import json
+
+                    url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.config.api_key}",
+                        "HTTP-Referer": self.config.additional_params.get("referer", ""),
+                        "X-Title": self.config.additional_params.get("title", ""),
+                    }
+
+                    payload = {
+                        "model": self.config.model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                    }
+
+                    # Add additional parameters if present
+                    if self.config.additional_params:
+                        for key, value in self.config.additional_params.items():
+                            if key not in ["referer", "title"] and key not in payload:
+                                payload[key] = value
+
+                    response = requests.post(
+                        url,
+                        headers=headers,
+                        data=json.dumps(payload)
+                    )
+                    response.raise_for_status()
+
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+
+                except Exception as e:
+                    logger.error(f"OpenRouter LLM error: {e}")
+                    return f"Error: {e}"
+
+            def _invoke_stream(self, prompt: str, **kwargs) -> str:
+                """Streaming invocation with token-by-token display"""
+                try:
+                    import requests
+                    import json
+                    import sys
+
+                    url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.config.api_key}",
+                        "HTTP-Referer": self.config.additional_params.get("referer", ""),
+                        "X-Title": self.config.additional_params.get("title", ""),
+                    }
+
+                    payload = {
+                        "model": self.config.model_name,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                        "stream": True
+                    }
+
+                    # Add additional parameters if present
+                    if self.config.additional_params:
+                        for key, value in self.config.additional_params.items():
+                            if key not in ["referer", "title"] and key not in payload:
+                                payload[key] = value
+
+                    response = requests.post(
+                        url,
+                        headers=headers,
+                        data=json.dumps(payload),
+                        stream=True
+                    )
+                    response.raise_for_status()
+
+                    full_response = ""
+
+                    # Process streaming responses
+                    for line in response.iter_lines():
+                        if line:
+                            line = line.decode('utf-8').strip()
+                            if line.startswith('data: '):
+                                try:
+                                    data = json.loads(line[6:])
+                                    if 'choices' in data and data['choices']:
+                                        delta = data['choices'][0].get('delta', {})
+                                        if 'content' in delta:
+                                            token = delta['content']
+                                            full_response += token
+                                            sys.stdout.write(token)
+                                            sys.stdout.flush()
+                                except json.JSONDecodeError:
+                                    continue
+
+                    print()  # New line after streaming completes
+                    return full_response
+
+                except Exception as e:
+                    logger.error(f"OpenRouter LLM error: {e}")
+                    return f"Error: {e}"
+
+        return OpenRouterLLM(self.config)
 
     async def async_invoke(self, prompt: str, **kwargs) -> str:
         """

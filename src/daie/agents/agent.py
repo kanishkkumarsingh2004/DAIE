@@ -3,8 +3,10 @@ AI Agent implementation module
 """
 
 import asyncio
+import json
 import logging
-from typing import List, Optional, Dict, Any, Callable, Union
+import re
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.message import AgentMessage
@@ -13,49 +15,72 @@ from daie.utils import generate_id
 
 logger = logging.getLogger(__name__)
 
-# Import managers for test compatibility (lazy loaded in actual usage)
 try:
     from daie.communication import CommunicationManager
     from daie.memory import MemoryManager
 except ImportError:
-    # Allow module to load even if optional dependencies are missing
     CommunicationManager = None  # type: ignore
     MemoryManager = None  # type: ignore
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Prompt templates
+# ─────────────────────────────────────────────────────────────────────────────
+
+_TOOL_SYSTEM = """\
+You are {name}. {system_prompt}
+
+Tools available:
+{tools_block}
+
+IMPORTANT: Respond with ONLY a single JSON object, no other text.
+To call a tool:
+{{"thought":"reason","tool":"tool_name","params":{{...}}}}
+To give a final answer:
+{{"thought":"reason","answer":"your response"}}
+"""
+
+_TOOL_TURN = """\
+History: {history}
+Task: {user_input}
+JSON:"""
+
+_TOOL_RESULT_TURN = 'Tool "{tool_name}" result: {result}\nNext JSON:'
+
+_NO_TOOL_SYSTEM = "You are {name}. {system_prompt}"
+
+
 class Agent:
     """
-    AI Agent class for the Decentralized AI Ecosystem
+    AI Agent with a proper ReAct-style tool-use loop.
 
-    This class represents an individual AI agent that can:
-    - Communicate with other agents
-    - Execute tasks with tools
-    - Maintain memory
-    - Learn and adapt
-    - Handle events
+    The LLM is the brain: it reasons, picks tools, observes results, and
+    iterates until it can give a final answer.  Both pre-built tools
+    (SeleniumChromeTool, APICallTool, FileManagerTool, …) and user-defined
+    @tool-decorated functions work identically.
 
-    Example:
-    >>> from daie import Agent
-    >>> from daie.tools import WebSearchTool
-    >>> from daie.agents.config import AgentConfig, AgentRole
-
-    >>> # Create agent configuration
-    >>> config = AgentConfig(
-    ...     name="MyResearchAgent",
-    ...     role=AgentRole.SPECIALIZED,
-    ...     goal="Research information on given topics",
-    ...     backstory="Created to assist with research and information gathering",
-    ...     system_prompt="You are a research assistant that helps users find and analyze information.",
-    ...     capabilities=["web_search"]
-    ... )
-
-    >>> # Create and configure agent
-    >>> agent = Agent(config=config)
-    >>> agent.add_tool(WebSearchTool())
-
-    >>> # Start the agent
-    >>> agent.start()
+    Example
+    -------
+    >>> from daie import Agent, AgentConfig, set_llm
+    >>> from daie.agents import AgentRole
+    >>> from daie.tools import FileManagerTool, APICallTool
+    >>> from daie.tools import tool
+    >>>
+    >>> @tool(name="greet", description="Greet a person by name")
+    >>> async def greet(name: str) -> str:
+    ...     return f"Hello, {name}!"
+    >>>
+    >>> set_llm(ollama_llm="llama3.2:latest", stream=True)
+    >>> agent = Agent(config=AgentConfig(name="Bob", role=AgentRole.GENERAL_PURPOSE))
+    >>> agent.add_tool(greet)
+    >>> agent.add_tool(FileManagerTool())
+    >>> agent.add_tool(APICallTool())
+    >>> await agent.start()
+    >>> result = await agent.execute_task("List the files in the current directory")
     """
+
+    # Maximum tool-call iterations per execute_task call
+    MAX_TOOL_ITERATIONS = 8
 
     def __init__(
         self,
@@ -67,18 +92,6 @@ class Agent:
         config: Optional[AgentConfig] = None,
         tools: Optional[List[Any]] = None,
     ):
-        """
-        Initialize an AI agent
-
-        Args:
-            name: Agent display name
-            role: Agent role type
-            goal: Agent's main purpose or goal
-            backstory: Agent's backstory or origin story
-            system_prompt: System prompt for the agent's behavior
-            config: Agent configuration (if None, default is used)
-            tools: List of tools to initialize with
-        """
         if config is not None:
             self.config = config
         else:
@@ -99,292 +112,326 @@ class Agent:
         self._message_handler: Optional[Callable] = None
         self._task_handler: Optional[Callable] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._task_processor: Optional[asyncio.Task] = None
-
-        # Initialize LLM from core (lazy loading)
         self._llm = None
 
-        # Add initial tools
         if tools:
-            for tool in tools:
-                self.add_tool(tool)
+            for t in tools:
+                self.add_tool(t)
 
         logger.info(f"Agent {self.config.name} (ID: {self.id}) created")
 
+    # ── properties ────────────────────────────────────────────────────────────
+
     @property
     def name(self) -> str:
-        """Get agent display name"""
         return self.config.name
 
     @property
     def role(self) -> AgentRole:
-        """Get agent role"""
         return self.config.role
 
     @property
     def goal(self) -> str:
-        """Get agent goal"""
         return self.config.goal
 
     @property
     def backstory(self) -> str:
-        """Get agent backstory"""
         return self.config.backstory
 
     @property
     def system_prompt(self) -> str:
-        """Get agent system prompt"""
         return self.config.system_prompt
 
     @property
     def is_running(self) -> bool:
-        """Check if agent is currently running"""
         return self._is_running
 
     @property
     def llm(self):
-        """Get LLM instance from core, configured with agent's LLM settings"""
+        """Lazy-load the LLM, respecting any global set_llm() config."""
         if self._llm is None:
-            from daie.core.llm_manager import get_llm_manager, LLMType
+            from daie.core.llm_manager import LLMType, get_llm, get_llm_manager
 
-            llm_manager = get_llm_manager()
-
-            # Configure LLM with agent's settings
-            llm_manager.set_llm(
-                llm_type=LLMType(self.config.llm_provider),
-                model_name=self.config.llm_model,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-            )
-
-            from daie.core.llm_manager import get_llm
-
+            mgr = get_llm_manager()
+            # Only override if the agent has non-default LLM settings
+            if self.config.llm_model != "llama3":
+                mgr.set_llm(
+                    llm_type=LLMType(self.config.llm_provider),
+                    model_name=self.config.llm_model,
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens,
+                )
             self._llm = get_llm()
         return self._llm
 
+    # ── tool management ───────────────────────────────────────────────────────
+
     def add_tool(self, tool: Any) -> "Agent":
-        """
-        Add a tool to the agent's toolbox
-
-        Args:
-            tool: Tool instance to add
-
-        Returns:
-            self for method chaining
-        """
         if hasattr(tool, "name"):
             self.tools[tool.name] = tool
-            logger.info(f"Tool {tool.name} added to agent {self.name}")
+            logger.info(f"Tool '{tool.name}' added to agent '{self.name}'")
         else:
             logger.warning("Tool must have a 'name' attribute")
-
         return self
 
     def remove_tool(self, tool_name: str) -> "Agent":
-        """
-        Remove a tool from the agent's toolbox
-
-        Args:
-            tool_name: Name of tool to remove
-
-        Returns:
-            self for method chaining
-        """
         if tool_name in self.tools:
             del self.tools[tool_name]
-            logger.info(f"Tool {tool_name} removed from agent {self.name}")
-
+            logger.info(f"Tool '{tool_name}' removed from agent '{self.name}'")
         return self
 
     def get_tool(self, tool_name: str) -> Optional[Any]:
-        """
-        Get a tool by name
-
-        Args:
-            tool_name: Name of tool to get
-
-        Returns:
-            Tool instance or None if not found
-        """
         return self.tools.get(tool_name)
 
     def list_tools(self) -> List[Any]:
-        """
-        List all tools available to the agent
-
-        Returns:
-            List of tool instances
-        """
         return list(self.tools.values())
 
-    def set_message_handler(self, handler: Callable[[AgentMessage], None]) -> "Agent":
+    # ── prompt helpers ────────────────────────────────────────────────────────
+
+    def _tools_block(self) -> str:
+        """Render all tools as a compact schema block for the system prompt.
+
+        Only required parameters are shown to keep the prompt small enough
+        for lightweight models (e.g. gemma3:1b).
         """
-        Set a custom message handler
+        if not self.tools:
+            return "(no tools available)"
+        lines = []
+        for t in self.tools.values():
+            # Truncate long descriptions to keep prompt size manageable
+            desc = t.description[:120] if len(t.description) > 120 else t.description
+            lines.append(f"- {t.name}: {desc}")
+            if hasattr(t, "metadata") and t.metadata.parameters:
+                req_params = [p for p in t.metadata.parameters if p.required]
+                opt_params = [p for p in t.metadata.parameters if not p.required]
+                if req_params:
+                    req_str = ", ".join(
+                        f"{p.name}({p.type})" + (f" choices={p.choices}" if p.choices else "")
+                        for p in req_params
+                    )
+                    lines.append(f"  required: {req_str}")
+                if opt_params:
+                    opt_str = ", ".join(f"{p.name}({p.type})" for p in opt_params[:5])
+                    if len(opt_params) > 5:
+                        opt_str += f" +{len(opt_params)-5} more"
+                    lines.append(f"  optional: {opt_str}")
+        return "\n".join(lines)
 
-        Args:
-            handler: Function to handle incoming messages
-
-        Returns:
-            self for method chaining
-        """
-        self._message_handler = handler
-        logger.debug(f"Message handler set for agent {self.name}")
-
-        return self
-
-    def set_task_handler(self, handler: Callable[[Dict[str, Any]], Any]) -> "Agent":
-        """
-        Set a custom task handler
-
-        Args:
-            handler: Function to handle incoming tasks
-
-        Returns:
-            self for method chaining
-        """
-        self._task_handler = handler
-        logger.debug(f"Task handler set for agent {self.name}")
-
-        return self
-
-    async def _handle_message(self, message: AgentMessage):
-        """Internal message handler"""
-        logger.info(f"Agent {self.name} received message from {message.sender_id}")
-
-        try:
-            if self._message_handler:
-                await self._message_handler(message)
-            else:
-                await self._default_message_handler(message)
-        except Exception as e:
-            logger.error(f"Error handling message: {e}")
-
-    async def _default_message_handler(self, message: AgentMessage):
-        """Default message handler"""
-        logger.debug(f"Default message handler called for agent {self.name}")
-
-        # Simple default behavior: echo messages
-        if message.content.strip():
-            response = AgentMessage(
-                sender_id=self.id,
-                receiver_id=message.sender_id,
-                content=f"I received your message: {message.content}",
-                message_type=message.message_type,
+    def _build_system_prompt(self) -> str:
+        if self.tools:
+            return _TOOL_SYSTEM.format(
+                name=self.name,
+                system_prompt=self.config.system_prompt,
+                tools_block=self._tools_block(),
             )
-            await self.send_message(response)
+        return _NO_TOOL_SYSTEM.format(
+            name=self.name,
+            system_prompt=self.config.system_prompt,
+        )
 
-    async def _handle_task(self, task: Dict[str, Any]):
-        """Internal task handler"""
-        logger.info(f"Agent {self.name} received task: {task.get('name', 'Unknown')}")
+    # ── JSON parsing ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_llm_json(text: str) -> Optional[Dict[str, Any]]:
+        """
+        Extract the first valid JSON object from LLM output.
+        Handles code fences, leading prose, and partial wrapping.
+        """
+        # Strip code fences
+        text = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
+
+        # Try the whole string first
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        # Find the outermost {...}
+        start = text.find("{")
+        if start == -1:
+            return None
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start : i + 1])
+                    except json.JSONDecodeError:
+                        break
+        return None
+
+    # ── tool execution ────────────────────────────────────────────────────────
+
+    async def _run_tool(self, tool_name: str, params: Dict[str, Any]) -> str:
+        """Execute a tool and return a string representation of the result."""
+        tool = self.get_tool(tool_name)
+        if tool is None:
+            return f"Error: tool '{tool_name}' not found. Available: {list(self.tools.keys())}"
 
         try:
-            if self._task_handler:
-                result = await self._task_handler(task)
-            else:
-                result = await self._default_task_handler(task)
-
-            # If task has result future, set the result
-            if "_result_future" in task and not task["_result_future"].done():
-                task["_result_future"].set_result(result)
-
-        except Exception as e:
-            logger.error(f"Error handling task: {e}")
-            # If task has result future, set the exception
-            if "_result_future" in task and not task["_result_future"].done():
-                task["_result_future"].set_exception(e)
-
-    async def _default_task_handler(self, task: Dict[str, Any]):
-        """Default task handler"""
-        logger.debug(f"Default task handler called for agent {self.name}")
-
-        # Execute task using available tools
-        task_name = task.get("name")
-        task_params = task.get("params", {})
-
-        if task_name in self.tools:
-            tool = self.tools[task_name]
-            
-            # Handle different tool types
             if hasattr(tool, "execute"):
-                # Tool with execute method
-                result = await tool.execute(task_params)
+                result = await tool.execute(params)
             elif callable(tool):
-                # Direct callable (function)
                 import inspect
-                if inspect.iscoroutinefunction(tool):
-                    result = await tool(**task_params)
-                else:
-                    result = tool(**task_params)
+                result = await tool(**params) if inspect.iscoroutinefunction(tool) else tool(**params)
             else:
-                logger.error(f"Tool {task_name} is not callable or executable")
-                return {"success": False, "error": f"Tool '{task_name}' is not executable"}
-            
-            logger.info(f"Task {task_name} completed with result: {result}")
-            return result
-        else:
-            logger.warning(f"Agent {self.name} doesn't have tool for task: {task_name}")
-            return {"success": False, "error": f"Tool '{task_name}' not found"}
+                return f"Error: tool '{tool_name}' is not executable"
 
-    async def _run_task_queue(self):
-        """Run task processing loop"""
-        while self._is_running:
-            try:
-                task = await asyncio.wait_for(self._task_queue.get(), timeout=1.0)
-                await self._handle_task(task)
-                self._task_queue.task_done()
-            except asyncio.TimeoutError:
-                continue
-            except Exception as e:
-                logger.error(f"Error in task queue: {e}")
+            # Compact JSON for the LLM context
+            if isinstance(result, (dict, list)):
+                return json.dumps(result, ensure_ascii=False, default=str)
+            return str(result)
+
+        except Exception as exc:
+            logger.error(f"Tool '{tool_name}' raised: {exc}", exc_info=True)
+            return f"Error executing '{tool_name}': {exc}"
+
+    # ── ReAct loop ────────────────────────────────────────────────────────────
+
+    async def execute_task(self, task_input: Union[str, Dict[str, Any]]) -> Any:
+        """
+        Execute a task using a ReAct-style loop.
+
+        The LLM reasons → picks a tool → sees the result → reasons again,
+        until it produces a final answer or the iteration limit is reached.
+
+        Args:
+            task_input: Natural-language task string, or a dict with
+                        {"name": tool_name, "params": {...}} for direct execution.
+
+        Returns:
+            Final answer string, or raw tool result for direct dict calls.
+        """
+        if not self._is_running:
+            await self.start()
+
+        # ── direct tool call (dict input) ──────────────────────────────────
+        if isinstance(task_input, dict):
+            return await self._direct_tool_call(task_input)
+
+        # ── natural-language task ──────────────────────────────────────────
+        user_input = task_input
+        system_prompt = self._build_system_prompt()
+        history: List[str] = []
+
+        # Tool-use loop (stream=False for reasoning; streaming is for chat)
+        for iteration in range(self.MAX_TOOL_ITERATIONS):
+            if iteration == 0:
+                full_prompt = (
+                    system_prompt
+                    + "\n\n"
+                    + _TOOL_TURN.format(history="(none)", user_input=user_input)
+                )
+            else:
+                full_prompt = (
+                    system_prompt
+                    + "\n\n"
+                    + _TOOL_TURN.format(
+                        history="\n".join(history), user_input=user_input
+                    )
+                )
+
+            # Always invoke without streaming for the reasoning step
+            raw = self.llm.invoke(full_prompt, stream=False).strip()
+            logger.debug(f"[iter {iteration}] LLM raw: {raw[:300]}")
+
+            parsed = self._parse_llm_json(raw)
+
+            # ── final answer ───────────────────────────────────────────────
+            if parsed is None:
+                # LLM returned plain text — treat as final answer
+                return raw
+
+            if "answer" in parsed:
+                return parsed["answer"]
+
+            # ── tool call ─────────────────────────────────────────────────
+            tool_name = parsed.get("tool")
+            params = parsed.get("params", {})
+            thought = parsed.get("thought", "")
+
+            if not tool_name:
+                # LLM gave JSON but no tool/answer key — treat as answer
+                return raw
+
+            logger.info(f"Agent '{self.name}' → tool '{tool_name}' | thought: {thought}")
+            history.append(f"Assistant thought: {thought}")
+            history.append(f"Called tool: {tool_name}({json.dumps(params)})")
+
+            tool_result = await self._run_tool(tool_name, params)
+            logger.info(f"Tool '{tool_name}' result: {tool_result[:200]}")
+            history.append(
+                _TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result)
+            )
+
+        # Iteration limit reached — ask LLM for a final answer with what we have
+        summary_prompt = (
+            system_prompt
+            + "\n\n"
+            + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
+            + "\nYou have reached the tool call limit. Summarise what you found and give a final answer."
+        )
+        raw = self.llm.invoke(summary_prompt, stream=False).strip()
+        parsed = self._parse_llm_json(raw)
+        return (parsed or {}).get("answer", raw)
+
+    async def _direct_tool_call(self, task: Dict[str, Any]) -> Any:
+        """Execute a tool directly from a dict spec, via the task queue."""
+        if self._task_queue is None:
+            self._task_queue = asyncio.Queue()
+
+        loop = asyncio.get_running_loop()
+        result_future = loop.create_future()
+        task_copy = task.copy()
+        task_copy["_result_future"] = result_future
+        await self._task_queue.put(task_copy)
+
+        try:
+            return await asyncio.wait_for(result_future, timeout=self.config.task_timeout)
+        except asyncio.TimeoutError:
+            logger.error(f"Direct tool call timed out: {task.get('name')}")
+            raise
+
+    # ── chat / send_message ───────────────────────────────────────────────────
 
     async def send_message(self, message: Union[str, AgentMessage]) -> Union[str, bool]:
         """
-        Send a message - if string is provided, use LLM to generate response
+        Send a conversational message to the LLM (no tool loop).
 
-        Args:
-            message: Message to send (string or AgentMessage)
-
-        Returns:
-            If string message, returns LLM response. If AgentMessage, returns boolean success
+        For tool-using tasks, prefer execute_task().
+        Streaming is controlled by the global set_llm(stream=True) config.
         """
         if isinstance(message, str):
-            # If string is provided, use LLM to generate response
+            from daie.core.llm_manager import get_llm_config
+            import sys
+
             prompt = f"{self.config.system_prompt}\n\nUser: {message}\n\nAssistant:"
-
+            cfg = get_llm_config()
             try:
-                llm = self.llm
-                response = llm.invoke(prompt)
-                return response.strip()
-            except Exception as e:
-                logger.error(f"LLM invocation error: {e}")
-                return f"Error: Failed to get response from LLM - {e}"
+                if cfg.stream:
+                    sys.stdout.write(f"{self.name}: ")
+                    sys.stdout.flush()
+                return self.llm.invoke(prompt).strip()
+            except Exception as exc:
+                logger.error(f"LLM invocation error: {exc}")
+                return f"Error: Failed to get response from LLM - {exc}"
 
-        # If AgentMessage, proceed with normal sending
-        logger.info(f"Agent {self.name} sending message to {message.receiver_id}")
-
+        # AgentMessage path
+        logger.info(f"Agent '{self.name}' sending message to {message.receiver_id}")
         try:
             if not hasattr(self, "communication_manager"):
                 logger.error("Communication manager not initialized")
                 return False
-
             await self.communication_manager.send_message(message)
-            logger.debug(f"Message sent from {self.name} to {message.receiver_id}")
             return True
-        except Exception as e:
-            logger.error(f"Error sending message: {e}")
+        except Exception as exc:
+            logger.error(f"Error sending message: {exc}")
             return False
 
     async def send_task(self, task: Dict[str, Any], receiver_id: str) -> bool:
-        """
-        Send a task to another agent
-
-        Args:
-            task: Task to send
-            receiver_id: Recipient agent ID
-
-        Returns:
-            True if task sent successfully, False otherwise
-        """
         message = AgentMessage(
             sender_id=self.id,
             receiver_id=receiver_id,
@@ -392,348 +439,129 @@ class Agent:
             message_type="task",
             metadata={"task": task},
         )
-
         return await self.send_message(message)
 
-    async def execute_task(self, task_input: Union[str, Dict[str, Any]]) -> Any:
-        """
-        Execute a task locally - the agent acts like a human using tools
+    # ── message / task queue internals ────────────────────────────────────────
 
-        Args:
-            task_input: Task to execute (can be a task description string or dict with name/params)
+    def set_message_handler(self, handler: Callable[[AgentMessage], None]) -> "Agent":
+        self._message_handler = handler
+        return self
 
-        Returns:
-            Task result
-        """
-        # Ensure agent is running
-        if not self._is_running:
-            await self.start()
-        
-        # If task is a string, analyze it using LLM to determine appropriate tool and parameters
-        if isinstance(task_input, str):
-            task_description = task_input
-            logger.info(f"Agent analyzing task: {task_description}")
+    def set_task_handler(self, handler: Callable[[Dict[str, Any]], Any]) -> "Agent":
+        self._task_handler = handler
+        return self
 
-            # Get available tools information
-            available_tools = self.list_tools()
-
-            # If no tools available, respond conversationally
-            if not available_tools:
-                logger.info("No tools available - responding conversationally")
-                return await self.send_message(task_description)
-
-            # Build a clear tool description for the LLM
-            tools_description = self._build_tools_description(available_tools)
-
-            # Create a structured prompt for the LLM
-            prompt = self._create_tool_selection_prompt(task_description, tools_description)
-
-            try:
-                llm = self.llm
-                response = llm.invoke(prompt)
-                logger.debug(f"LLM response: {response[:200]}...")
-
-                # Parse the LLM response
-                tool_call = self._parse_tool_response(response)
-
-                # If no tool needed, respond conversationally
-                if tool_call is None or tool_call.get("tool_name") == "none":
-                    logger.info("No tool needed - responding conversationally")
-                    return await self.send_message(task_description)
-
-                # Validate and execute the tool
-                tool_name = tool_call.get("tool_name")
-                params = tool_call.get("params", {})
-
-                # Check if tool exists
-                if tool_name not in [t.name for t in available_tools]:
-                    logger.warning(f"Tool '{tool_name}' not found - responding conversationally")
-                    return await self.send_message(task_description)
-
-                # Validate and fix parameters
-                params = self._validate_and_fix_params(tool_name, params, task_description)
-                if params is None:
-                    # Parameters couldn't be fixed, respond conversationally
-                    return await self.send_message(
-                        f"I understand you want to use {tool_name}, but I need more information. {task_description}"
-                    )
-
-                task = {"name": tool_name, "params": params}
-                logger.info(f"Executing tool '{tool_name}' with params: {params}")
-
-            except Exception as e:
-                logger.error(f"Error analyzing task with LLM: {e}", exc_info=True)
-                logger.info("Falling back to conversational response")
-                return await self.send_message(task_description)
-        else:
-            task = task_input
-
-        # Execute the task
-        loop = asyncio.get_running_loop()
-        result_future = loop.create_future()
-
-        task_with_result = task.copy()
-        task_with_result["_result_future"] = result_future
-
-        await self._task_queue.put(task_with_result)
-
+    async def _handle_message(self, message: AgentMessage):
         try:
-            result = await asyncio.wait_for(result_future, timeout=self.config.task_timeout)
-            return result
-        except asyncio.TimeoutError:
-            logger.error(f"Task execution timed out: {task.get('name')}")
-            raise
+            if self._message_handler:
+                await self._message_handler(message)
+            else:
+                await self._default_message_handler(message)
+        except Exception as exc:
+            logger.error(f"Error handling message: {exc}")
 
-    def _build_tools_description(self, tools: List) -> str:
-        """Build a clear description of available tools"""
-        descriptions = []
-        for tool in tools:
-            tool_desc = f"Tool: {tool.name}\nDescription: {tool.description}"
-            
-            # Add parameter information
-            if hasattr(tool, "metadata") and hasattr(tool.metadata, "parameters"):
-                params_desc = []
-                for param in tool.metadata.parameters:
-                    param_info = f"  - {param.name} ({param.type})"
-                    if param.required:
-                        param_info += " [REQUIRED]"
-                    if param.choices:
-                        param_info += f" [choices: {', '.join(map(str, param.choices))}]"
-                    if param.description:
-                        param_info += f": {param.description}"
-                    params_desc.append(param_info)
-                
-                if params_desc:
-                    tool_desc += "\nParameters:\n" + "\n".join(params_desc)
-            
-            descriptions.append(tool_desc)
-        
-        return "\n\n".join(descriptions)
+    async def _default_message_handler(self, message: AgentMessage):
+        if message.content.strip():
+            reply = AgentMessage(
+                sender_id=self.id,
+                receiver_id=message.sender_id,
+                content=f"I received your message: {message.content}",
+                message_type=message.message_type,
+            )
+            await self.send_message(reply)
 
-    def _create_tool_selection_prompt(self, task: str, tools_description: str) -> str:
-        """Create a structured prompt for tool selection"""
-        return f"""{self.config.system_prompt}
+    async def _handle_task(self, task: Dict[str, Any]):
+        try:
+            if self._task_handler:
+                result = await self._task_handler(task)
+            else:
+                result = await self._default_task_handler(task)
 
-You are an AI agent with access to tools. Your job is to analyze the user's request and decide:
-1. If you need to use a tool to complete the task
-2. If so, which tool and what parameters
+            fut = task.get("_result_future")
+            if fut and not fut.done():
+                fut.set_result(result)
+        except Exception as exc:
+            logger.error(f"Error handling task: {exc}")
+            fut = task.get("_result_future")
+            if fut and not fut.done():
+                fut.set_exception(exc)
 
-Available Tools:
-{tools_description}
+    async def _default_task_handler(self, task: Dict[str, Any]) -> Any:
+        tool_name = task.get("name")
+        params = task.get("params", {})
 
-User Request: "{task}"
+        if tool_name not in self.tools:
+            return {"success": False, "error": f"Tool '{tool_name}' not found"}
 
-Instructions:
-- If the request is conversational (greeting, question, chat), respond with: {{"tool_name": "none", "response": "your conversational response"}}
-- If you need to use a tool, respond with: {{"tool_name": "tool_name", "params": {{"param1": "value1", "param2": "value2"}}}}
-- Be precise with parameter names and values
-- Extract specific values from the user's request (file names, URLs, content, etc.)
-- If a required parameter is missing, respond with: {{"tool_name": "none", "response": "ask for the missing information"}}
+        tool = self.tools[tool_name]
+        if hasattr(tool, "execute"):
+            return await tool.execute(params)
+        elif callable(tool):
+            import inspect
+            return await tool(**params) if inspect.iscoroutinefunction(tool) else tool(**params)
+        return {"success": False, "error": f"Tool '{tool_name}' is not executable"}
 
-Respond ONLY with a valid JSON object, nothing else."""
-
-    def _parse_tool_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """Parse the LLM response to extract tool call information"""
-        import json
-        import re
-
-        # Try to extract JSON from the response
-        tool_call = None
-
-        # Method 1: Look for JSON in code blocks
-        code_block_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
-        matches = re.findall(code_block_pattern, response, re.DOTALL)
-        if matches:
-            for match in matches:
-                try:
-                    tool_call = json.loads(match)
-                    if isinstance(tool_call, dict):
-                        break
-                except json.JSONDecodeError:
-                    continue
-
-        # Method 2: Look for JSON object in the text
-        if tool_call is None:
-            json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-            matches = re.findall(json_pattern, response, re.DOTALL)
-            for match in matches:
-                try:
-                    tool_call = json.loads(match)
-                    if isinstance(tool_call, dict) and "tool_name" in tool_call:
-                        break
-                except json.JSONDecodeError:
-                    continue
-
-        # Method 3: Try parsing the entire response
-        if tool_call is None:
+    async def _run_task_queue(self):
+        while self._is_running:
             try:
-                tool_call = json.loads(response.strip())
-            except json.JSONDecodeError:
-                pass
+                task = await asyncio.wait_for(self._task_queue.get(), timeout=1.0)
+                await self._handle_task(task)
+                self._task_queue.task_done()
+            except asyncio.TimeoutError:
+                continue
+            except Exception as exc:
+                logger.error(f"Error in task queue: {exc}")
 
-        return tool_call
-
-    def _validate_and_fix_params(
-        self, tool_name: str, params: Dict[str, Any], task_description: str
-    ) -> Optional[Dict[str, Any]]:
-        """Validate and fix tool parameters"""
-        
-        # Get the tool
-        tool = self.get_tool(tool_name)
-        if not tool:
-            return None
-
-        # Tool-specific parameter validation and fixing
-        if tool_name == "file_manager":
-            return self._fix_file_manager_params(params, task_description)
-        elif tool_name == "selenium_chrome":
-            return self._fix_selenium_params(params, task_description)
-        elif tool_name == "api_call" or "http" in tool_name.lower():
-            return self._fix_api_params(params, task_description)
-        
-        # For other tools, just return the params as-is
-        return params
-
-    def _fix_file_manager_params(
-        self, params: Dict[str, Any], task_description: str
-    ) -> Optional[Dict[str, Any]]:
-        """Fix file manager tool parameters"""
-        
-        # Ensure action is specified
-        if "action" not in params:
-            logger.warning("File manager action not specified")
-            return None
-
-        action = params["action"]
-
-        # Actions that require a path
-        path_required_actions = [
-            "read_file", "write_file", "append_file", "delete_file",
-            "create_file", "create_directory", "delete_directory",
-            "file_exists", "directory_exists", "get_file_info", "get_directory_info"
-        ]
-
-        if action in path_required_actions:
-            if "path" not in params or not params["path"]:
-                logger.warning(f"File manager action '{action}' requires a path")
-                return None
-
-        # Default path for list operations
-        if action in ["list_contents", "list"]:
-            if "path" not in params or not params["path"]:
-                params["path"] = "."
-
-        # For write/create operations, ensure content is provided
-        if action in ["write_file", "create_file", "append_file"]:
-            if "content" not in params:
-                logger.warning(f"File manager action '{action}' requires content")
-                return None
-
-        return params
-
-    def _fix_selenium_params(
-        self, params: Dict[str, Any], task_description: str
-    ) -> Optional[Dict[str, Any]]:
-        """Fix selenium tool parameters"""
-        
-        # Fix parameter name mismatch
-        if "actions" in params and "action" not in params:
-            params["action"] = params.pop("actions")
-
-        # Default action
-        if "action" not in params:
-            params["action"] = "open_url"
-
-        # Ensure URL is provided for open_url action
-        if params.get("action") == "open_url" and "url" not in params:
-            logger.warning("Selenium open_url action requires a URL")
-            return None
-
-        return params
-
-    def _fix_api_params(
-        self, params: Dict[str, Any], task_description: str
-    ) -> Optional[Dict[str, Any]]:
-        """Fix API tool parameters"""
-        
-        # Ensure URL is provided
-        if "url" not in params:
-            logger.warning("API tool requires a URL")
-            return None
-
-        # Default method
-        if "method" not in params:
-            params["method"] = "GET"
-
-        return params
+    # ── lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(
-        self, communication_manager=None, memory_manager=None, tool_registry=None
+        self,
+        communication_manager=None,
+        memory_manager=None,
+        tool_registry=None,
     ) -> None:
-        """
-        Start the agent
-
-        Args:
-            communication_manager: Communication manager instance (optional)
-            memory_manager: Memory manager instance (optional)
-            tool_registry: Tool registry instance (optional)
-        """
         if self._is_running:
-            logger.warning(f"Agent {self.name} is already running")
+            logger.warning(f"Agent '{self.name}' is already running")
             return
 
-        logger.info(f"Starting agent: {self.name} (ID: {self.id})")
-
+        logger.info(f"Starting agent: '{self.name}' (ID: {self.id})")
         try:
-            # Initialize managers - use dummy managers if not provided
             if communication_manager:
                 self.communication_manager = communication_manager
                 self.communication_manager.register_agent(self)
-
             if memory_manager:
                 self.memory_manager = memory_manager
                 self.memory_manager.initialize_agent_memory(self.id)
-
             if tool_registry:
                 self.tool_registry = tool_registry
 
-            # Start task processing
             self._is_running = True
             try:
                 self._loop = asyncio.get_running_loop()
             except RuntimeError:
                 self._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._loop)
-            
-            # Initialize task queue
+
             if self._task_queue is None:
                 self._task_queue = asyncio.Queue()
-            
+
             self._loop.create_task(self._run_task_queue())
-
-            logger.info(f"Agent {self.name} started successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to start agent {self.name}: {e}")
+            logger.info(f"Agent '{self.name}' started successfully")
+        except Exception as exc:
+            logger.error(f"Failed to start agent '{self.name}': {exc}")
             self._is_running = False
             raise
 
     async def stop(self) -> None:
-        """Stop the agent"""
         if not self._is_running:
-            logger.warning(f"Agent {self.name} is already stopped")
+            logger.warning(f"Agent '{self.name}' is already stopped")
             return
 
-        logger.info(f"Stopping agent: {self.name}")
-
+        logger.info(f"Stopping agent: '{self.name}'")
         try:
             self._is_running = False
-
-            # Deregister from communication manager
             if hasattr(self, "communication_manager"):
                 self.communication_manager.deregister_agent(self.id)
-
-            logger.info(f"Agent {self.name} stopped successfully")
-
-        except Exception as e:
-            logger.error(f"Error stopping agent {self.name}: {e}")
+            logger.info(f"Agent '{self.name}' stopped successfully")
+        except Exception as exc:
+            logger.error(f"Error stopping agent '{self.name}': {exc}")

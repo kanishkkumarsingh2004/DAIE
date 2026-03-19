@@ -33,6 +33,8 @@ class LLMConfig:
     max_tokens: int = 1000
     api_key: Optional[str] = None
     base_url: Optional[str] = None
+    stream: bool = False
+    """Whether to stream tokens as they are generated (default: False)"""
     additional_params: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -87,6 +89,7 @@ class LLMManager:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         ollama_llm: Optional[str] = None,
+        stream: Optional[bool] = None,
         **kwargs,
     ) -> "LLMManager":
         """
@@ -100,6 +103,7 @@ class LLMManager:
             api_key: API key
             base_url: Base URL for API calls
             ollama_llm: Ollama model name (convenience parameter)
+            stream: Whether to stream tokens as they are generated
             **kwargs: Additional parameters
 
         Returns:
@@ -130,6 +134,9 @@ class LLMManager:
 
         if base_url is not None:
             self.config.base_url = base_url
+
+        if stream is not None:
+            self.config.stream = stream
 
         if kwargs:
             self.config.additional_params.update(kwargs)
@@ -210,19 +217,20 @@ class LLMManager:
                     self._session = requests.Session()
                 return self._session
 
-            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+            def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
-                
+
                 Args:
                     prompt: The prompt to send to the LLM
-                    stream: Whether to stream tokens as they're generated
+                    stream: Override streaming behaviour. If None, uses config.stream.
                     **kwargs: Additional parameters
-                    
+
                 Returns:
                     Complete response as string
                 """
-                if stream:
+                use_stream = self.config.stream if stream is None else stream
+                if use_stream:
                     return self._invoke_stream(prompt, **kwargs)
                 else:
                     return self._invoke_non_stream(prompt, **kwargs)
@@ -362,19 +370,20 @@ class LLMManager:
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+            def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
-                
+
                 Args:
                     prompt: The prompt to send to the LLM
-                    stream: Whether to stream tokens as they're generated
+                    stream: Override streaming behaviour. If None, uses config.stream.
                     **kwargs: Additional parameters
-                    
+
                 Returns:
                     Complete response as string
                 """
-                if stream:
+                use_stream = self.config.stream if stream is None else stream
+                if use_stream:
                     return self._invoke_stream(prompt, **kwargs)
                 else:
                     return self._invoke_non_stream(prompt, **kwargs)
@@ -468,19 +477,20 @@ class LLMManager:
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+            def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
-                
+
                 Args:
                     prompt: The prompt to send to the LLM
-                    stream: Whether to stream tokens as they're generated
+                    stream: Override streaming behaviour. If None, uses config.stream.
                     **kwargs: Additional parameters
-                    
+
                 Returns:
                     Complete response as string
                 """
-                if stream:
+                use_stream = self.config.stream if stream is None else stream
+                if use_stream:
                     return self._invoke_stream(prompt, **kwargs)
                 else:
                     return self._invoke_non_stream(prompt, **kwargs)
@@ -572,19 +582,20 @@ class LLMManager:
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+            def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
-                
+
                 Args:
                     prompt: The prompt to send to the LLM
-                    stream: Whether to stream tokens as they're generated
+                    stream: Override streaming behaviour. If None, uses config.stream.
                     **kwargs: Additional parameters
-                    
+
                 Returns:
                     Complete response as string
                 """
-                if stream:
+                use_stream = self.config.stream if stream is None else stream
+                if use_stream:
                     return self._invoke_stream(prompt, **kwargs)
                 else:
                     return self._invoke_non_stream(prompt, **kwargs)
@@ -636,19 +647,20 @@ class LLMManager:
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+            def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
-                
+
                 Args:
                     prompt: The prompt to send to the LLM
-                    stream: Whether to stream tokens as they're generated
+                    stream: Override streaming behaviour. If None, uses config.stream.
                     **kwargs: Additional parameters
-                    
+
                 Returns:
                     Complete response as string
                 """
-                if stream:
+                use_stream = self.config.stream if stream is None else stream
+                if use_stream:
                     return self._invoke_stream(prompt, **kwargs)
                 else:
                     return self._invoke_non_stream(prompt, **kwargs)
@@ -744,19 +756,20 @@ class LLMManager:
             def __init__(self, config: LLMConfig):
                 self.config = config
 
-            def invoke(self, prompt: str, stream: bool = False, **kwargs) -> str:
+            def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
-                
+
                 Args:
                     prompt: The prompt to send to the LLM
-                    stream: Whether to stream tokens as they're generated
+                    stream: Override streaming behaviour. If None, uses config.stream.
                     **kwargs: Additional parameters
-                    
+
                 Returns:
                     Complete response as string
                 """
-                if stream:
+                use_stream = self.config.stream if stream is None else stream
+                if use_stream:
                     return self._invoke_stream(prompt, **kwargs)
                 else:
                     return self._invoke_non_stream(prompt, **kwargs)
@@ -906,6 +919,7 @@ def set_llm(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     ollama_llm: Optional[str] = None,
+    stream: Optional[bool] = None,
     **kwargs,
 ):
     """
@@ -919,6 +933,7 @@ def set_llm(
         api_key: API key
         base_url: Base URL for API calls
         ollama_llm: Ollama model name (convenience parameter)
+        stream: Enable token streaming (default: False)
         **kwargs: Additional parameters
     """
     get_llm_manager().set_llm(
@@ -929,6 +944,7 @@ def set_llm(
         api_key=api_key,
         base_url=base_url,
         ollama_llm=ollama_llm,
+        stream=stream,
         **kwargs,
     )
 

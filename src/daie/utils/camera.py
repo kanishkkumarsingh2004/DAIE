@@ -10,6 +10,7 @@ from daie.agents.config import AgentConfig
 
 try:
     import cv2
+    import numpy as np
 
     CV2_AVAILABLE = True
 except ImportError:
@@ -92,9 +93,11 @@ class CameraManager:
         Returns:
             List of available camera indices
         """
-        available = []
+        if not CV2_AVAILABLE:
+            logger.warning("OpenCV not available for camera listing")
+            return []
 
-        # Try to open first 10 possible camera indices
+        available = []
         for i in range(10):
             cap = cv2.VideoCapture(i)
             if cap.isOpened():
@@ -333,6 +336,9 @@ def list_camera_devices() -> List[int]:
     Returns:
         List of available camera indices
     """
+    if not CV2_AVAILABLE:
+        logger.warning("OpenCV not available")
+        return []
     manager = CameraManager()
     devices = manager.list_available_cameras()
     manager.release()

@@ -260,7 +260,7 @@ class LLMManager:
                     response = session.post(
                         f"{self.base_url}/api/chat",
                         json=payload,
-                        timeout=60
+                        timeout=300.0
                     )
 
                     # Parse response
@@ -320,8 +320,16 @@ class LLMManager:
                         f"{self.base_url}/api/chat",
                         json=payload,
                         stream=True,
-                        timeout=60
+                        timeout=300.0
                     )
+                    
+                    if response.status_code != 200:
+                        try:
+                            err_msg = response.json().get("error", response.text)
+                        except:
+                            err_msg = response.text
+                        return f"Error: Ollama API returned status {response.status_code} - {err_msg}"
+
 
                     full_response = ""
 

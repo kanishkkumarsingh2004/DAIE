@@ -340,11 +340,17 @@ play_audio_file("recording.wav")
 from daie.agents.config import AgentConfig, AgentRole
 
 config = AgentConfig(
-    name="MyAgent",
+    name="MyAgent name",   # (ALEX, NOVA, BOB, etc)
     role=AgentRole.GENERAL_PURPOSE,   # or SPECIALIZED, COORDINATOR, WORKER
     goal="Help users with tasks",
     backstory="A capable AI assistant",
     system_prompt="You are a helpful assistant.",
+    
+    # Persona traits (automatically injected into LLM prompts)
+    gender="female",
+    personality="sarcastic, witty, very direct",
+    behavior="always starts sentences with Hmm",
+
     temperature=0.7,       # overrides global LLM setting for this agent
     max_tokens=1000,
     task_timeout=30,       # seconds before execute_task times out
@@ -439,6 +445,8 @@ python simple_ollama_chat_loop.py
 - Support for cross-machine `A2ASendFileTool` with built-in Base64 security blocking uninvited file transfers.
 - `AgentConfig` enhancements providing decentralized node discovery support with DevTunnel and manual IPs.
 - Configurable authentication tokens (`auth_token`) for incoming connections.
+- Added Persona parameters to `AgentConfig`: `gender`, `personality`, and `behavior` which are automatically woven into the ReAct and Chat loops.
+- Increased Ollama HTTP timeouts (to 300s) to easily support massive local models (like `wizard-vicuna-uncensored:7b`), and fixed silent crash bugs during HTTP streaming.
 
 ### v1.0.3 
 - ReAct-style tool-use loop in `execute_task()` — LLM reasons and picks tools autonomously

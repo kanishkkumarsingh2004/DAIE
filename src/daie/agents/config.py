@@ -3,7 +3,7 @@ Agent configuration module
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from enum import Enum
 
 
@@ -100,7 +100,16 @@ class AgentConfig:
     max_memory_size: int = 1000
     """Maximum number of memory items to store"""
 
-    # Behavior settings
+    # Behavior and Personality settings
+    gender: Literal["male", "female"] | None = None
+    """Agent gender (only 'male' or 'female')"""
+
+    personality: Optional[str] = None
+    """Agent's personality traits (e.g., 'sarcastic, witty, very direct')"""
+    
+    behavior: Optional[str] = None
+    """Agent's behavioral instructions or quirks (e.g., 'always starts sentences with Hmm')"""
+
     response_delay: float = 0.5
     """Delay before responding to messages in seconds"""
 

@@ -218,15 +218,26 @@ class Agent:
         return "\n".join(lines)
 
     def _build_system_prompt(self) -> str:
+        prompt_extras = []
+        if getattr(self.config, "gender", None):
+            prompt_extras.append(f"Gender: {self.config.gender}")
+        if getattr(self.config, "personality", None):
+            prompt_extras.append(f"Personality: {self.config.personality}")
+        if getattr(self.config, "behavior", None):
+            prompt_extras.append(f"Behavior: {self.config.behavior}")
+            
+        extra_str = "\\n".join(prompt_extras)
+        base_sys_prompt = f"{self.config.system_prompt}\\n\\nAgent Persona Traits:\\n{extra_str}" if extra_str else self.config.system_prompt
+
         if self.tools:
             return _TOOL_SYSTEM.format(
                 name=self.name,
-                system_prompt=self.config.system_prompt,
+                system_prompt=base_sys_prompt,
                 tools_block=self._tools_block(),
             )
         return _NO_TOOL_SYSTEM.format(
             name=self.name,
-            system_prompt=self.config.system_prompt,
+            system_prompt=base_sys_prompt,
         )
 
     # ── JSON parsing ──────────────────────────────────────────────────────────
@@ -335,7 +346,12 @@ class Agent:
                 )
 
             # Always invoke without streaming for the reasoning step
-            raw = self.llm.invoke(full_prompt, stream=False).strip()
+            raw = self.llm.invoke(
+                full_prompt, 
+                stream=False, 
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens
+            ).strip()
             logger.debug(f"[iter {iteration}] LLM raw: {raw[:300]}")
 
             parsed = self._parse_llm_json(raw)
@@ -374,7 +390,12 @@ class Agent:
             + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
             + "\nYou have reached the tool call limit. Summarise what you found and give a final answer."
         )
-        raw = self.llm.invoke(summary_prompt, stream=False).strip()
+        raw = self.llm.invoke(
+            summary_prompt, 
+            stream=False,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens
+        ).strip()
         parsed = self._parse_llm_json(raw)
         return (parsed or {}).get("answer", raw)
 
@@ -408,13 +429,29 @@ class Agent:
             from daie.core.llm_manager import get_llm_config
             import sys
 
-            prompt = f"{self.config.system_prompt}\n\nUser: {message}\n\nAssistant:"
+            prompt_extras = []
+            if getattr(self.config, "gender", None):
+                prompt_extras.append(f"Gender: {self.config.gender}")
+            if getattr(self.config, "personality", None):
+                prompt_extras.append(f"Personality: {self.config.personality}")
+            if getattr(self.config, "behavior", None):
+                prompt_extras.append(f"Behavior: {self.config.behavior}")
+                
+            extra_str = "\n".join(prompt_extras)
+            base_sys_prompt = f"You are {self.name}. {self.config.system_prompt}"
+            base_sys_prompt = f"{base_sys_prompt}\n\nAgent Persona Traits:\n{extra_str}" if extra_str else base_sys_prompt
+
+            prompt = f"{base_sys_prompt}\n\nUser: {message}\n\n{self.name}:"
             cfg = get_llm_config()
             try:
                 if cfg.stream:
                     sys.stdout.write(f"{self.name}: ")
                     sys.stdout.flush()
-                return self.llm.invoke(prompt).strip()
+                return self.llm.invoke(
+                    prompt, 
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens
+                ).strip()
             except Exception as exc:
                 logger.error(f"LLM invocation error: {exc}")
                 return f"Error: Failed to get response from LLM - {exc}"

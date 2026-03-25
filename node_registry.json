@@ -150,5 +150,22 @@
         "network_url": "http://localhost:8001",
         "last_seen": 1774464622.6087875,
         "status": "active"
+    },
+    "7010ee2d-0104-49e2-a988-8ef0ccd25877": {
+        "capabilities": {
+            "role": "general"
+        },
+        "network_url": "http://localhost:8000",
+        "last_seen": 1774464993.5136113,
+        "status": "active"
+    },
+    "37548a6f-2ee3-41ef-9c67-d6c5cc716660": {
+        "capabilities": {
+            "role": "general-purpose",
+            "tools": []
+        },
+        "network_url": "http://localhost:8001",
+        "last_seen": 1774464993.7220962,
+        "status": "active"
     }
 }

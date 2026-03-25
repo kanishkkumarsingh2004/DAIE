@@ -1,6 +1,6 @@
 # DAIE — Decentralized AI Ecosystem
 
-A Python library for building AI agents that reason, use tools, and stream responses — powered by any LLM (Ollama, OpenAI, Anthropic, Google, Azure, OpenRouter).
+A Python library for building AI agents that reason, use tools, communicate over P2P networks, and stream responses — powered by any LLM (Ollama, OpenAI, Anthropic, Google, Azure, OpenRouter).
 
 ---
 
@@ -9,8 +9,12 @@ A Python library for building AI agents that reason, use tools, and stream respo
 - **ReAct agent loop** — LLM reasons → picks a tool → sees the result → iterates until it gives a final answer
 - **Streaming tokens** — set `stream=True` once, tokens print as they arrive
 - **Pre-built tools** — file system, HTTP API calls, Selenium Chrome browser automation
-- **Custom tools** — decorate any async function with `@tool` and it works identically to built-in tools
+- **Custom tools** — decorate any function with `@tool` and it works identically to built-in tools
 - **Multi-provider LLM** — Ollama (default), OpenAI, Anthropic, Google, Azure, OpenRouter
+- **P2P networking** — agents communicate across machines via HTTP with authentication & authorization
+- **A2A file transfer** — securely send files between agents over the network using Base64 encoding
+- **Agent persona** — configure `gender`, `personality`, and `behavior` traits injected directly into the LLM prompt
+- **Per-agent LLM overrides** — each agent can have its own `temperature` and `max_tokens`
 - **Camera & audio** — optional OpenCV camera capture and PyAudio microphone/speaker support
 - **CLI** — manage agents and the core system from the terminal
 
@@ -37,23 +41,43 @@ pip install "daie[dev]"      # pytest, black, mypy, flake8
 
 ## Quick Start
 
-### 1. Simple chat with streaming
+### 1. Simple streaming chat with persona
 
 ```python
 import asyncio
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
 
-set_llm(ollama_llm="llama3.2:latest", stream=True)
+set_llm(ollama_llm="wizard-vicuna-uncensored:7b", stream=True)
 
 async def main():
     agent = Agent(config=AgentConfig(
-        name="ALEX",
+        name="Alex",
         role=AgentRole.GENERAL_PURPOSE,
-        system_prompt="You are ALEX, a helpful assistant.",
+        system_prompt="You are a helpful and concise AI assistant.",
+        gender="female",
+        personality="sassy, witty, and very direct",
+        behavior="always uses emojis and speaks enthusiastically",
+        temperature=0.9,
+        max_tokens=1024
     ))
     await agent.start()
-    await agent.send_message("What is the capital of France?")
+
+    print("=== Chat Loop ===")
+    print("Type 'exit' to quit.\n")
+
+    while True:
+        try:
+            user_input = input("You: ")
+            if user_input.lower() in ("exit", "quit"):
+                break
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting...")
+            break
+
+        response = await agent.send_message(user_input)
+        print("\n")
+
     await agent.stop()
 
 asyncio.run(main())
@@ -67,97 +91,128 @@ from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
 from daie.tools import FileManagerTool, APICallTool, tool
 
-set_llm(ollama_llm="llama3.2:latest")
+set_llm(ollama_llm="wizard-vicuna-uncensored:7b")
 
 # Custom tool via decorator
-@tool(name="greet", description="Greet a person by name")
-async def greet(name: str) -> str:
-    return f"Hello, {name}!"
+@tool(name="calculate_math", description="Evaluate a basic math expression.")
+async def calculate_math(expression: str) -> str:
+    return str(eval(expression))
 
 async def main():
     agent = Agent(config=AgentConfig(
-        name="Bot",
+        name="MathBot",
         role=AgentRole.GENERAL_PURPOSE,
-        system_prompt="You are a helpful assistant with access to tools.",
+        system_prompt="You are a capable agent with access to math and file tools.",
     ))
 
-    agent.add_tool(greet)
+    agent.add_tool(calculate_math)
     agent.add_tool(FileManagerTool())
-    agent.add_tool(APICallTool())
 
     await agent.start()
 
-    # LLM decides which tool to use
-    result = await agent.execute_task("Create a file called notes.txt with content 'hello world'")
-    print(result)
-
-    result = await agent.execute_task("Greet Alice")
-    print(result)
+    # LLM autonomously picks the right tools via the ReAct loop
+    result = await agent.execute_task(
+        "Calculate 25 * 14 and save the result into a file called result.txt"
+    )
+    print("Final Answer:", result)
 
     await agent.stop()
 
 asyncio.run(main())
 ```
 
-### 3. Interactive chat loop
+### 3. P2P multi-agent networking & file transfer
 
 ```python
 import asyncio
-from daie import Agent, AgentConfig, set_llm, LLMType
+from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
+from daie.communication import CommunicationManager
+from daie.agents.message import AgentMessage
 
-set_llm(ollama_llm="gemma3:1b", temperature=0.3, max_tokens=1500, stream=True)
+set_llm(ollama_llm="wizard-vicuna-uncensored:7b")
 
 async def main():
-    agent = Agent(config=AgentConfig(name="ALEX", role=AgentRole.GENERAL_PURPOSE))
-    await agent.start()
+    # Shared communication bus
+    comm = CommunicationManager()
+    await comm.start()
 
-    while True:
-        user_input = input("You: ").strip()
-        if user_input.lower() in ("quit", "exit", "q"):
-            break
-        response = await agent.send_message(user_input)
-        if not get_llm_config().stream:
-            print(f"ALEX: {response}")
-        print()
+    # Agent 1
+    agent1 = Agent(config=AgentConfig(
+        name="NodeAlfa",
+        role=AgentRole.GENERAL_PURPOSE,
+        network_url="http://localhost:8000",
+    ))
+    await agent1.start(communication_manager=comm)
 
-    await agent.stop()
+    # Agent 2 (with auth + file transfers)
+    agent2 = Agent(config=AgentConfig(
+        name="NodeBravo",
+        role=AgentRole.GENERAL_PURPOSE,
+        network_url="http://localhost:8001",
+        auth_token="secure_token_123",
+        allow_file_transfers=True,
+    ))
+    await agent2.start(communication_manager=comm)
+
+    # Send direct message
+    msg = AgentMessage(
+        sender_id=agent1.id,
+        receiver_id=agent2.id,
+        content="Hello from NodeAlfa!",
+        message_type="text",
+    )
+    await comm.send_message(msg)
+
+    # A2A file transfer
+    file_tool = agent1.get_tool("a2a_send_file")
+    if file_tool:
+        await file_tool._execute({
+            "receiver_id": agent2.id,
+            "file_path": "payload.txt",
+            "message": "Secure payload!",
+        })
+
+    await agent1.stop()
+    await agent2.stop()
+    comm.stop()
 
 asyncio.run(main())
 ```
 
 ---
 
-## P2P Networking & File Transfers
-
-DAIE supports cross-machine, peer-to-peer communication over HTTP via its `CommunicationManager`. Agents can securely discover peers, delegate tasks over the network (using ACP maps), and securely transfer files utilizing base64 encoding.
-
-### Setting Up a Networked Agent
-Configure your agent with a `network_url` and an `auth_token`.
+## Agent Configuration
 
 ```python
-from daie import Agent, AgentConfig
-from daie.communication import CommunicationManager
+from daie.agents.config import AgentConfig, AgentRole
 
 config = AgentConfig(
-    name="NetworkWorker",
-    network_url="http://<your-public-ip-or-devtunnel>:8000",
-    auth_token="secure_cross_machine_token123",
-    allow_file_transfers=True
+    name="MyAgent name",   # (ALEX, NOVA, BOB, etc)
+    role=AgentRole.GENERAL_PURPOSE,   # or SPECIALIZED, COORDINATOR, WORKER
+    goal="Help users with tasks",
+    backstory="A capable AI assistant",
+    system_prompt="You are a helpful assistant.",
+
+    # Persona traits (automatically injected into LLM prompts)
+    gender="female",                             # Literal["male", "female"] or None
+    personality="sarcastic, witty, very direct",  # free-form string
+    behavior="always starts sentences with Hmm",  # free-form string
+
+    # Per-agent LLM overrides (take priority over global set_llm settings)
+    temperature=0.7,
+    max_tokens=1000,
+
+    # Task settings
+    task_timeout=30,       # seconds before execute_task times out
+
+    # P2P Networking
+    network_url="http://your-ip-or-devtunnel:8000",
+    auth_token="secure_secret_here",
+    allow_file_transfers=True,
+    allowed_senders=["agent-id-1", "agent-id-2"],   # whitelist (empty = allow all)
 )
-agent = Agent(config=config)
-
-# Start comms, which runs the local REST server
-comm = CommunicationManager()
-await comm.start()
-await agent.start(communication_manager=comm)
 ```
-
-### Exposing the P2P Port Local Sever
-By calling `CommunicationManager.start()`, DAIE spins up an embedded FastAPI REST endpoint (`POST /api/v1/a2a/message`) behind the scenes. Network requests containing standard `AgentMessage` bodies will hit this HTTP receiver payload and pipe directly down into your agent's processing loop.
-
-### Secure File Transfers
-As long as `allow_file_transfers` is marked `True`, the `A2ASendFileTool` allows your agents to dispatch files to authorized peers. Unauthorized files are automatically rejected without writing an outcome to disk. 
 
 ---
 
@@ -213,6 +268,7 @@ When `stream=True`, `send_message()` prints tokens as they arrive and returns th
 | `APICallTool` | HTTP GET / POST / PUT / DELETE / PATCH requests |
 | `HTTPGetTool` | Simplified HTTP GET |
 | `HTTPPostTool` | Simplified HTTP POST |
+| `A2ASendFileTool` | Transfer files securely between agents over P2P network |
 | `SeleniumChromeTool` | Full Chrome browser automation (requires `pip install "daie[browser]"`) |
 
 ### FileManagerTool actions
@@ -279,6 +335,48 @@ result = await agent.execute_task("What is 12 * 34?")
 
 ---
 
+## P2P Networking & File Transfers
+
+DAIE supports multi-agent communication via its `CommunicationManager`. Agents can:
+
+- **Discover peers** via the built-in `NodeRegistry`
+- **Send direct messages** between agents (in-process or via HTTP for remote agents)
+- **Transfer files** securely using Base64 encoding with the `A2ASendFileTool`
+- **Authorize senders** with `allowed_senders` whitelists
+- **Authenticate connections** with `auth_token`
+
+### Setting Up Networked Agents
+
+```python
+from daie import Agent, AgentConfig
+from daie.communication import CommunicationManager
+
+comm = CommunicationManager()
+await comm.start()
+
+config = AgentConfig(
+    name="NetworkWorker",
+    network_url="http://<your-public-ip-or-devtunnel>:8000",
+    auth_token="secure_cross_machine_token123",
+    allow_file_transfers=True
+)
+agent = Agent(config=config)
+await agent.start(communication_manager=comm)
+```
+
+### Authorization Whitelist
+
+```python
+config = AgentConfig(
+    name="SecureNode",
+    allowed_senders=["trusted-agent-id-1", "trusted-agent-id-2"],
+)
+# Only messages from whitelisted sender IDs will be accepted.
+# Empty list = allow all senders.
+```
+
+---
+
 ## Camera (OpenCV)
 
 ```bash
@@ -334,31 +432,6 @@ play_audio_file("recording.wav")
 
 ---
 
-## Agent Configuration
-
-```python
-from daie.agents.config import AgentConfig, AgentRole
-
-config = AgentConfig(
-    name="MyAgent name",   # (ALEX, NOVA, BOB, etc)
-    role=AgentRole.GENERAL_PURPOSE,   # or SPECIALIZED, COORDINATOR, WORKER
-    goal="Help users with tasks",
-    backstory="A capable AI assistant",
-    system_prompt="You are a helpful assistant.",
-    
-    # Persona traits (automatically injected into LLM prompts)
-    gender="female",
-    personality="sarcastic, witty, very direct",
-    behavior="always starts sentences with Hmm",
-
-    temperature=0.7,       # overrides global LLM setting for this agent
-    max_tokens=1000,
-    task_timeout=30,       # seconds before execute_task times out
-)
-```
-
----
-
 ## CLI
 
 ```bash
@@ -388,10 +461,13 @@ daie/
 ├── agents/         Agent, AgentConfig, AgentRole, AgentMessage
 ├── core/           LLMManager, set_llm(), get_llm()
 ├── tools/          Tool base class, @tool decorator, FileManagerTool,
-│                   APICallTool, SeleniumChromeTool, ToolRegistry
+│                   APICallTool, A2ASendFileTool, SeleniumChromeTool, ToolRegistry
 ├── utils/          AudioManager, CameraManager, encryption, logging
-├── communication/  CommunicationManager (in-memory / NATS)
+├── communication/  CommunicationManager (in-memory + HTTP P2P)
+├── registry/       NodeRegistry (decentralized agent discovery)
 ├── memory/         MemoryManager (working, semantic, episodic)
+├── protocols/      Protocol definitions (ACP)
+├── config/         SystemConfig, environment settings
 └── cli/            Typer-based CLI
 ```
 
@@ -408,10 +484,28 @@ execute_task("Create notes.txt")
 
 ---
 
+## Examples
+
+| File | Description |
+|---|---|
+| `examples/01_basic_chat.py` | Interactive streaming chat with persona traits (gender, personality, behavior) |
+| `examples/02_custom_tools.py` | Custom `@tool` decorator + `FileManagerTool` with ReAct agent loop |
+| `examples/03_p2p_networking.py` | Multi-agent P2P messaging, authorization, and A2A file transfer |
+
+Run any example:
+
+```bash
+source venv/bin/activate
+python examples/01_basic_chat.py
+```
+
+---
+
 ## Development
 
 ```bash
-git clone https://github.com/yourusername/decentralized-ai-ecosystem.git
+git clone https://github.com/kanishkkumarsingh2004/DAIE.git
+cd DAIE
 python -m venv venv
 source venv/bin/activate
 pip install -e ".[dev]"
@@ -420,7 +514,7 @@ pip install -e ".[dev]"
 pytest tests/
 
 # Run example chat loop
-python simple_ollama_chat_loop.py
+python examples/01_basic_chat.py
 ```
 
 ---
@@ -429,33 +523,41 @@ python simple_ollama_chat_loop.py
 
 | Problem | Fix |
 |---|---|
-| `Could not connect to Ollama` | Run `ollama serve` and pull a model: `ollama pull llama3.2` |
+| `Could not connect to Ollama` | Run `ollama serve` and pull a model: `ollama pull wizard-vicuna-uncensored:7b` |
 | `ModuleNotFoundError: cv2` | `pip install "daie[vision]"` |
 | `ModuleNotFoundError: pyaudio` | `pip install "daie[audio]"` |
 | Agent not responding | Call `await agent.start()` before `execute_task()` |
 | Task timeout | Increase `task_timeout` in `AgentConfig` |
 | LLM returns plain text instead of JSON | Normal — the agent treats plain text as a final answer |
+| `execute_task` takes 30-60s on first call | The local LLM model is loading into memory. Subsequent calls are faster |
+| `Failed to load registry` warning | Ensure `node_registry.json` contains valid JSON (not empty) |
+| Persona traits not applied | Verify `gender`, `personality`, or `behavior` are set in `AgentConfig` |
 
 ---
 
 ## Changelog
 
-### v1.1.0 
+### v1.2.0
+- Agent Persona system: configurable `gender`, `personality`, and `behavior` traits dynamically injected into LLM prompts for both chat and ReAct tool loops.
+- Per-agent LLM overrides: `temperature` and `max_tokens` from `AgentConfig` are now passed into every `invoke()` call, allowing multiple agents with different settings on the same global LLM.
+- Increased Ollama HTTP timeouts (to 300s) to support massive local models (e.g. `wizard-vicuna-uncensored:7b`).
+- Fixed silent crash bugs during HTTP streaming with proper error reporting.
+- Rewrote `examples/03_p2p_networking.py` to correctly demonstrate in-process multi-agent messaging, authorization, and file transfer.
+- Added graceful `Ctrl+C` handling in `examples/01_basic_chat.py`.
+
+### v1.1.0
 - Networked P2P Architecture using `httpx` and `fastapi` for robust peer-to-peer Agent interaction.
 - Support for cross-machine `A2ASendFileTool` with built-in Base64 security blocking uninvited file transfers.
 - `AgentConfig` enhancements providing decentralized node discovery support with DevTunnel and manual IPs.
 - Configurable authentication tokens (`auth_token`) for incoming connections.
-- Added Persona parameters to `AgentConfig`: `gender`, `personality`, and `behavior` which are automatically woven into the ReAct and Chat loops.
-- Increased Ollama HTTP timeouts (to 300s) to easily support massive local models (like `wizard-vicuna-uncensored:7b`), and fixed silent crash bugs during HTTP streaming.
 
-### v1.0.3 
+### v1.0.3
 - ReAct-style tool-use loop in `execute_task()` — LLM reasons and picks tools autonomously
 - Token streaming via `set_llm(stream=True)` — library-level, no per-call config needed
 - Compact tool schema in system prompt — works with small models like `gemma3:1b`
 - Fixed `camera.py` — added missing `numpy` import, added `CV2_AVAILABLE` guards
 - Fixed `tools/__init__.py` — lazy selenium imports, no crash without browser extras
 - Fixed `pyproject.toml` — only actually-used packages in core dependencies
-- 193 tests passing
 
 ### v1.0.1
 - HTTP session pooling for LLM calls

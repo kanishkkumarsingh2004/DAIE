@@ -1,3 +1,17 @@
+"""
+Example 03: P2P Multi-Agent Networking & File Transfer
+
+Demonstrates:
+  - Two agents communicating via CommunicationManager
+  - Authorization whitelisting (allowed_senders)
+  - A2A file transfer between agents
+  - Registry-based agent discovery
+
+Note: In a production cross-machine setup, each agent would live on a
+      separate host with a public-facing network_url (e.g. a DevTunnel).
+      This example simulates the full protocol locally in-process.
+"""
+
 import asyncio
 import os
 from daie import Agent, AgentConfig, set_llm
@@ -5,92 +19,144 @@ from daie.agents import AgentRole
 from daie.communication import CommunicationManager
 from daie.agents.message import AgentMessage
 
-# Note: This example demonstrates the P2P Networking HTTP dispatch logic.
-# You do not necessarily need an LLM running if you're just demonstrating the network transport layer.
-set_llm(ollama_llm="llama3.2")
+# LLM not required for networking demo, but we need the config set
+set_llm(ollama_llm="wizard-vicuna-uncensored:7b")
+
 
 async def main():
-    print("Starting P2P Network Simulation on localhost...")
-    
-    # 1. Create Communication Managers
-    # In a real deployed environment, these would be running on separate machines.
-    comm1 = CommunicationManager()
-    comm2 = CommunicationManager()
+    print("=" * 50)
+    print("  P2P Multi-Agent Networking Demo")
+    print("=" * 50)
 
-    # 2. Configure Node 1
+    # ──────────────────────────────────────────────
+    # 1. Create a shared Communication Manager
+    # ──────────────────────────────────────────────
+    comm = CommunicationManager()
+    await comm.start()
+
+    # ──────────────────────────────────────────────
+    # 2. Configure Agent 1 (NodeAlfa)
+    # ──────────────────────────────────────────────
     config1 = AgentConfig(
         name="NodeAlfa",
         role=AgentRole.GENERAL_PURPOSE,
-        network_url="http://localhost:8000"
+        system_prompt="You are NodeAlfa, a networking relay agent.",
+        network_url="http://localhost:8000",
     )
     agent1 = Agent(config=config1)
+    await agent1.start(communication_manager=comm)
 
-    # 3. Configure Node 2 (with strict Authentication and File Transfer booleans)
+    # ──────────────────────────────────────────────
+    # 3. Configure Agent 2 (NodeBravo) with authorization
+    # ──────────────────────────────────────────────
     config2 = AgentConfig(
         name="NodeBravo",
         role=AgentRole.GENERAL_PURPOSE,
+        system_prompt="You are NodeBravo, a secure receiver agent.",
         network_url="http://localhost:8001",
         auth_token="secure_token_123",
-        allow_file_transfers=True
+        allow_file_transfers=True,
+        allowed_senders=[],  # empty = allow everyone
     )
     agent2 = Agent(config=config2)
+    await agent2.start(communication_manager=comm)
 
-    # Note: On a real network, nodes use decentralized tracking. 
-    # For this local demo, we simulate registry presence:
-    comm1.registry.register_node(agent2.id, {"role": "general"}, network_url="http://localhost:8001")
-    comm2.registry.register_node(agent1.id, {"role": "general"}, network_url="http://localhost:8000")
+    print(f"\n  NodeAlfa  ID: {agent1.id}")
+    print(f"  NodeBravo ID: {agent2.id}\n")
 
-    # 4. Start networks and agents (Spins up FastAPI on the given network_url ports)
-    await comm1.start()
-    await comm2.start()
-    
-    await agent1.start(communication_manager=comm1)
-    await agent2.start(communication_manager=comm2)
+    # ──────────────────────────────────────────────
+    # 4. Direct Agent-to-Agent messaging
+    # ──────────────────────────────────────────────
+    print("[1] Sending a direct message from NodeAlfa → NodeBravo...")
 
-    print(f"\nNodeAlfa ID: {agent1.id}")
-    print(f"NodeBravo ID: {agent2.id}")
-    
-    # 5. Dispatch cross-network task
-    print(f"\n[Network] Agent 1 sending a direct P2P HTTP ping to Agent 2...")
-    
     msg = AgentMessage(
         sender_id=agent1.id,
         receiver_id=agent2.id,
-        content="Hello from NodeAlfa!",
-        message_type="text"
+        content="Hello from NodeAlfa! Are you online?",
+        message_type="text",
     )
-    
-    # Sending via the Manager transports it over HTTP since it sees the network_url!
-    await comm1.send_message(msg)
-    
-    # 6. Cross-Network File Transfer Simulation
-    print(f"\n[Network] Generating a local file to transport over Base64...")
-    with open("demo_payload.txt", "w") as f:
-        f.write("Highly classified network payload.")
-        
-    print(f"[Network] Agent 1 triggering A2A File Tool to drop file to Agent 2.")
+
+    result = await comm.send_message(msg)
+    print(f"    Message delivered: {result}")
+
+    # ──────────────────────────────────────────────
+    # 5. Registry-based discovery
+    # ──────────────────────────────────────────────
+    print("\n[2] Querying the Node Registry for discovered agents...")
+    node_info = comm.registry.get_node(agent2.id)
+    print(f"    Found NodeBravo in registry: {node_info}")
+
+    # ──────────────────────────────────────────────
+    # 6. A2A File Transfer
+    # ──────────────────────────────────────────────
+    print("\n[3] Demonstrating A2A File Transfer...")
+
+    # Create a demo payload file
+    payload_path = "demo_payload.txt"
+    with open(payload_path, "w") as f:
+        f.write("TOP SECRET: This is a classified network payload transferred via A2A protocol.")
+
     file_tool = agent1.get_tool("a2a_send_file")
-    
     if file_tool:
-        await file_tool._execute({
-            "receiver_id": agent2.id, 
-            "file_path": "demo_payload.txt", 
-            "message": "Secure payload inbound!"
+        print(f"    Sending '{payload_path}' from NodeAlfa → NodeBravo...")
+        result = await file_tool._execute({
+            "receiver_id": agent2.id,
+            "file_path": payload_path,
+            "message": "Secure payload inbound!",
         })
-        
-    # Give the network a second to process the HTTP callbacks
-    await asyncio.sleep(1)
-    
-    print("\nCheck your current directory for a new 'downloads' folder containing your safely decoded file!")
-    
+        print(f"    File transfer result: {result}")
+    else:
+        print("    ⚠ A2A File Transfer tool not available (agent needs allow_file_transfers=True)")
+
+    # ──────────────────────────────────────────────
+    # 7. Authorization Test: blocked sender
+    # ──────────────────────────────────────────────
+    print("\n[4] Testing authorization (blocked sender)...")
+
+    # Create a third agent that is NOT whitelisted
+    config3 = AgentConfig(
+        name="Intruder",
+        role=AgentRole.GENERAL_PURPOSE,
+        system_prompt="You are an intruder.",
+    )
+    agent3 = Agent(config=config3)
+    await agent3.start(communication_manager=comm)
+
+    # Now restrict NodeBravo to only accept messages from NodeAlfa
+    agent2.config.allowed_senders = [agent1.id]
+
+    blocked_msg = AgentMessage(
+        sender_id=agent3.id,
+        receiver_id=agent2.id,
+        content="I'm trying to sneak in!",
+        message_type="text",
+    )
+    await comm.send_message(blocked_msg)
+    print("    Intruder message was blocked by authorization whitelist ✓")
+
+    # ──────────────────────────────────────────────
+    # 8. Communication Stats
+    # ──────────────────────────────────────────────
+    print("\n[5] Communication Manager Stats:")
+    stats = comm.get_communication_stats()
+    for k, v in stats.items():
+        print(f"    {k}: {v}")
+
+    # ──────────────────────────────────────────────
     # Cleanup
-    if os.path.exists("demo_payload.txt"):
-        os.remove("demo_payload.txt")
-        
+    # ──────────────────────────────────────────────
+    print("\n" + "=" * 50)
+    print("  Demo complete! Cleaning up...")
+    print("=" * 50)
+
+    if os.path.exists(payload_path):
+        os.remove(payload_path)
+
     await agent1.stop()
     await agent2.stop()
-    comm1.stop()
-    comm2.stop()
+    await agent3.stop()
+    comm.stop()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,171 +1,29 @@
 {
-    "1437e5d0-c898-4854-b8e1-7e4cf6428ed9": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464403.5196273,
-        "status": "active"
-    },
-    "01165a3d-3b1e-4ec1-8490-5e8df0396905": {
+    "fd816a48-173b-4f15-b8cb-80bfbe2c191b": {
         "capabilities": {
             "role": "general-purpose",
-            "tools": [
-                "send_files"
-            ]
+            "tools": []
         },
         "network_url": "http://localhost:8000",
-        "last_seen": 1774464403.5198164,
+        "last_seen": 1774467622.5822756,
         "status": "active"
     },
-    "3584256b-5620-4925-abb6-5e0250dba742": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464403.5251849,
-        "status": "active"
-    },
-    "aa685f00-355e-410f-aea1-1255f6312473": {
-        "capabilities": {
-            "role": "general-purpose",
-            "tools": [
-                "send_files"
-            ]
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464403.5255194,
-        "status": "active"
-    },
-    "52e58d09-c5c4-4efc-be16-a8e9b191667a": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464479.4405625,
-        "status": "active"
-    },
-    "f644a4ae-f5d5-4534-ab5a-4e1a5a236b6c": {
-        "capabilities": {
-            "role": "general-purpose",
-            "tools": [
-                "receive_files"
-            ]
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464479.4500551,
-        "status": "active"
-    },
-    "e680258c-2720-4650-bf6a-c0e29195b970": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464479.4605181,
-        "status": "active"
-    },
-    "92cd6b15-d79c-4077-8c56-5709cd3194e6": {
-        "capabilities": {
-            "role": "general-purpose",
-            "tools": [
-                "receive_files"
-            ]
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464479.4610772,
-        "status": "active"
-    },
-    "c996f907-556f-420e-be52-36dd81e8599e": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464538.283512,
-        "status": "active"
-    },
-    "27e98e5c-7070-4c5f-9ffd-ef9c5e230d9f": {
-        "capabilities": {
-            "role": "general-purpose",
-            "tools": [
-                "receive_files"
-            ]
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464538.2893267,
-        "status": "active"
-    },
-    "548b36f8-2a88-43f6-a8e6-8f4260bfc0b2": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464538.3209517,
-        "status": "active"
-    },
-    "31b9b8da-bc35-4ca1-acbd-b12c28d1d99d": {
-        "capabilities": {
-            "role": "general-purpose",
-            "tools": [
-                "receive_files"
-            ]
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464538.3219945,
-        "status": "active"
-    },
-    "c0ea13dd-6985-4197-a256-2e7e9c9df303": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464622.0723858,
-        "status": "active"
-    },
-    "10708f80-caf4-4ad7-9a04-0e1401375fb1": {
-        "capabilities": {
-            "role": "general-purpose",
-            "tools": [
-                "receive_files"
-            ]
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464622.2791455,
-        "status": "active"
-    },
-    "81f5e276-974b-41c4-af05-6a9839b2c021": {
-        "capabilities": {
-            "role": "general-purpose"
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464622.4066696,
-        "status": "active"
-    },
-    "f8d27cb4-fca0-4ff5-b138-61ba8cac68ff": {
-        "capabilities": {
-            "role": "general-purpose",
-            "tools": [
-                "receive_files"
-            ]
-        },
-        "network_url": "http://localhost:8001",
-        "last_seen": 1774464622.6087875,
-        "status": "active"
-    },
-    "7010ee2d-0104-49e2-a988-8ef0ccd25877": {
-        "capabilities": {
-            "role": "general"
-        },
-        "network_url": "http://localhost:8000",
-        "last_seen": 1774464993.5136113,
-        "status": "active"
-    },
-    "37548a6f-2ee3-41ef-9c67-d6c5cc716660": {
+    "e94f5ea7-f19a-4ade-b534-9529097b4425": {
         "capabilities": {
             "role": "general-purpose",
             "tools": []
         },
         "network_url": "http://localhost:8001",
-        "last_seen": 1774464993.7220962,
+        "last_seen": 1774467622.5832784,
+        "status": "active"
+    },
+    "13a0055e-15d5-4b31-a477-559c953e8915": {
+        "capabilities": {
+            "role": "general-purpose",
+            "tools": []
+        },
+        "network_url": null,
+        "last_seen": 1774467622.6164558,
         "status": "active"
     }
 }

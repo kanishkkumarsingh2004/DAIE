@@ -3,7 +3,7 @@ from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
 from daie.tools import tool, FileManagerTool
 
-set_llm(ollama_llm="llama3.2")
+set_llm(ollama_llm="wizard-vicuna-uncensored:7b", stream=True)
 
 # Define a custom tool using the @tool decorator
 @tool(name="calculate_math", description="Evaluate a basic math expression.")

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 from daie.config import SystemConfig
 from daie.agents.message import AgentMessage
+from daie.registry.manager import NodeRegistry
 
 if TYPE_CHECKING:
     from daie.agents import Agent
@@ -75,6 +76,8 @@ class CommunicationManager:
         self._message_handlers: Dict[str, Callable] = {}
         self._connection: Optional[any] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        
+        self.registry = NodeRegistry()
 
         logger.info("Communication manager initialized")
 
@@ -109,6 +112,14 @@ class CommunicationManager:
         self._message_handlers[agent.id] = lambda msg: self._handle_message(
             agent.id, msg
         )
+        
+        # Register Agent capabilities and network config to NodeRegistry
+        network_url = getattr(agent.config, 'network_url', None)
+        capabilities = {
+            "role": getattr(agent.role, 'value', str(agent.role)) if hasattr(agent, 'role') else "unknown",
+            "tools": agent.config.capabilities,
+        }
+        self.registry.register_node(agent.id, capabilities, network_url=network_url)
 
         return self
 
@@ -255,9 +266,51 @@ class CommunicationManager:
         if message.receiver_id in self._agents:
             # Direct agent-to-agent communication
             receiver = self._agents[message.receiver_id]
+            
+            # --- Authorization Check ---
+            allowed = getattr(receiver.config, 'allowed_senders', [])
+            if allowed and message.sender_id not in allowed:
+                logger.warning(f"Blocked message from {message.sender_id} to {message.receiver_id}: sender not in allowed_senders whitelist.")
+                return
+
             await receiver._handle_message(message)
         else:
-            logger.warning(f"Receiver agent {message.receiver_id} not found")
+            # Try to dispatch over the network via P2P HTTP
+            node = self.registry.get_node(message.receiver_id)
+            if node and node.get("network_url"):
+                network_url = node["network_url"]
+                logger.info(f"Routing message to remote agent {message.receiver_id} at {network_url}")
+                asyncio.create_task(self._send_remote_message(message, network_url))
+            else:
+                logger.warning(f"Receiver agent {message.receiver_id} not found locally or in registry.")
+                
+    async def _send_remote_message(self, message: AgentMessage, network_url: str):
+        try:
+            import httpx
+            sender_agent = self._agents.get(message.sender_id)
+            token = getattr(sender_agent.config, 'auth_token', '') if sender_agent else ''
+            
+            headers = {"Content-Type": "application/json"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                
+            endpoint = f"{network_url.rstrip('/')}/api/v1/a2a/message"
+            
+            async with httpx.AsyncClient() as client:
+                msg_dict = {
+                    "sender_id": message.sender_id,
+                    "receiver_id": message.receiver_id,
+                    "content": message.content,
+                    "message_type": message.message_type,
+                    "metadata": message.metadata
+                }
+                response = await client.post(endpoint, json=msg_dict, headers=headers, timeout=15.0)
+                if response.status_code >= 400:
+                    logger.error(f"Failed to send remote message to {endpoint}: {response.text}")
+                else:
+                    logger.debug(f"Remote message delivered to {endpoint}")
+        except Exception as e:
+            logger.error(f"Error sending remote message to {network_url}: {e}")
 
     async def broadcast_message(self, message: AgentMessage) -> int:
         """

@@ -11,7 +11,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.box import ROUNDED
 
 from daie.core.system import DecentralizedAISystem
-from daie.config import SystemConfig
+from daie.config import SystemConfig, ConfigManager
+from daie.agents.config import AgentConfig, AgentRole
 
 agent_app = typer.Typer(
     name="agent", help="Agent management commands", add_completion=True
@@ -33,33 +34,34 @@ def list_agents():
     )
 
     try:
-        # Get actual agents from the system
-        config = SystemConfig()
-        system = DecentralizedAISystem(config=config)
-        agents = system.list_agents()
+        # Load agents from JSON config
+        config_mgr = ConfigManager()
+        agents = config_mgr.load_agents_config()
 
         if not agents:
-            console.print("[yellow]No agents found[/yellow]")
+            console.print("[yellow]No agents structured yet. Use 'daie agent create' to add one.[/yellow]")
             return
 
         table = Table(
             show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
         )
-        table.add_column("ID", style="cyan")
         table.add_column("Name", style="magenta")
         table.add_column("Role", style="yellow")
-        table.add_column("Status", style="green")
+        table.add_column("Provider", style="cyan")
+        table.add_column("Model/Capabilities", style="green")
 
         for agent in agents:
+            caps = ", ".join(agent.capabilities) if agent.capabilities else "None"
             table.add_row(
-                agent.id[:8] + "...",  # Truncate ID for display
                 agent.name,
                 agent.role.value,
-                "Running" if agent.is_running else "Stopped",
+                agent.llm_provider,
+                f"{agent.llm_model} | {caps}",
             )
 
         console.print(table)
-        console.print(f"\nTotal agents: [bold green]{len(agents)}[/bold green]")
+        console.print(f"\nTotal configured agents: [bold green]{len(agents)}[/bold green]")
+
     
     except Exception as e:
         console.print(f"[red]Error listing agents: {e}[/red]")
@@ -68,28 +70,73 @@ def list_agents():
 
 @agent_app.command(name="create")
 def create_agent(
-    name: str = typer.Option(..., "--name", "-n", help="Agent display name"),
-    role: str = typer.Option("general-purpose", "--role", "-r", help="Agent role type"),
-    capabilities: str = typer.Option(
-        None, "--capabilities", "-c", help="Comma-separated list of capabilities"
-    ),
+    name: str = typer.Option(None, "--name", "-n", help="Agent display name"),
+    role: str = typer.Option(None, "--role", "-r", help="Agent role type"),
+    capabilities: str = typer.Option(None, "--capabilities", "-c", help="Comma-separated list of capabilities"),
+    interactive: bool = typer.Option(True, "--interactive/--no-interactive", help="Use interactive Q/A wizard"),
 ):
-    """Create a new agent"""
+    """Create or configure a new agent"""
     console.print(
         Panel(
-            "[bold green]Creating New Agent[/bold green]",
-            title="[blue]✨ Agent Creation[/blue]",
+            "[bold green]Agent Configuration Wizard[/bold green]",
+            title="[blue]✨ Agent Setup[/blue]",
             border_style="blue",
             box=ROUNDED,
         )
     )
 
-    console.print(f"[bold blue]Name:[/bold blue] {name}")
-    console.print(f"[bold blue]Role:[/bold blue] {role}")
+    if interactive or not name:
+        from rich.prompt import Prompt, Confirm
+        name = Prompt.ask("[bold blue]Agent Name[/bold blue]", default=name or "NewAgent")
+        
+        valid_roles = [r.value for r in AgentRole]
+        role = Prompt.ask(
+            f"[bold blue]Role[/bold blue] ({', '.join(valid_roles)})", 
+            default=role or AgentRole.GENERAL_PURPOSE.value,
+            choices=valid_roles
+        )
+        
+        goal = Prompt.ask("[bold blue]Agent Goal[/bold blue]", default="Perform specific tasks effectively")
+        system_prompt = Prompt.ask("[bold blue]System Prompt[/bold blue]", default="You are a helpful AI assistant.")
+        
+        provider = Prompt.ask("[bold blue]LLM Provider[/bold blue] (ollama, openai, anthropic)", default="ollama")
+        model = Prompt.ask("[bold blue]LLM Model[/bold blue]", default="llama3.2:latest")
+        
+        if not capabilities:
+            caps_input = Prompt.ask("[bold blue]Capabilities (comma-separated)[/bold blue]", default="")
+            capabilities = caps_input if caps_input else None
+            
+        network_url = Prompt.ask("[bold blue]P2P Network URL[/bold blue] (e.g. https://my-agent.dev, enter for none)", default="")
+        network_url = network_url if network_url.strip() else None
+        
+        auth_token = Prompt.ask("[bold blue]P2P Auth Token[/bold blue] (enter for none)", default="")
+        auth_token = auth_token if auth_token.strip() else None
+        
+        allow_file_transfers = Confirm.ask("[bold blue]Allow incoming file transfers over P2P?[/bold blue]", default=False)
+    else:
+        goal = "Perform general tasks"
+        system_prompt = "You are a helpful AI assistant."
+        provider = "ollama"
+        model = "llama3.2:latest"
+        network_url = None
+        auth_token = None
+        allow_file_transfers = False
 
-    if capabilities:
-        caps = [c.strip() for c in capabilities.split(",")]
-        console.print(f"[bold blue]Capabilities:[/bold blue] {', '.join(caps)}")
+    caps_list = [c.strip() for c in capabilities.split(",")] if capabilities else []
+    
+    config_mgr = ConfigManager()
+    agent_config = AgentConfig(
+        name=name,
+        role=AgentRole(role),
+        goal=goal,
+        system_prompt=system_prompt,
+        capabilities=caps_list,
+        llm_provider=provider,
+        llm_model=model,
+        network_url=network_url,
+        auth_token=auth_token,
+        allow_file_transfers=allow_file_transfers,
+    )
 
     try:
         with Progress(
@@ -97,27 +144,27 @@ def create_agent(
             TextColumn("[progress.description]{task.description}"),
             transient=True,
         ) as progress:
-            task = progress.add_task(
-                description="Creating agent configuration...", total=None
-            )
+            task = progress.add_task(description="Saving agent configuration...", total=None)
             import time
-            time.sleep(0.3)
-            progress.update(task, description="Registering agent capabilities...")
-            time.sleep(0.3)
-            progress.update(task, description="Initializing agent memory...")
-            time.sleep(0.3)
+            time.sleep(0.5)
+            
+            success = config_mgr.upsert_agent_config(agent_config)
+            
+            if not success:
+                raise Exception("Failed to save to agents.json")
 
         console.print(
             Panel(
-                "[bold green]Agent created successfully![/bold green]\n"
-                "To start the agent, use: [bold]daie agent start [agent-id][/bold]",
-                title="[green]✅ Creation Complete[/green]",
+                f"[bold green]Agent '{name}' configured successfully![/bold green]\n"
+                f"Configuration saved to: [bold]{config_mgr.agents_file}[/bold]\n"
+                "To list agents, use: [bold]daie agent list[/bold]",
+                title="[green]✅ Setup Complete[/green]",
                 border_style="green",
                 box=ROUNDED,
             )
         )
     except Exception as e:
-        console.print(f"[red]Error creating agent: {e}[/red]")
+        console.print(f"[red]Error configuring agent: {e}[/red]")
         raise typer.Exit(code=1)
 
 

@@ -13,7 +13,7 @@ from daie.agents import Agent
 from daie.tools import ToolRegistry
 from daie.communication import CommunicationManager
 from daie.memory import MemoryManager
-from daie.config import SystemConfig
+from daie.config import SystemConfig, ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,22 @@ class DecentralizedAISystem:
 
         self.agents[agent.id] = agent
         logger.info(f"Agent {agent.name} (ID: {agent.id}) added to system")
+        return self
+
+    def load_configured_agents(self) -> "DecentralizedAISystem":
+        """
+        Loads agents from the JSON configuration using ConfigManager.
+        """
+        config_mgr = ConfigManager()
+        agent_configs = config_mgr.load_agents_config()
+        
+        for agent_cfg in agent_configs:
+            agent = Agent(config=agent_cfg)
+            # Register it via internal dictionary directly without throwing if it exists,
+            # but usually it's a new instance so ID is new.
+            self.agents[agent.id] = agent
+            logger.info(f"Loaded agent {agent.name} (ID: {agent.id}) from config")
+            
         return self
 
     def add_tool(self, tool: Any) -> "DecentralizedAISystem":

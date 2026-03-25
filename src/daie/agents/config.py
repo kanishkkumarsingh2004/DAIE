@@ -72,6 +72,18 @@ class AgentConfig:
     """Maximum tokens per LLM response"""
 
     # Communication settings
+    allowed_senders: List[str] = field(default_factory=list)
+    """List of agent IDs allowed to send messages to this agent. Empty means all are allowed."""
+
+    auth_token: Optional[str] = None
+    """Optional authentication token for receiving messages."""
+
+    network_url: Optional[str] = None
+    """Base URL for over-the-network P2P communication (e.g., https://my-devtunnel.example.com)."""
+
+    allow_file_transfers: bool = False
+    """Whether to allow incoming file transfers via A2A over the network."""
+
     communication_timeout: int = 30
     """Communication timeout in seconds"""
 

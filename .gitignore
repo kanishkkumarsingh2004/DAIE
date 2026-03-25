@@ -63,3 +63,5 @@ build/
 *.tmp
 *.temp
 .cache/
+config
+push.sh

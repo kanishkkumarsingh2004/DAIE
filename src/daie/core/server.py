@@ -39,7 +39,8 @@ try:
         global system
         config = SystemConfig()
         system = DecentralizedAISystem(config=config)
-        logger.info("Central core server started")
+        system.load_configured_agents()
+        logger.info("Central core server started with configured agents.")
 
     @app.on_event("shutdown")
     async def shutdown_event():
@@ -166,6 +167,49 @@ try:
             return {"message": "Agent deleted successfully"}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    from fastapi import Request
+    from daie.agents.message import AgentMessage
+    
+    @app.post("/api/v1/a2a/message")
+    async def receive_a2a_message(request: Request):
+        if not system:
+            raise HTTPException(status_code=500, detail="System not initialized")
+            
+        data = await request.json()
+        receiver_id = data.get("receiver_id")
+        
+        agent = system.get_agent(receiver_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Receiver agent not found")
+            
+        # Auth check
+        expected_token = getattr(agent.config, 'auth_token', None)
+        if expected_token:
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
+            
+            token = auth_header.split(" ")[1]
+            if token != expected_token:
+                raise HTTPException(status_code=401, detail="Unauthorized: Invalid token")
+                
+        if not hasattr(agent, 'communication_manager') or not agent.communication_manager:
+            raise HTTPException(status_code=500, detail="Agent CommunicationManager not active")
+            
+        message = AgentMessage(
+            sender_id=data.get("sender_id", ""),
+            receiver_id=data.get("receiver_id", ""),
+            content=data.get("content", ""),
+            message_type=data.get("message_type", "text"),
+            metadata=data.get("metadata", {})
+        )
+        
+        # Inject the message into the agent's queue directly (or via communication manager)
+        import asyncio
+        asyncio.create_task(agent._handle_message(message))
+        
+        return {"status": "Message delivered"}
 
     def start_server(host: str = "0.0.0.0", port: int = 3333, reload: bool = False):
         """Start the central core server"""

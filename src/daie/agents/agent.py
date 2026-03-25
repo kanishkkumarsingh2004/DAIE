@@ -461,7 +461,45 @@ class Agent:
             logger.error(f"Error handling message: {exc}")
 
     async def _default_message_handler(self, message: AgentMessage):
-        if message.content.strip():
+        if message.message_type == "file":
+            if not getattr(self.config, 'allow_file_transfers', False):
+                reply = AgentMessage(
+                    sender_id=self.id,
+                    receiver_id=message.sender_id,
+                    content="File transfer rejected: receiver does not allow incoming files.",
+                    message_type="text",
+                )
+                await self.send_message(reply)
+                return
+
+            try:
+                import os, base64
+                downloads_dir = os.path.join(os.getcwd(), "downloads")
+                os.makedirs(downloads_dir, exist_ok=True)
+                
+                file_name = message.metadata.get("file_name", "received_file")
+                file_path = os.path.join(downloads_dir, f"{self.id}_{file_name}")
+                
+                b64_data = message.metadata.get("base64_data", "")
+                with open(file_path, "wb") as f:
+                    f.write(base64.b64decode(b64_data))
+                    
+                reply_content = f"Successfully received and saved file: {file_name} at {file_path}"
+                logger.info(f"Agent {self.name} received file {file_name}")
+            except Exception as e:
+                reply_content = f"Error saving file: {str(e)}"
+                logger.error(reply_content)
+                
+            reply = AgentMessage(
+                sender_id=self.id,
+                receiver_id=message.sender_id,
+                content=reply_content,
+                message_type="text",
+            )
+            await self.send_message(reply)
+            return
+
+        if message.content.strip() and not message.content.startswith("I received your message:"):
             reply = AgentMessage(
                 sender_id=self.id,
                 receiver_id=message.sender_id,
@@ -534,6 +572,30 @@ class Agent:
                 self.memory_manager.initialize_agent_memory(self.id)
             if tool_registry:
                 self.tool_registry = tool_registry
+
+            # Register A2A tools if communication manager is available
+            if hasattr(self, "communication_manager") and self.communication_manager:
+                try:
+                    from daie.tools.a2a import A2ASendMessageTool, A2ADelegateTaskTool
+                    send_msg_tool = A2ASendMessageTool()
+                    send_msg_tool.set_agent(self)
+                    self.add_tool(send_msg_tool)
+
+                    delegate_tool = A2ADelegateTaskTool()
+                    delegate_tool.set_agent(self)
+                    self.add_tool(delegate_tool)
+                    
+                    try:
+                        from daie.tools.a2a_file import A2ASendFileTool
+                        file_tool = A2ASendFileTool()
+                        file_tool.set_agent(self)
+                        self.add_tool(file_tool)
+                    except ImportError as e:
+                        logger.warning(f"Could not load A2ASendFileTool: {e}")
+                        
+                    logger.debug(f"A2A communication tools dynamically mounted for {self.name}")
+                except ImportError as e:
+                    logger.warning(f"Could not load A2A tools: {e}")
 
             self._is_running = True
             try:

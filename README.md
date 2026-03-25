@@ -128,6 +128,39 @@ asyncio.run(main())
 
 ---
 
+## P2P Networking & File Transfers
+
+DAIE supports cross-machine, peer-to-peer communication over HTTP via its `CommunicationManager`. Agents can securely discover peers, delegate tasks over the network (using ACP maps), and securely transfer files utilizing base64 encoding.
+
+### Setting Up a Networked Agent
+Configure your agent with a `network_url` and an `auth_token`.
+
+```python
+from daie import Agent, AgentConfig
+from daie.communication import CommunicationManager
+
+config = AgentConfig(
+    name="NetworkWorker",
+    network_url="http://<your-public-ip-or-devtunnel>:8000",
+    auth_token="secure_cross_machine_token123",
+    allow_file_transfers=True
+)
+agent = Agent(config=config)
+
+# Start comms, which runs the local REST server
+comm = CommunicationManager()
+await comm.start()
+await agent.start(communication_manager=comm)
+```
+
+### Exposing the P2P Port Local Sever
+By calling `CommunicationManager.start()`, DAIE spins up an embedded FastAPI REST endpoint (`POST /api/v1/a2a/message`) behind the scenes. Network requests containing standard `AgentMessage` bodies will hit this HTTP receiver payload and pipe directly down into your agent's processing loop.
+
+### Secure File Transfers
+As long as `allow_file_transfers` is marked `True`, the `A2ASendFileTool` allows your agents to dispatch files to authorized peers. Unauthorized files are automatically rejected without writing an outcome to disk. 
+
+---
+
 ## LLM Configuration
 
 ```python
@@ -401,7 +434,13 @@ python simple_ollama_chat_loop.py
 
 ## Changelog
 
-### v1.0.3 (current)
+### v1.1.0 
+- Networked P2P Architecture using `httpx` and `fastapi` for robust peer-to-peer Agent interaction.
+- Support for cross-machine `A2ASendFileTool` with built-in Base64 security blocking uninvited file transfers.
+- `AgentConfig` enhancements providing decentralized node discovery support with DevTunnel and manual IPs.
+- Configurable authentication tokens (`auth_token`) for incoming connections.
+
+### v1.0.3 
 - ReAct-style tool-use loop in `execute_task()` — LLM reasons and picks tools autonomously
 - Token streaming via `set_llm(stream=True)` — library-level, no per-call config needed
 - Compact tool schema in system prompt — works with small models like `gemma3:1b`

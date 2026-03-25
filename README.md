@@ -551,7 +551,7 @@ python examples/01_basic_chat.py
 - `AgentConfig` enhancements providing decentralized node discovery support with DevTunnel and manual IPs.
 - Configurable authentication tokens (`auth_token`) for incoming connections.
 
-### v1.0.3
+### v1.0.4
 - ReAct-style tool-use loop in `execute_task()` — LLM reasons and picks tools autonomously
 - Token streaming via `set_llm(stream=True)` — library-level, no per-call config needed
 - Compact tool schema in system prompt — works with small models like `gemma3:1b`

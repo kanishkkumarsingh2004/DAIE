@@ -32,7 +32,7 @@ Example usage:
 >>> result = await agent.execute_task("Say hello to Alice")
 """
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 
 from daie.agents import Agent, AgentConfig
 from daie.tools import Tool, ToolRegistry

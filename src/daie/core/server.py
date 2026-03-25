@@ -21,7 +21,7 @@ try:
     app = FastAPI(
         title="Decentralized AI Ecosystem API",
         description="API for managing the Decentralized AI Ecosystem",
-        version="1.0.3",
+        version="1.0.4",
     )
 
     app.add_middleware(

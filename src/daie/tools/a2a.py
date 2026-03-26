@@ -3,6 +3,7 @@ Agent-to-Agent communication tools.
 """
 
 import json
+import asyncio
 from typing import Dict, Any, Optional
 
 from daie.tools.tool import Tool, ToolMetadata, ToolCategory, ToolParameter
@@ -103,17 +104,41 @@ class A2ADelegateTaskTool(Tool):
         if not comm_mgr:
             return {"success": False, "error": "Communication Manager is not attached to this agent."}
 
+        from daie.utils import generate_id
+        correlation_id = generate_id()
+
         # Pack task into message
         agent_msg = AgentMessage(
             sender_id=self._agent_ref.id,
             receiver_id=target_agent_id,
-            content=json.dumps(mapped_payload),
-            message_type="task"
+            content=json.dumps({"task": mapped_payload}),
+            message_type="task",
+            metadata={"correlation_id": correlation_id}
         )
-        
-        success = await comm_mgr.send_message(agent_msg)
-        return {
-            "success": success,
-            "info": f"Task delegated to {target_agent_id} via Agent Connect Protocol.",
-            "mapped_payload": mapped_payload
-        }
+
+        # Create a future to wait for the response
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+        self._agent_ref._pending_responses[correlation_id] = future
+
+        try:
+            success = await comm_mgr.send_message(agent_msg)
+            if not success:
+                self._agent_ref._pending_responses.pop(correlation_id, None)
+                return {"success": False, "error": "Failed to send message."}
+
+            # Wait for response with timeout
+            response_content = await asyncio.wait_for(future, timeout=30.0)
+            
+            return {
+                "success": True,
+                "result": response_content,
+                "info": f"Task completed by {target_agent_id}.",
+                "mapped_payload": mapped_payload
+            }
+        except asyncio.TimeoutError:
+            self._agent_ref._pending_responses.pop(correlation_id, None)
+            return {"success": False, "error": f"Task delegation to {target_agent_id} timed out after 30s."}
+        except Exception as e:
+            self._agent_ref._pending_responses.pop(correlation_id, None)
+            return {"success": False, "error": f"Error during task delegation: {str(e)}"}

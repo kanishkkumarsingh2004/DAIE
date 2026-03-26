@@ -106,7 +106,6 @@ class RAGEngine:
             f"{len(self._chunks)} chunk(s), "
             f"{len(self._vocabulary)} unique terms"
         )
-        print(f"✅ RAG: Loaded {len(self._chunks)} chunks from {len(documents)} documents.")
         return len(self._chunks)
 
     def retrieve(self, query: str, top_k: int = 3) -> List[Tuple[Chunk, float]]:
@@ -148,12 +147,6 @@ class RAGEngine:
             score = float(similarities[idx])
             if score > 0.05: # Minimal threshold
                 results.append((self._chunks[idx], score))
-
-        if results:
-            print(f"🔍 RAG: Retrieved {len(results)} relevant chunks for query: '{query}'")
-        else:
-            print(f"ℹ️ RAG: No relevant chunks found for query: '{query}'")
-
         return results
 
     def build_context(self, query: str, top_k: int = 3) -> str:

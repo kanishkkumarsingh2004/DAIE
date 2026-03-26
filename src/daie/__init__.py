@@ -34,7 +34,7 @@ Example usage:
 
 __version__ = "1.0.4"
 
-from daie.agents import Agent, AgentConfig
+from daie.agents import Agent, AgentConfig, AgentRole, AgentMessage, Orchestrator
 from daie.tools import Tool, ToolRegistry
 from daie.core import DecentralizedAISystem
 from daie.core import (
@@ -52,6 +52,9 @@ __all__ = [
     "__version__",
     "Agent",
     "AgentConfig",
+    "AgentRole",
+    "AgentMessage",
+    "Orchestrator",
     "Tool",
     "ToolRegistry",
     "DecentralizedAISystem",

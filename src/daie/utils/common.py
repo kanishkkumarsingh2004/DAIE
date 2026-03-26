@@ -156,6 +156,9 @@ def measure_time(func):
     """
     import functools
     import time
+    import logging
+
+    local_logger = logging.getLogger(__name__)
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -163,7 +166,7 @@ def measure_time(func):
         result = func(*args, **kwargs)
         end_time = time.time()
         execution_time = end_time - start_time
-        print(f"{func.__name__} executed in {execution_time:.2f} seconds")
+        local_logger.debug(f"{func.__name__} executed in {execution_time:.2f} seconds")
         return result
 
     return wrapper

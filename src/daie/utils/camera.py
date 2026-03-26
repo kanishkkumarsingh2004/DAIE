@@ -390,27 +390,27 @@ def test_camera(device_index: int = 0, duration: int = 3):
         device_index: Camera device index to test
         duration: Test duration in seconds
     """
-    print(f"Testing camera {device_index}...")
+    logger.info(f"Testing camera {device_index}...")
 
     manager = CameraManager()
 
     if not manager.initialize_camera(device_index):
-        print("Failed to initialize camera")
+        logger.error("Failed to initialize camera")
         return False
 
-    print(f"Camera info: {manager.get_camera_info()}")
-    print("Camera preview will open (press 'q' or ESC to close)")
+    logger.info(f"Camera info: {manager.get_camera_info()}")
+    logger.info("Camera preview will open (press 'q' or ESC to close)")
 
     manager.show_preview(preview_time=duration)
 
     test_file = "camera_test_image.jpg"
     if manager.take_photo(test_file):
-        print(f"Test photo saved to {test_file}")
+        logger.info(f"Test photo saved to {test_file}")
     else:
-        print("Failed to take test photo")
+        logger.error("Failed to take test photo")
 
     manager.release()
-    print("Camera test completed")
+    logger.info("Camera test completed")
     return True
 
 
@@ -420,7 +420,7 @@ if __name__ == "__main__":
 
     devices = list_camera_devices()
     if devices:
-        print(f"Available cameras: {devices}")
+        logger.info(f"Available cameras: {devices}")
         test_camera(devices[0], duration=3)
     else:
-        print("No cameras detected")
+        logger.warning("No cameras detected")

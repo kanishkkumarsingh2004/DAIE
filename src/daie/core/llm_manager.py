@@ -4,7 +4,7 @@ LLM (Large Language Model) management module
 
 import logging
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 from enum import Enum
 import subprocess
@@ -293,7 +293,7 @@ class LLMManager:
                         logger.error(f"Ollama LLM error: {e}")
                         return f"Error: {e}"
 
-            def _invoke_stream(self, prompt: str, **kwargs) -> str:
+            def _invoke_stream(self, prompt: str, images: Optional[List[str]] = None, **kwargs) -> str:
                 """Streaming invocation with token-by-token display"""
                 try:
                     import json
@@ -467,7 +467,6 @@ class LLMManager:
                                 except json.JSONDecodeError:
                                     continue
 
-                    print()  # New line after streaming completes
                     return full_response
 
                 except Exception as e:
@@ -637,7 +636,6 @@ class LLMManager:
                         import time
                         time.sleep(0.05)
                     
-                    print()  # New line after streaming completes
                     return response
 
                 except Exception as e:

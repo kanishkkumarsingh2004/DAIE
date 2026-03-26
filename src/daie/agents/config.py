@@ -71,6 +71,9 @@ class AgentConfig:
     max_tokens: int = 1000
     """Maximum tokens per LLM response"""
 
+    stream: bool = False
+    """Whether to stream tokens as they are generated"""
+
     # Communication settings
     allowed_senders: List[str] = field(default_factory=list)
     """List of agent IDs allowed to send messages to this agent. Empty means all are allowed."""

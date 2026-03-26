@@ -1,0 +1,4 @@
+DAIE Technical Specs:
+- Built on top of NATS for P2P messaging.
+- Uses TF-IDF for RAG retrieval in the default engine.
+- Supports asynchronous task execution with correlation tracking.

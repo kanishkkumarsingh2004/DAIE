@@ -115,6 +115,7 @@ class Agent:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._llm = None
         self.rag_engine: Optional[RAGEngine] = None
+        self._pending_responses: Dict[str, asyncio.Future] = {}
 
         if tools:
             for t in tools:
@@ -253,27 +254,38 @@ class Agent:
         # Strip code fences
         text = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
 
-        # Try the whole string first
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
+        def try_parse(s):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                return None
 
-        # Find the outermost {...}
-        start = text.find("{")
-        if start == -1:
-            return None
-        depth = 0
-        for i, ch in enumerate(text[start:], start):
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    try:
-                        return json.loads(text[start : i + 1])
-                    except json.JSONDecodeError:
-                        break
+        # Try the whole string first
+        res = try_parse(text)
+        if res: return res
+
+        # Iteratively try to find and parse the first valid JSON object
+        search_from = 0
+        while True:
+            start = text.find("{", search_from)
+            if start == -1:
+                break
+            
+            depth = 0
+            for i in range(start, len(text)):
+                ch = text[i]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidate = text[start : i + 1]
+                        res = try_parse(candidate)
+                        if res:
+                            return res
+                        break # Failed this one, look for next {
+            search_from = start + 1
+            
         return None
 
     # ── tool execution ────────────────────────────────────────────────────────
@@ -388,10 +400,11 @@ class Agent:
                     )
                 )
 
-            # Always invoke without streaming for the reasoning step
+            # Invoke LLM. If streaming is enabled, reasoning is shown too.
+            from daie.core.llm_manager import get_llm_config
             raw = self.llm.invoke(
                 full_prompt, 
-                stream=False, 
+                stream=self.config.stream or get_llm_config().stream, 
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens
             ).strip()
@@ -537,6 +550,14 @@ class Agent:
 
     async def _handle_message(self, message: AgentMessage):
         try:
+            # Check for correlation_id to resolve pending requests
+            correlation_id = message.metadata.get("correlation_id")
+            if correlation_id and correlation_id in self._pending_responses:
+                future = self._pending_responses.pop(correlation_id)
+                if not future.done():
+                    future.set_result(message.content)
+                return
+
             if self._message_handler:
                 await self._message_handler(message)
             else:
@@ -545,6 +566,46 @@ class Agent:
             logger.error(f"Error handling message: {exc}")
 
     async def _default_message_handler(self, message: AgentMessage):
+        if message.message_type == "task":
+            # Handle task message and reply with result
+            try:
+                task_data = json.loads(message.content) if isinstance(message.content, str) else message.content
+                task_str = task_data
+                if isinstance(task_data, dict):
+                    task_str = task_data.get("task") or task_data.get("description") or str(task_data)
+                
+                logger.info(f"Agent '{self.name}' [ID: {self.id}] received task: {task_str}")
+                
+                # If streaming, show that this agent is starting
+                from daie.core.llm_manager import get_llm_config
+                if self.config.stream or get_llm_config().stream:
+                    print(f"\n\033[96m{self.name} is working on the task...\033[0m")
+
+                result = await self.execute_task(str(task_str))
+                
+                reply = AgentMessage(
+                    sender_id=self.id,
+                    receiver_id=message.sender_id,
+                    content=str(result),
+                    message_type="text",
+                    metadata={"correlation_id": message.metadata.get("correlation_id")}
+                )
+                await self.send_message(reply)
+            except Exception as e:
+                logger.error(f"Error handling task message: {e}")
+                # Send error back if correlation_id exists
+                cid = message.metadata.get("correlation_id")
+                if cid:
+                    reply = AgentMessage(
+                        sender_id=self.id,
+                        receiver_id=message.sender_id,
+                        content=f"Error: {str(e)}",
+                        message_type="text",
+                        metadata={"correlation_id": cid}
+                    )
+                    await self.send_message(reply)
+            return
+
         if message.message_type == "file":
             if not getattr(self.config, 'allow_file_transfers', False):
                 reply = AgentMessage(
@@ -696,13 +757,11 @@ class Agent:
             # Initialize RAG engine if enabled
             if self.config.enable_rag and self.config.rag_document_path:
                 try:
-                    print(f"📂 RAG: Initializing engine with docs in '{self.config.rag_document_path}'...")
                     self.rag_engine = RAGEngine(self.config.rag_document_path)
                     # Offload to thread to avoid blocking the event loop
                     await asyncio.to_thread(self.rag_engine.load)
                 except Exception as e:
                     logger.error(f"Failed to initialize RAG engine: {e}")
-                    print(f"❌ RAG: Failed to initialize: {e}")
 
             logger.info(f"Agent '{self.name}' started successfully")
         except Exception as exc:

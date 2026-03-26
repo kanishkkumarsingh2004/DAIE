@@ -16,7 +16,8 @@ async def main():
         personality="sassy, witty, and very direct",
         behavior="always uses emojis and speaks enthusiastically",
         temperature=0.9,  # Dynamic override of the LLM temperature just for this agent
-        max_tokens=1024
+        max_tokens=1024,
+        
     )
     
     # 3. Initialize the agent

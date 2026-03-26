@@ -597,14 +597,12 @@ python examples/01_basic_chat.py
 
 ## Changelog
 
-### v1.3.0
+### v1.0.4
 - Generic Multi-Agent Orchestration: Replaced rigid `Classroom` with a flexible `Orchestrator` supporting any coordination context.
 - Decentralized RAG: Enabled unique `rag_document_path` per agent, allowing specialized knowledge bases within the same system.
 - Vision Support: Integrated `images` parameter in `LLMManager` for Ollama models (e.g. `qwen3-vl:2b`).
 - New Example: Added `examples/05_vision_chat.py` for real-time camera-based AI chat.
 - Smart Delegation: Orchestrator now injects sub-agent goals into the coordinator's system prompt for intelligent task routing.
-
-### v1.2.0
 - Agent Persona system: configurable `gender`, `personality`, and `behavior` traits dynamically injected into LLM prompts for both chat and ReAct tool loops.
 - Per-agent LLM overrides: `temperature` and `max_tokens` from `AgentConfig` are now passed into every `invoke()` call, allowing multiple agents with different settings on the same global LLM.
 - Increased Ollama HTTP timeouts (to 300s) to support massive local models (e.g. `wizard-vicuna-uncensored:7b`).
@@ -612,13 +610,13 @@ python examples/01_basic_chat.py
 - Rewrote `examples/03_p2p_networking.py` to correctly demonstrate in-process multi-agent messaging, authorization, and file transfer.
 - Added graceful `Ctrl+C` handling in `examples/01_basic_chat.py`.
 
-### v1.1.0
+### v1.0.3
 - Networked P2P Architecture using `httpx` and `fastapi` for robust peer-to-peer Agent interaction.
 - Support for cross-machine `A2ASendFileTool` with built-in Base64 security blocking uninvited file transfers.
 - `AgentConfig` enhancements providing decentralized node discovery support with DevTunnel and manual IPs.
 - Configurable authentication tokens (`auth_token`) for incoming connections.
 
-### v1.0.4
+### v1.0.2
 - ReAct-style tool-use loop in `execute_task()` — LLM reasons and picks tools autonomously
 - Token streaming via `set_llm(stream=True)` — library-level, no per-call config needed
 - Compact tool schema in system prompt — works with small models like `gemma3:1b`

@@ -144,6 +144,9 @@ class SystemConfig:
     enable_rag: bool = False
     """Whether to enable RAG functionality"""
 
+    rag_strict_context: bool = False
+    """When True, agents will ONLY answer from loaded documents and refuse to respond to anything outside the document context. Requires enable_rag=True."""
+
     # Monitoring configuration
     enable_metrics: bool = True
     """Whether to enable metrics collection"""
@@ -300,6 +303,9 @@ class SystemConfig:
 
         if os.getenv("ENABLE_RAG"):
             config.enable_rag = os.getenv("ENABLE_RAG").lower() == "true"
+
+        if os.getenv("RAG_STRICT_CONTEXT"):
+            config.rag_strict_context = os.getenv("RAG_STRICT_CONTEXT").lower() == "true"
 
         return config
 

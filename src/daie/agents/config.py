@@ -169,6 +169,9 @@ class AgentConfig:
     enable_rag: bool = False
     """Whether to enable RAG functionality"""
 
+    rag_strict_context: bool = False
+    """When True, the agent will ONLY answer from the loaded documents and refuse to respond to anything outside the document context. Requires enable_rag=True."""
+
     # Debug settings
     enable_logging: bool = True
     """Whether to enable detailed logging"""

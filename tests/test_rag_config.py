@@ -43,9 +43,10 @@ def test_system_config_rag_params():
     
     # Test setting values
     test_path = "/test/path"
-    config = SystemConfig(rag_document_path=test_path, enable_rag=True)
+    config = SystemConfig(rag_document_path=test_path, enable_rag=True, rag_strict_context=True)
     assert config.rag_document_path == test_path
     assert config.enable_rag is True
+    assert config.rag_strict_context is True
     
     # Test validation
     errors = config.validate()
@@ -67,9 +68,10 @@ def test_agent_config_rag_params():
     
     # Test setting values
     test_path = "/test/path"
-    config = AgentConfig(rag_document_path=test_path, enable_rag=True)
+    config = AgentConfig(rag_document_path=test_path, enable_rag=True, rag_strict_context=True)
     assert config.rag_document_path == test_path
     assert config.enable_rag is True
+    assert config.rag_strict_context is True
     
     # Test validation
     errors = config.validate()
@@ -99,31 +101,36 @@ def test_from_dict():
     """Test from_dict method with RAG parameters"""
     data = {
         "rag_document_path": "/test/documents",
-        "enable_rag": True
+        "enable_rag": True,
+        "rag_strict_context": True
     }
     
     system_config = SystemConfig.from_dict(data)
     assert system_config.rag_document_path == "/test/documents"
     assert system_config.enable_rag is True
+    assert system_config.rag_strict_context is True
     
     agent_config = AgentConfig.from_dict(data)
     assert agent_config.rag_document_path == "/test/documents"
     assert agent_config.enable_rag is True
+    assert agent_config.rag_strict_context is True
     
     print("✅ from_dict method test passed")
 
 
 def test_to_dict():
     """Test to_dict method with RAG parameters"""
-    system_config = SystemConfig(rag_document_path="/test/documents", enable_rag=True)
+    system_config = SystemConfig(rag_document_path="/test/documents", enable_rag=True, rag_strict_context=True)
     system_dict = system_config.to_dict()
     assert system_dict["rag_document_path"] == "/test/documents"
     assert system_dict["enable_rag"] is True
+    assert system_dict["rag_strict_context"] is True
     
-    agent_config = AgentConfig(rag_document_path="/test/documents", enable_rag=True)
+    agent_config = AgentConfig(rag_document_path="/test/documents", enable_rag=True, rag_strict_context=True)
     agent_dict = agent_config.to_dict()
     assert agent_dict["rag_document_path"] == "/test/documents"
     assert agent_dict["enable_rag"] is True
+    assert agent_dict["rag_strict_context"] is True
     
     print("✅ to_dict method test passed")
 

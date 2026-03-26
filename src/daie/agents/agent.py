@@ -12,6 +12,7 @@ from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.message import AgentMessage
 from daie.tools import ToolRegistry
 from daie.utils import generate_id
+from daie.rag import RAGEngine
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,7 @@ class Agent:
         self._task_handler: Optional[Callable] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._llm = None
+        self.rag_engine: Optional[RAGEngine] = None
 
         if tools:
             for t in tools:
@@ -300,6 +302,38 @@ class Agent:
             logger.error(f"Tool '{tool_name}' raised: {exc}", exc_info=True)
             return f"Error executing '{tool_name}': {exc}"
 
+    # ── RAG helpers ──────────────────────────────────────────────────────────
+
+    def _get_rag_context(self, query: str) -> str:
+        """Retrieve context from RAG engine if enabled."""
+        if not self.config.enable_rag or self.rag_engine is None:
+            return ""
+        
+        return self.rag_engine.build_context(query)
+
+    def _augment_prompt_with_rag(self, prompt: str, query: str) -> str:
+        """Augment the prompt with retrieved RAG context."""
+        context = self._get_rag_context(query)
+        if not context:
+            return prompt
+
+        rag_block = f"\n\nAdditional Information:\n{context}\n"
+        
+        # If strict context is enabled, add enforcing instructions
+        if getattr(self.config, "rag_strict_context", False):
+            rag_block += (
+                "\nInstruction: Only use the information provided above to answer. "
+                "If the information is not there, say you don't know."
+            )
+
+        # Prepend context to the user query/task part of the prompt
+        if "User: " in prompt:
+            return prompt.replace("User: ", f"{rag_block}\nUser: ")
+        elif "Task: " in prompt:
+            return prompt.replace("Task: ", f"{rag_block}\nTask: ")
+        
+        return f"{rag_block}\n{prompt}"
+
     # ── ReAct loop ────────────────────────────────────────────────────────────
 
     async def execute_task(self, task_input: Union[str, Dict[str, Any]]) -> Any:
@@ -325,6 +359,15 @@ class Agent:
 
         # ── natural-language task ──────────────────────────────────────────
         user_input = task_input
+        
+        # RAG context retrieval for reasoning loop
+        if self.config.enable_rag and self.rag_engine:
+            context = self._get_rag_context(user_input)
+            if context:
+                user_input = f"Context from documents:\n{context}\n\nTask: {user_input}"
+                if getattr(self.config, "rag_strict_context", False):
+                    user_input += "\n(Answer ONLY using the provided documents)"
+
         system_prompt = self._build_system_prompt()
         history: List[str] = []
 
@@ -442,6 +485,10 @@ class Agent:
             base_sys_prompt = f"{base_sys_prompt}\n\nAgent Persona Traits:\n{extra_str}" if extra_str else base_sys_prompt
 
             prompt = f"{base_sys_prompt}\n\nUser: {message}\n\n{self.name}:"
+            
+            # Apply RAG augmentation
+            prompt = self._augment_prompt_with_rag(prompt, message)
+            
             cfg = get_llm_config()
             try:
                 if cfg.stream:
@@ -645,6 +692,18 @@ class Agent:
                 self._task_queue = asyncio.Queue()
 
             self._loop.create_task(self._run_task_queue())
+
+            # Initialize RAG engine if enabled
+            if self.config.enable_rag and self.config.rag_document_path:
+                try:
+                    print(f"📂 RAG: Initializing engine with docs in '{self.config.rag_document_path}'...")
+                    self.rag_engine = RAGEngine(self.config.rag_document_path)
+                    # Offload to thread to avoid blocking the event loop
+                    await asyncio.to_thread(self.rag_engine.load)
+                except Exception as e:
+                    logger.error(f"Failed to initialize RAG engine: {e}")
+                    print(f"❌ RAG: Failed to initialize: {e}")
+
             logger.info(f"Agent '{self.name}' started successfully")
         except Exception as exc:
             logger.error(f"Failed to start agent '{self.name}': {exc}")

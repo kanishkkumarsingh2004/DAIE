@@ -4,12 +4,12 @@ from daie.agents import AgentRole
 
 # 1. Configure the LLM globally (e.g., using a local Ollama model)
 # You can also use LLMType.OPENAI, Anthropic, etc.
-set_llm(ollama_llm="wizard-vicuna-uncensored:7b", stream=True)
+set_llm(ollama_llm="llama3.2:1b", stream=True)
 
 async def main():
     # 2. Configure the agent
     config = AgentConfig(
-        name="Alex",
+        name="LUNA",
         role=AgentRole.GENERAL_PURPOSE,
         system_prompt="You are a helpful and concise AI assistant.",
         gender="female",

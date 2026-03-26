@@ -7,6 +7,9 @@ A Python library for building AI agents that reason, use tools, communicate over
 ## Features
 
 - **ReAct agent loop** — LLM reasons → picks a tool → sees the result → iterates until it gives a final answer
+- **Multi-Agent Orchestration** — Coordinate main agents and sub-agents for complex goals (e.g. Research Lab, Courtroom)
+- **Decentralized RAG** — Every agent can have its own unique knowledge base (TF-IDF retrieval)
+- **Vision Capabilities** — Support for vision models (e.g. `qwen3-vl:2b`) with camera integration
 - **Streaming tokens** — set `stream=True` once, tokens print as they arrive
 - **Pre-built tools** — file system, HTTP API calls, Selenium Chrome browser automation
 - **Custom tools** — decorate any function with `@tool` and it works identically to built-in tools
@@ -178,6 +181,40 @@ async def main():
     comm.stop()
 
 asyncio.run(main())
+```
+
+### 4. Multi-Agent Orchestration
+
+The `Orchestrator` allows a main agent to coordinate multiple sub-agents to solve complex problems.
+
+```python
+from daie import Agent, AgentConfig, Orchestrator
+from daie.agents import AgentRole
+
+Professor = Agent(config=AgentConfig(name="Professor", role=AgentRole.COORDINATOR))
+Nova = Agent(config=AgentConfig(name="NOVA", goal="Handle technical research"))
+
+orchestrator = Orchestrator(
+    main_agent=Professor,
+    sub_agents=[Nova],
+    context_name="research_lab"
+)
+
+await orchestrator.start()
+response = await orchestrator.execute_task("Research decentralized consensus")
+```
+
+### 5. Decentralized RAG
+
+Agents can maintain independent knowledge bases using simple directory-based RAG.
+
+```python
+config = AgentConfig(
+    name="Expert",
+    rag_document_path="data/expert_knowledge/"  # Local folder with .txt, .pdf, .md files
+)
+agent = Agent(config=config)
+# The agent will automatically retrieve relevant context before answering
 ```
 
 ---
@@ -406,6 +443,28 @@ cam.stop_streaming()
 cam.release()
 ```
 
+### Vision Chat with Qwen-VL
+
+DAIE supports local vision models via Ollama.
+
+```python
+import cv2
+import base64
+from daie import Agent, set_llm
+
+set_llm(ollama_llm="qwen3-vl:2b")
+
+# Capture and encode image
+cam = CameraManager()
+frame = cam.get_frame()
+_, buffer = cv2.imencode('.jpg', frame)
+img_b64 = base64.b64encode(buffer).decode('utf-8')
+
+# Query the vision agent
+agent = Agent()
+response = await agent.execute_task("What do you see?", images=[img_b64])
+```
+
 ---
 
 ## Audio (PyAudio)
@@ -458,7 +517,7 @@ daie core logs
 
 ```
 daie/
-├── agents/         Agent, AgentConfig, AgentRole, AgentMessage
+├── agents/         Agent, AgentConfig, AgentRole, AgentMessage, Orchestrator
 ├── core/           LLMManager, set_llm(), get_llm()
 ├── tools/          Tool base class, @tool decorator, FileManagerTool,
 │                   APICallTool, A2ASendFileTool, SeleniumChromeTool, ToolRegistry
@@ -491,6 +550,7 @@ execute_task("Create notes.txt")
 | `examples/01_basic_chat.py` | Interactive streaming chat with persona traits (gender, personality, behavior) |
 | `examples/02_custom_tools.py` | Custom `@tool` decorator + `FileManagerTool` with ReAct agent loop |
 | `examples/03_p2p_networking.py` | Multi-agent P2P messaging, authorization, and A2A file transfer |
+| `examples/05_vision_chat.py` | Real-time vision-enabled chat using `qwen3-vl:2b` and local camera |
 
 Run any example:
 
@@ -536,6 +596,13 @@ python examples/01_basic_chat.py
 ---
 
 ## Changelog
+
+### v1.3.0
+- Generic Multi-Agent Orchestration: Replaced rigid `Classroom` with a flexible `Orchestrator` supporting any coordination context.
+- Decentralized RAG: Enabled unique `rag_document_path` per agent, allowing specialized knowledge bases within the same system.
+- Vision Support: Integrated `images` parameter in `LLMManager` for Ollama models (e.g. `qwen3-vl:2b`).
+- New Example: Added `examples/05_vision_chat.py` for real-time camera-based AI chat.
+- Smart Delegation: Orchestrator now injects sub-agent goals into the coordinator's system prompt for intelligent task routing.
 
 ### v1.2.0
 - Agent Persona system: configurable `gender`, `personality`, and `behavior` traits dynamically injected into LLM prompts for both chat and ReAct tool loops.

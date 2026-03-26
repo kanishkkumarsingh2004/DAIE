@@ -4,7 +4,7 @@ from daie.agents import AgentRole
 
 # 1. Configure the LLM globally (e.g., using a local Ollama model)
 # You can also use LLMType.OPENAI, Anthropic, etc.
-set_llm(ollama_llm="llama3.2:1b", stream=True)
+set_llm(ollama_llm="qwen3-vl:2b", stream=True)
 
 async def main():
     # 2. Configure the agent

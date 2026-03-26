@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 from enum import Enum
 import subprocess
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -213,17 +214,17 @@ class LLMManager:
             def _get_session(self):
                 """Get or create requests session"""
                 if self._session is None:
-                    import requests
                     self._session = requests.Session()
                 return self._session
 
-            def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
+            def invoke(self, prompt: str, stream: Optional[bool] = None, images: Optional[List[str]] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
 
                 Args:
                     prompt: The prompt to send to the LLM
                     stream: Override streaming behaviour. If None, uses config.stream.
+                    images: List of base64-encoded images (optional)
                     **kwargs: Additional parameters
 
                 Returns:
@@ -231,11 +232,11 @@ class LLMManager:
                 """
                 use_stream = self.config.stream if stream is None else stream
                 if use_stream:
-                    return self._invoke_stream(prompt, **kwargs)
+                    return self._invoke_stream(prompt, images=images, **kwargs)
                 else:
-                    return self._invoke_non_stream(prompt, **kwargs)
+                    return self._invoke_non_stream(prompt, images=images, **kwargs)
 
-            def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
+            def _invoke_non_stream(self, prompt: str, images: Optional[List[str]] = None, **kwargs) -> str:
                 """Non-streaming invocation"""
                 try:
                     import json
@@ -244,6 +245,8 @@ class LLMManager:
 
                     # Create message payload
                     messages = [{"role": "user", "content": prompt}]
+                    if images:
+                        messages[0]["images"] = images
 
                     payload = {
                         "model": self.config.model_name,
@@ -303,6 +306,8 @@ class LLMManager:
 
                     # Create message payload
                     messages = [{"role": "user", "content": prompt}]
+                    if images:
+                        messages[0]["images"] = images
 
                     payload = {
                         "model": self.config.model_name,

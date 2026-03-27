@@ -23,6 +23,24 @@ A Python library for building AI agents that reason, use tools, communicate over
 
 ---
 
+## Documentation
+
+For detailed documentation, see the [docs](docs/) folder:
+
+- [Getting Started](docs/getting-started.md) — Installation, quick start, and basic concepts
+- [Agents](docs/agents.md) — Agent creation, configuration, and the ReAct loop
+- [Tools](docs/tools.md) — Pre-built tools, custom tools, and the @tool decorator
+- [LLM Configuration](docs/llm.md) — Multi-provider LLM setup and streaming
+- [Communication](docs/communication.md) — P2P networking, messaging, and file transfers
+- [RAG](docs/rag.md) — Retrieval-Augmented Generation with TF-IDF
+- [Memory](docs/memory.md) — Agent memory management (working, semantic, episodic)
+- [Orchestrator](docs/orchestrator.md) — Multi-agent coordination and task delegation
+- [CLI](docs/cli.md) — Command-line interface for agent and system management
+- [Utils](docs/utils.md) — Camera, audio, encryption, and utility functions
+- [API Reference](docs/api-reference.md) — Complete API reference for all modules
+
+---
+
 ## Installation
 
 ```bash

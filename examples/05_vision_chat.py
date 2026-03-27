@@ -13,7 +13,7 @@ async def main():
     
     # 1. Configure for Vision Model
     # Note: Ensure you have pulled qwen2-vl:8b in Ollama
-    model_name = "qwen2-vl:8b"
+    model_name = "qwen3-vl:2b"
     print(f"[*] Initializing with model: {model_name}")
     set_llm(ollama_llm=model_name, stream=True)
 

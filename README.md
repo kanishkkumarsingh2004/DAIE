@@ -32,13 +32,13 @@ pip install daie
 **Optional extras:**
 
 ```bash
-pip install "daie[audio]"    # PyAudio microphone/speaker support
-pip install "daie[vision]"   # OpenCV camera support
-pip install "daie[full]"     # audio + vision
-pip install "daie[dev]"      # pytest, black, mypy, flake8
+pip install "daie[dev]"      # pytest, black, mypy, flake8, pytest-asyncio, pytest-cov
+pip install "daie[docs]"     # sphinx, sphinx-rtd-theme, nbsphinx
 ```
 
 **Requires Python 3.10+**
+
+**Core dependencies:** cryptography, python-dotenv, pydantic, pydantic-settings, pyyaml, requests, rich, typer, selenium, webdriver-manager, uvicorn, nats-py, numpy, opencv-python, pyaudio
 
 ---
 
@@ -226,7 +226,7 @@ from daie.agents.config import AgentConfig, AgentRole
 
 config = AgentConfig(
     name="MyAgent name",   # (ALEX, NOVA, BOB, etc)
-    role=AgentRole.GENERAL_PURPOSE,   # or SPECIALIZED, COORDINATOR, WORKER
+    role=AgentRole.GENERAL_PURPOSE,   # or SPECIALIZED, COORDINATOR, WORKER, ANALYZER, EXECUTOR
     goal="Help users with tasks",
     backstory="A capable AI assistant",
     system_prompt="You are a helpful assistant.",
@@ -305,8 +305,10 @@ When `stream=True`, `send_message()` prints tokens as they arrive and returns th
 | `APICallTool` | HTTP GET / POST / PUT / DELETE / PATCH requests |
 | `HTTPGetTool` | Simplified HTTP GET |
 | `HTTPPostTool` | Simplified HTTP POST |
-| `A2ASendFileTool` | Transfer files securely between agents over P2P network |
-| `SeleniumChromeTool` | Full Chrome browser automation (requires `pip install "daie[browser]"`) |
+| `SeleniumChromeTool` | Full Chrome browser automation |
+| `A2ASendFileTool` | Transfer files securely between agents over P2P network (import from `daie.tools.a2a_file`) |
+| `A2ASendMessageTool` | Send messages between agents (import from `daie.tools.a2a`) |
+| `A2ADelegateTaskTool` | Delegate tasks to other agents via ACP (import from `daie.tools.a2a`) |
 
 ### FileManagerTool actions
 
@@ -417,7 +419,7 @@ config = AgentConfig(
 ## Camera (OpenCV)
 
 ```bash
-pip install "daie[vision]"
+pip install opencv-python
 ```
 
 ```python
@@ -470,7 +472,7 @@ response = await agent.execute_task("What do you see?", images=[img_b64])
 ## Audio (PyAudio)
 
 ```bash
-pip install "daie[audio]"
+pip install pyaudio
 ```
 
 ```python
@@ -516,18 +518,19 @@ daie core logs
 ## Architecture
 
 ```
-daie/
+src/daie/
 ├── agents/         Agent, AgentConfig, AgentRole, AgentMessage, Orchestrator
-├── core/           LLMManager, set_llm(), get_llm()
+├── core/           LLMManager, LLMConfig, LLMType, set_llm(), get_llm(), DecentralizedAISystem, Node
 ├── tools/          Tool base class, @tool decorator, FileManagerTool,
-│                   APICallTool, A2ASendFileTool, SeleniumChromeTool, ToolRegistry
-├── utils/          AudioManager, CameraManager, encryption, logging
+│                   APICallTool, HTTPGetTool, HTTPPostTool, SeleniumChromeTool, ToolRegistry,
+│                   A2ASendFileTool, A2ASendMessageTool, A2ADelegateTaskTool
+├── utils/          AudioManager, CameraManager, encryption, logging, serialization
 ├── communication/  CommunicationManager (in-memory + HTTP P2P)
 ├── registry/       NodeRegistry (decentralized agent discovery)
 ├── memory/         MemoryManager (working, semantic, episodic)
-├── protocols/      Protocol definitions (ACP)
-├── config/         SystemConfig, environment settings
-└── cli/            Typer-based CLI
+├── protocols/      Protocol definitions (ACP - Agent Connect Protocol)
+├── rag/            RAGEngine, DocumentLoader (TF-IDF retrieval)
+└── cli/            Typer-based CLI (agent management, core system control)
 ```
 
 **ReAct loop flow:**
@@ -550,6 +553,7 @@ execute_task("Create notes.txt")
 | `examples/01_basic_chat.py` | Interactive streaming chat with persona traits (gender, personality, behavior) |
 | `examples/02_custom_tools.py` | Custom `@tool` decorator + `FileManagerTool` with ReAct agent loop |
 | `examples/03_p2p_networking.py` | Multi-agent P2P messaging, authorization, and A2A file transfer |
+| `examples/04_rag_chat.py` | RAG-enabled chat with document-based knowledge retrieval |
 | `examples/05_vision_chat.py` | Real-time vision-enabled chat using `qwen3-vl:2b` and local camera |
 
 Run any example:
@@ -584,8 +588,8 @@ python examples/01_basic_chat.py
 | Problem | Fix |
 |---|---|
 | `Could not connect to Ollama` | Run `ollama serve` and pull a model: `ollama pull wizard-vicuna-uncensored:7b` |
-| `ModuleNotFoundError: cv2` | `pip install "daie[vision]"` |
-| `ModuleNotFoundError: pyaudio` | `pip install "daie[audio]"` |
+| `ModuleNotFoundError: cv2` | `pip install opencv-python` |
+| `ModuleNotFoundError: pyaudio` | `pip install pyaudio` |
 | Agent not responding | Call `await agent.start()` before `execute_task()` |
 | Task timeout | Increase `task_timeout` in `AgentConfig` |
 | LLM returns plain text instead of JSON | Normal — the agent treats plain text as a final answer |

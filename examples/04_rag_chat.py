@@ -1,3 +1,7 @@
+# 🟡 Intermediate - RAG-Powered Chat Agent
+# Difficulty: Intermediate
+# This example demonstrates RAG-enabled chat with document-based knowledge retrieval.
+
 """
 Example 04: RAG-Powered Chat Agent
 ===================================

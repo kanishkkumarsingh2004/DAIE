@@ -45,9 +45,9 @@ class TestCLI:
         assert "Usage" in result.output
         assert "Options" in result.output
 
-    @pytest.mark.skip(reason="Requires actual system integration")
-    @patch("daie.core.system.DecentralizedAISystem")
-    def test_core_cli_start(self, mock_system):
+    @patch("daie.cli.core.start_server")
+    @patch("daie.cli.core.DecentralizedAISystem")
+    def test_core_cli_start(self, mock_system, mock_start_server):
         """Test core system CLI start command."""
         runner = CliRunner()
 
@@ -62,31 +62,25 @@ class TestCLI:
 
         assert result.exit_code == 0
         mock_system.assert_called_once()
-        mock_instance.start.assert_called_once()
+        # Note: start() is not called on the system instance in the actual code
+        # The system is created and then start_server() is called directly
 
     @patch("os.kill")
     @patch("time.sleep")  # Mock time.sleep to make the test faster
-    @pytest.mark.skip(reason="Requires actual system integration")
-    @patch("daie.core.system.DecentralizedAISystem")
-    @patch("os.kill")
-    @patch("time.sleep")  # Mock time.sleep to make the test faster
-    def test_core_cli_stop(self, mock_sleep, mock_kill, mock_system):
+    @patch("daie.cli.core.read_pid")
+    def test_core_cli_stop(self, mock_read_pid, mock_sleep, mock_kill):
         """Test core system CLI stop command."""
         runner = CliRunner()
 
         # Mock the running state
-        mock_system.get_running_pid.return_value = 1234
-        mock_system._is_process_running.side_effect = [
-            True,
-            False,
-        ]  # First check returns True, second returns False
+        mock_read_pid.return_value = 1234
 
         # Mock the kill function to not raise an error
         mock_kill.side_effect = None
 
         result = runner.invoke(core_cli, ["stop"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 0
 
     def test_agent_cli_start(self):
         """Test agent CLI start command."""
@@ -128,17 +122,19 @@ class TestCLI:
 class TestCLIErrorHandling:
     """Tests for CLI error handling."""
 
-    @pytest.mark.skip(reason="Requires actual system integration")
-    @patch("daie.core.system.DecentralizedAISystem")
-    def test_core_cli_start_error(self, mock_system):
+    @patch("daie.cli.core.start_server")
+    @patch("daie.cli.core.DecentralizedAISystem")
+    def test_core_cli_start_error(self, mock_system, mock_start_server):
         """Test core system start with error."""
         runner = CliRunner()
 
         mock_instance = Mock()
-        mock_instance.start.side_effect = Exception("Failed to start")
         mock_system.return_value = mock_instance
 
         mock_system.get_running_pid.return_value = None
+
+        # Make start_server raise an exception
+        mock_start_server.side_effect = Exception("Failed to start")
 
         result = runner.invoke(core_cli, ["start"])
 
@@ -165,9 +161,9 @@ class TestCLIOptions:
 
         assert result.exit_code == 0
 
-    @pytest.mark.skip(reason="Requires actual system integration")
-    @patch("daie.core.system.DecentralizedAISystem")
-    def test_core_cli_log_level(self, mock_system):
+    @patch("daie.cli.core.start_server")
+    @patch("daie.cli.core.DecentralizedAISystem")
+    def test_core_cli_log_level(self, mock_system, mock_start_server):
         """Test core system CLI with custom log level."""
         runner = CliRunner()
 

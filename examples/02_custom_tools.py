@@ -1,3 +1,7 @@
+# 🟡 Intermediate - Custom Tools Example
+# Difficulty: Intermediate
+# This example demonstrates custom @tool decorator + FileManagerTool with ReAct agent loop.
+
 import asyncio
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole

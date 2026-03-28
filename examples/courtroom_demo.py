@@ -1,3 +1,7 @@
+# 🔴 Advanced - Courtroom Orchestration Demo
+# Difficulty: Advanced
+# This example demonstrates multi-agent courtroom simulation with Judge, Prosecutor, and Defender.
+
 """
 Courtroom demo using the generic Orchestrator class.
 Shows how the same architecture can be used for different contexts.

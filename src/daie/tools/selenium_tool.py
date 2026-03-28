@@ -292,10 +292,24 @@ class SeleniumChromeTool(Tool):
         window_size = params.get("window_size", "1920,1080")
         chrome_options.add_argument(f"--window-size={window_size}")
 
-        self.driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
-            options=chrome_options,
-        )
+        try:
+            self.driver = webdriver.Chrome(
+                service=Service(ChromeDriverManager().install()),
+                options=chrome_options,
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "DevToolsActivePort" in error_msg:
+                raise Exception(
+                    f"Chrome driver failed to start: {error_msg}\n"
+                    "TROUBLESHOOTING:\n"
+                    "1. Try setting headless=False to see the browser window\n"
+                    "2. Check Chrome is installed: google-chrome --version\n"
+                    "3. Update ChromeDriver: pip install --upgrade webdriver-manager\n"
+                    "4. Check Chrome and ChromeDriver versions match"
+                )
+            else:
+                raise Exception(f"Chrome driver initialization failed: {error_msg}")
 
         timeout = params.get("timeout", 30)
         self.wait = WebDriverWait(self.driver, timeout)

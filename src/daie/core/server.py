@@ -4,6 +4,7 @@ Central core web server (optional - requires fastapi and uvicorn)
 
 import logging
 from typing import Optional
+from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +19,27 @@ try:
     from daie.config import SystemConfig
     from daie.agents import AgentConfig, AgentRole
 
+    system: Optional[DecentralizedAISystem] = None
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Startup
+        global system
+        config = SystemConfig()
+        system = DecentralizedAISystem(config=config)
+        system.load_configured_agents()
+        logger.info("Central core server started with configured agents.")
+        yield
+        # Shutdown
+        if system:
+            system.stop()
+        logger.info("Central core server stopped")
+
     app = FastAPI(
         title="Decentralized AI Ecosystem API",
         description="API for managing the Decentralized AI Ecosystem",
         version="1.0.4",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -31,23 +49,6 @@ try:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    system: Optional[DecentralizedAISystem] = None
-
-    @app.on_event("startup")
-    async def startup_event():
-        global system
-        config = SystemConfig()
-        system = DecentralizedAISystem(config=config)
-        system.load_configured_agents()
-        logger.info("Central core server started with configured agents.")
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        global system
-        if system:
-            system.stop()
-        logger.info("Central core server stopped")
 
     @app.get("/")
     async def root():

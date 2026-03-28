@@ -1,3 +1,7 @@
+# 🔴 Advanced - P2P Multi-Agent Networking & File Transfer
+# Difficulty: Advanced
+# This example demonstrates multi-agent P2P messaging, authorization, and A2A file transfer.
+
 """
 Example 03: P2P Multi-Agent Networking & File Transfer
 

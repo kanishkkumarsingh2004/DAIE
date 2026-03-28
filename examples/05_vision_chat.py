@@ -1,3 +1,7 @@
+# 🟡 Intermediate - Vision Chat Example
+# Difficulty: Intermediate
+# This example demonstrates real-time vision-enabled chat using qwen3-vl:2b and local camera.
+
 import asyncio
 import base64
 import cv2

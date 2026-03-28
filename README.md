@@ -1,24 +1,107 @@
-# DAIE — Decentralized AI Ecosystem
+# 🚀 DAIE — Decentralized AI Ecosystem
 
-A Python library for building AI agents that reason, use tools, communicate over P2P networks, and stream responses — powered by any LLM (Ollama, OpenAI, Anthropic, Google, Azure, OpenRouter).
+**Build autonomous AI agents that reason, use tools, communicate over P2P networks, and stream responses — powered by any LLM**
+
+*The lightweight, offline-first alternative to LangChain for building production-ready AI agents*
+
+---
+
+## Why DAIE?
+
+| Feature | DAIE | LangChain | CrewAI |
+|---------|------|-----------|--------|
+| **Offline-first** | ✅ Full Ollama support | ❌ Cloud-dependent | ❌ Cloud-dependent |
+| **P2P Networking** | ✅ Built-in | ❌ No | ❌ No |
+| **Agent Personas** | ✅ Gender, personality, behavior | ❌ Limited | ❌ Limited |
+| **File Transfer** | ✅ A2A secure transfer | ❌ No | ❌ No |
+| **Vision Support** | ✅ Camera + vision models | ⚠️ Limited | ❌ No |
+| **Streaming** | ✅ Library-level | ⚠️ Per-call | ❌ No |
+| **Custom Tools** | ✅ `@tool` decorator | ⚠️ Complex | ⚠️ Complex |
+| **Multi-Agent** | ✅ Orchestrator pattern | ⚠️ Chains | ✅ Crews |
+| **Size** | 📦 Lightweight | 📦📦📦 Heavy | 📦📦 Medium |
+
+**DAIE is for you if you want:**
+- 🏠 **Offline-first AI** — Run everything locally with Ollama, no cloud required
+- 🔗 **Decentralized agents** — Agents communicate directly over P2P networks
+- 🎭 **Human-like personas** — Configure gender, personality, and behavior traits
+- 📁 **Secure file transfers** — Send files between agents with Base64 encoding
+- 👁️ **Vision capabilities** — Camera integration with vision models like Qwen-VL
+- ⚡ **Real-time streaming** — Tokens stream as they arrive, no buffering
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    USER / APPLICATION                       │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      DAIE FRAMEWORK                         │
+│    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│    │   AGENTS    │  │    TOOLS    │  │   MEMORY    │        │
+│    │  • ReAct    │  │  • File     │  │  • Working  │        │
+│    │  • Persona  │  │  • API      │  │  • Semantic │        │
+│    │  • Config   │  │  • Selenium │  │  • Episodic │        │
+│    └─────────────┘  └─────────────┘  └─────────────┘        │
+│           │                │                │               │
+│           ▼                ▼                ▼               │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              ORCHESTRATOR (Multi-Agent)             │    │
+│  │  • Task delegation  • Sub-agent coordination        │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                            │                                │
+│                            ▼                                │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              COMMUNICATION MANAGER                  │    │
+│  │  • P2P networking  • HTTP messaging  • Auth         │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                            │                                │
+│                            ▼                                │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                  LLM MANAGER                        │    │
+│  │  • Ollama  • OpenAI  • Anthropic  • Google  • Azure │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    RAG ENGINE (TF-IDF)                      │
+│  • Document loading  • Context retrieval  • Knowledge base  │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Features
 
+### 🤖 AI Agents
 - **ReAct agent loop** — LLM reasons → picks a tool → sees the result → iterates until it gives a final answer
 - **Multi-Agent Orchestration** — Coordinate main agents and sub-agents for complex goals (e.g. Research Lab, Courtroom)
-- **Decentralized RAG** — Every agent can have its own unique knowledge base (TF-IDF retrieval)
-- **Vision Capabilities** — Support for vision models (e.g. `qwen3-vl:2b`) with camera integration
-- **Streaming tokens** — set `stream=True` once, tokens print as they arrive
-- **Pre-built tools** — file system, HTTP API calls, Selenium Chrome browser automation
-- **Custom tools** — decorate any function with `@tool` and it works identically to built-in tools
-- **Multi-provider LLM** — Ollama (default), OpenAI, Anthropic, Google, Azure, OpenRouter
-- **P2P networking** — agents communicate across machines via HTTP with authentication & authorization
-- **A2A file transfer** — securely send files between agents over the network using Base64 encoding
 - **Agent persona** — configure `gender`, `personality`, and `behavior` traits injected directly into the LLM prompt
 - **Per-agent LLM overrides** — each agent can have its own `temperature` and `max_tokens`
+
+### 🔍 RAG Systems
+- **Decentralized RAG** — Every agent can have its own unique knowledge base (TF-IDF retrieval)
+- **Document-based knowledge** — Load `.txt`, `.pdf`, `.md` files for context-aware responses
+
+### ⚙️ Automation Tools
+- **Pre-built tools** — file system, HTTP API calls, Selenium Chrome browser automation
+- **Custom tools** — decorate any function with `@tool` and it works identically to built-in tools
+- **A2A file transfer** — securely send files between agents over the network using Base64 encoding
+
+### 💬 Chatbots & Vision
+- **Streaming tokens** — set `stream=True` once, tokens print as they arrive
+- **Vision Capabilities** — Support for vision models (e.g. `qwen3-vl:2b`) with camera integration
 - **Camera & audio** — optional OpenCV camera capture and PyAudio microphone/speaker support
+
+### 🌐 Networking & Communication
+- **P2P networking** — agents communicate across machines via HTTP with authentication & authorization
+- **Multi-provider LLM** — Ollama (default), OpenAI, Anthropic, Google, Azure, OpenRouter
+
+### 🛠️ Developer Tools
 - **CLI** — manage agents and the core system from the terminal
 
 ---
@@ -27,17 +110,99 @@ A Python library for building AI agents that reason, use tools, communicate over
 
 For detailed documentation, see the [docs](docs/) folder:
 
+### 🚀 Getting Started
 - [Getting Started](docs/getting-started.md) — Installation, quick start, and basic concepts
+
+### 🤖 AI Agents
 - [Agents](docs/agents.md) — Agent creation, configuration, and the ReAct loop
-- [Tools](docs/tools.md) — Pre-built tools, custom tools, and the @tool decorator
-- [LLM Configuration](docs/llm.md) — Multi-provider LLM setup and streaming
-- [Communication](docs/communication.md) — P2P networking, messaging, and file transfers
-- [RAG](docs/rag.md) — Retrieval-Augmented Generation with TF-IDF
-- [Memory](docs/memory.md) — Agent memory management (working, semantic, episodic)
 - [Orchestrator](docs/orchestrator.md) — Multi-agent coordination and task delegation
+- [Memory](docs/memory.md) — Agent memory management (working, semantic, episodic)
+
+### 🔍 RAG Systems
+- [RAG](docs/rag.md) — Retrieval-Augmented Generation with TF-IDF
+
+### ⚙️ Automation Tools
+- [Tools](docs/tools.md) — Pre-built tools, custom tools, and the @tool decorator
+
+### 🌐 Networking & Communication
+- [P2P Networking](docs/p2p.md) — Peer-to-peer communication protocol for agents
+- [Node](docs/node.md) — Node abstraction for managing agents and resources
+- [Communication](docs/communication.md) — P2P networking, messaging, and file transfers
+- [LLM Configuration](docs/llm.md) — Multi-provider LLM setup and streaming
+
+### 🛠️ Developer Tools
 - [CLI](docs/cli.md) — Command-line interface for agent and system management
 - [Utils](docs/utils.md) — Camera, audio, encryption, and utility functions
 - [API Reference](docs/api-reference.md) — Complete API reference for all modules
+
+---
+
+## ⚡ Quick Start (30 seconds)
+
+```bash
+# 1. Install DAIE
+pip install daie
+
+# 2. Install Ollama (local LLM)
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull llama3.2:1b
+
+# 3. Run your first agent
+python -c "
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+
+set_llm(ollama_llm='llama3.2:1b', stream=True)
+
+async def main():
+    agent = Agent(config=AgentConfig(name='Alex', personality='helpful and witty'))
+    await agent.start()
+    response = await agent.send_message('Hello! What can you do?')
+    await agent.stop()
+
+asyncio.run(main())
+"
+```
+
+**That's it!** You now have a working AI agent in 30 seconds.
+
+---
+
+## 🎯 Real Output Example
+
+```
+$ python examples/01_basic_chat.py
+
+=== Basic Chat Loop ===
+Type 'exit' or press Ctrl+C to quit.
+
+You: What's the weather like today?
+
+LUNA: 🌤️ Hey there! I'd love to help with the weather, but I don't have access to real-time data. However, I can tell you that I'm feeling sunny and energetic today! ☀️
+
+If you want actual weather info, you could:
+1. Ask me to search the web using my browser tool
+2. Tell me your location and I'll look it up
+3. Just chat with me about anything else!
+
+What would you like to do? 😊
+
+You: Search for weather in San Francisco
+
+LUNA: 🔍 Let me search that for you!
+
+[Using tool: selenium_chrome]
+[Opening browser...]
+[Searching: "weather in San Francisco"]
+
+LUNA: 🌁 Found it! San Francisco is currently:
+- Temperature: 62°F (17°C)
+- Conditions: Partly cloudy
+- Humidity: 75%
+- Wind: 12 mph from the west
+
+Perfect weather for a walk across the Golden Gate Bridge! 🌉
+```
 
 ---
 
@@ -112,7 +277,7 @@ from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
 from daie.tools import FileManagerTool, APICallTool, tool
 
-set_llm(ollama_llm="wizard-vicuna-uncensored:7b")
+set_llm(ollama_llm="llama3.2:1b", stream=True)
 
 # Custom tool via decorator
 @tool(name="calculate_math", description="Evaluate a basic math expression.")
@@ -566,13 +731,28 @@ execute_task("Create notes.txt")
 
 ## Examples
 
-| File | Description |
-|---|---|
-| `examples/01_basic_chat.py` | Interactive streaming chat with persona traits (gender, personality, behavior) |
-| `examples/02_custom_tools.py` | Custom `@tool` decorator + `FileManagerTool` with ReAct agent loop |
-| `examples/03_p2p_networking.py` | Multi-agent P2P messaging, authorization, and A2A file transfer |
-| `examples/04_rag_chat.py` | RAG-enabled chat with document-based knowledge retrieval |
-| `examples/05_vision_chat.py` | Real-time vision-enabled chat using `qwen3-vl:2b` and local camera |
+### 💬 Chatbots
+| Level | File | Description |
+|---|---|---|
+| 🟢 Beginner | `examples/01_basic_chat.py` | Interactive streaming chat with persona traits (gender, personality, behavior) |
+| 🟡 Intermediate | `examples/05_vision_chat.py` | Real-time vision-enabled chat using `qwen3-vl:2b` and local camera |
+
+### 🤖 AI Agents
+| Level | File | Description |
+|---|---|---|
+| 🟡 Intermediate | `examples/02_custom_tools.py` | Custom `@tool` decorator + `FileManagerTool` with ReAct agent loop |
+| 🔴 Advanced | `examples/classroom_demo.py` | Multi-agent classroom orchestration with Professor and Student agents |
+| 🔴 Advanced | `examples/courtroom_demo.py` | Multi-agent courtroom simulation with Judge, Prosecutor, and Defender |
+
+### 🔍 RAG Systems
+| Level | File | Description |
+|---|---|---|
+| 🟡 Intermediate | `examples/04_rag_chat.py` | RAG-enabled chat with document-based knowledge retrieval |
+
+### 🌐 Networking & Communication
+| Level | File | Description |
+|---|---|---|
+| 🔴 Advanced | `examples/03_p2p_networking.py` | Multi-agent P2P messaging, authorization, and A2A file transfer |
 
 Run any example:
 

@@ -167,7 +167,7 @@ class RAGEngine:
 
         context_parts = []
         for i, (chunk, score) in enumerate(results, 1):
-            context_parts.append(f"--- Document Content ---\n{chunk.text}")
+            context_parts.append(f"[Document {i}: {chunk.source}]\n{chunk.text}")
 
         return "\n\n".join(context_parts)
 

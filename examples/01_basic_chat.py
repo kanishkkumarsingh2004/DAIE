@@ -1,3 +1,7 @@
+# 🟢 Beginner - Basic Chat Example
+# Difficulty: Beginner
+# This example demonstrates a simple streaming chat with persona traits.
+
 import asyncio
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole

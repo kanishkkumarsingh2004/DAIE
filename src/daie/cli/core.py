@@ -171,7 +171,7 @@ def start_core(
             else:
                 console.print(
                     Panel(
-                        "[bold yellow]Warning:[/yellow] Could not verify system startup",
+                        "[bold yellow]Warning:[/bold yellow] Could not verify system startup",
                         title="[yellow]⚠️  Warning[/yellow]",
                         border_style="yellow",
                     )
@@ -191,10 +191,10 @@ def start_core(
 
             console.print(
                 Panel(
-                    f"[bold green]Central core system started successfully![/green]\n"
-                    f"[bold blue]API server running at:[/blue] http://localhost:{port}\n"
-                    f"[bold blue]API documentation:[/blue] http://localhost:{port}/docs\n"
-                    f"[bold yellow]Press Ctrl+C to stop the server[/yellow]",
+                    f"[bold green]Central core system started successfully![/bold green]\n"
+                    f"[bold blue]API server running at:[/bold blue] http://localhost:{port}\n"
+                    f"[bold blue]API documentation:[/bold blue] http://localhost:{port}/docs\n"
+                    f"[bold yellow]Press Ctrl+C to stop the server[/bold yellow]",
                     title="[green]✅ Startup Complete[/green]",
                     border_style="green",
                 )
@@ -204,7 +204,7 @@ def start_core(
     except KeyboardInterrupt:
         console.print(
             Panel(
-                "[bold yellow]System startup interrupted[/yellow]",
+                "[bold yellow]System startup interrupted[/bold yellow]",
                 title="[yellow]⚠️  Interrupted[/yellow]",
                 border_style="yellow",
             )
@@ -213,7 +213,7 @@ def start_core(
     except Exception as e:
         console.print(
             Panel(
-                f"[bold red]Error:[/red] Failed to start central core system: {e}",
+                f"[bold red]Error:[/bold red] Failed to start central core system: {e}",
                 title="[red]❌ Startup Failed[/red]",
                 border_style="red",
             )
@@ -230,7 +230,7 @@ def stop_core(
     if not pid:
         console.print(
             Panel(
-                "[bold yellow]Warning:[/yellow] Central core system is not running",
+                "[bold yellow]Warning:[/bold yellow] Central core system is not running",
                 title="[yellow]⚠️  Warning[/yellow]",
                 border_style="yellow",
             )
@@ -239,20 +239,20 @@ def stop_core(
 
     console.print(
         Panel(
-            "[bold yellow]Stopping Central Core System[/yellow]",
+            "[bold yellow]Stopping Central Core System[/bold yellow]",
             title="[yellow]⏹️  System Shutdown[/yellow]",
             border_style="yellow",
         )
     )
 
     if force:
-        console.print("[bold red]Force stopping...[/red]")
+        console.print("[bold red]Force stopping...[/bold red]")
 
     try:
         # Try graceful shutdown first
         os.kill(pid, signal.SIGTERM)
 
-        console.print("[bold blue]Initiating shutdown...[/blue]")
+        console.print("[bold blue]Initiating shutdown...[/bold blue]")
 
         # Wait for process to terminate
         import time
@@ -266,7 +266,7 @@ def stop_core(
             wait_time += 0.5
 
         if os.path.exists(f"/proc/{pid}") and force:
-            console.print("[bold red]Process did not terminate, force killing...[/red]")
+            console.print("[bold red]Process did not terminate, force killing...[/bold red]")
             os.kill(pid, signal.SIGKILL)
             time.sleep(1)
 
@@ -274,7 +274,7 @@ def stop_core(
             remove_pid_file()
             console.print(
                 Panel(
-                    "[bold green]Central core system stopped successfully[/green]",
+                    "[bold green]Central core system stopped successfully[/bold green]",
                     title="[green]✅ Shutdown Complete[/green]",
                     border_style="green",
                 )
@@ -282,7 +282,7 @@ def stop_core(
         else:
             console.print(
                 Panel(
-                    "[bold red]Error:[/red] Failed to stop central core system",
+                    "[bold red]Error:[/bold red] Failed to stop central core system",
                     title="[red]❌ Shutdown Failed[/red]",
                     border_style="red",
                 )
@@ -292,7 +292,7 @@ def stop_core(
     except Exception as e:
         console.print(
             Panel(
-                f"[bold red]Error:[/red] {e}",
+                f"[bold red]Error:[/bold red] {e}",
                 title="[red]❌ Shutdown Error[/red]",
                 border_style="red",
             )
@@ -311,8 +311,8 @@ def core_status():
     if pid:
         console.print(
             Panel(
-                f"[bold green]Central core system is running[/green]\n"
-                f"[bold blue]PID:[/blue] {pid}\n"
+                f"[bold green]Central core system is running[/bold green]\n"
+                f"[bold blue]PID:[/bold blue] {pid}\n"
                 f"[bold blue]Port:[/bold blue] 3333\n"
                 f"[bold blue]API:[/bold blue] http://localhost:3333\n"
                 f"[bold blue]Docs:[/bold blue] http://localhost:3333/docs",
@@ -341,7 +341,7 @@ def restart_core(
     """Restart the central core system"""
     console.print(
         Panel(
-            "[bold blue]Restarting Central Core System[/blue]",
+            "[bold blue]Restarting Central Core System[/bold blue]",
             title="[blue]🔄 System Restart[/blue]",
             border_style="blue",
         )
@@ -350,13 +350,13 @@ def restart_core(
     # Stop if running
     pid = read_pid()
     if pid:
-        console.print("[bold yellow]Stopping current instance...[/yellow]")
+        console.print("[bold yellow]Stopping current instance...[/bold yellow]")
         try:
             stop_core(force)
         except Exception as e:
             console.print(
                 Panel(
-                    f"[bold red]Error stopping system:[/red] {e}",
+                    f"[bold red]Error stopping system:[/bold red] {e}",
                     title="[red]❌ Stop Error[/red]",
                     border_style="red",
                 )
@@ -364,7 +364,7 @@ def restart_core(
             raise typer.Exit(code=1)
 
     # Start again
-    console.print("[bold green]Starting new instance...[/green]")
+    console.print("[bold green]Starting new instance...[/bold green]")
     start_core(background=True, debug=debug, port=port)
 
 
@@ -373,7 +373,7 @@ def init_core():
     """Initialize the system configuration"""
     console.print(
         Panel(
-            "[bold blue]Initializing Decentralized AI Ecosystem[/blue]",
+            "[bold blue]Initializing Decentralized AI Ecosystem[/bold blue]",
             title="[blue]⚙️  System Initialization[/blue]",
             border_style="blue",
         )
@@ -386,7 +386,7 @@ def init_core():
         if not Confirm.ask(
             "Configuration already exists. Do you want to reinitialize?"
         ):
-            console.print("[bold yellow]Initialization cancelled[/yellow]")
+            console.print("[bold yellow]Initialization cancelled[/bold yellow]")
             raise typer.Exit(code=0)
 
     try:
@@ -397,8 +397,8 @@ def init_core():
 
         console.print(
             Panel(
-                "[bold green]System initialization completed successfully[/green]\n"
-                f"[bold blue]Configuration directory:[/blue] {config_dir}",
+                "[bold green]System initialization completed successfully[/bold green]\n"
+                f"[bold blue]Configuration directory:[/bold blue] {config_dir}",
                 title="[green]✅ Initialization Complete[/green]",
                 border_style="green",
             )
@@ -406,7 +406,7 @@ def init_core():
     except Exception as e:
         console.print(
             Panel(
-                f"[bold red]Error:[/red] Failed to initialize system: {e}",
+                f"[bold red]Error:[/bold red] Failed to initialize system: {e}",
                 title="[red]❌ Initialization Failed[/red]",
                 border_style="red",
             )

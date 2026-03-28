@@ -1,3 +1,7 @@
+# 🔴 Advanced - Classroom Orchestration Demo
+# Difficulty: Advanced
+# This example demonstrates multi-agent classroom orchestration with Professor and Student agents.
+
 import asyncio
 import logging
 import sys

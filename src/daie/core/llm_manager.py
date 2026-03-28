@@ -31,7 +31,7 @@ class LLMConfig:
     llm_type: LLMType = LLMType.OLLAMA
     model_name: str = "llama3.2:latest"
     temperature: float = 0.7
-    max_tokens: int = 1000
+    max_tokens: int = 1024
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     stream: bool = False

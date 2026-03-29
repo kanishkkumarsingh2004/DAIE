@@ -43,19 +43,26 @@ class NodeRegistry:
         except Exception as e:
             logger.error(f"Failed to save registry: {e}")
 
-    def register_node(self, agent_id: str, capabilities: Dict[str, Any], network_url: Optional[str] = None) -> bool:
+    def register_node(self, agent_id: str, capabilities: Dict[str, Any], network_url: Optional[str] = None, network_connections: Optional[Dict[str, str]] = None) -> bool:
         """
         Register a new node (agent) with its capabilities into the network pool.
         Capabilities should include role, goals, and exposed tools.
+        
+        Args:
+            agent_id: Unique identifier for the agent
+            capabilities: Dictionary of agent capabilities
+            network_url: Base URL where THIS agent is hosted (others use this to reach it)
+            network_connections: Dictionary of peer_id -> network_url for agents THIS agent can directly reach
         """
         self._nodes[agent_id] = {
             "capabilities": capabilities,
             "network_url": network_url,
+            "network_connections": network_connections or {},
             "last_seen": time.time(),
             "status": "active"
         }
         self._save_registry()
-        logger.info(f"Registered node {agent_id} to decentralized registry (URL: {network_url}).")
+        logger.info(f"Registered node {agent_id} to decentralized registry (URL: {network_url}, Connections: {len(network_connections or {})}).")
         return True
 
     def deregister_node(self, agent_id: str) -> bool:
@@ -97,3 +104,104 @@ class NodeRegistry:
     def get_node(self, agent_id: str) -> Optional[Dict[str, Any]]:
         """Fetch a specific node's metadata."""
         return self._nodes.get(agent_id)
+
+    def get_network_topology(self) -> Dict[str, Any]:
+        """
+        Get the complete network topology showing all nodes and their connections.
+        
+        Returns:
+            Dictionary containing nodes and their connections
+        """
+        topology = {
+            "nodes": {},
+            "connections": []
+        }
+        
+        for agent_id, node_data in self._nodes.items():
+            if node_data.get("status") == "active":
+                topology["nodes"][agent_id] = {
+                    "network_url": node_data.get("network_url"),
+                    "capabilities": node_data.get("capabilities", {}),
+                    "connections": node_data.get("network_connections", {})
+                }
+                # Add bidirectional connections
+                for peer_id, peer_url in node_data.get("network_connections", {}).items():
+                    connection = {"from": agent_id, "to": peer_id, "url": peer_url}
+                    if connection not in topology["connections"]:
+                        topology["connections"].append(connection)
+        
+        return topology
+
+    def find_route(self, from_agent: str, to_agent: str) -> Optional[List[str]]:
+        """
+        Find a route between two agents through the network.
+        Uses BFS to find the shortest path.
+        
+        Args:
+            from_agent: Starting agent ID
+            to_agent: Destination agent ID
+            
+        Returns:
+            List of agent IDs forming the route, or None if no route exists
+        """
+        if from_agent == to_agent:
+            return [from_agent]
+        
+        # Build adjacency list from network connections
+        graph = {}
+        for agent_id, node_data in self._nodes.items():
+            if node_data.get("status") == "active":
+                graph[agent_id] = list(node_data.get("network_connections", {}).keys())
+        
+        # BFS to find shortest path
+        from collections import deque
+        queue = deque([(from_agent, [from_agent])])
+        visited = {from_agent}
+        
+        while queue:
+            current, path = queue.popleft()
+            
+            for neighbor in graph.get(current, []):
+                if neighbor == to_agent:
+                    return path + [neighbor]
+                
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append((neighbor, path + [neighbor]))
+        
+        return None
+
+    def get_connected_peers(self, agent_id: str) -> Dict[str, str]:
+        """
+        Get all peers directly connected to an agent.
+        
+        Args:
+            agent_id: Agent ID to get connections for
+            
+        Returns:
+            Dictionary of peer_id -> network_url for connected peers
+        """
+        node = self._nodes.get(agent_id)
+        if not node:
+            return {}
+        return node.get("network_connections", {})
+
+    def update_connections(self, agent_id: str, connections: Dict[str, str]) -> bool:
+        """
+        Update network connections for an agent.
+        
+        Args:
+            agent_id: Agent ID to update
+            connections: New connections dictionary
+            
+        Returns:
+            True if updated successfully
+        """
+        if agent_id not in self._nodes:
+            return False
+        
+        self._nodes[agent_id]["network_connections"] = connections
+        self._nodes[agent_id]["last_seen"] = time.time()
+        self._save_registry()
+        logger.info(f"Updated connections for node {agent_id}: {len(connections)} connections")
+        return True

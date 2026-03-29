@@ -161,7 +161,8 @@ The `AgentConfig` dataclass defines all parameters for an agent:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `network_url` | `str \| None` | `None` | Base URL for P2P communication |
+| `network_url` | `str \| None` | `None` | Base URL where THIS agent is hosted (others use this to reach it) |
+| `network_connections` | `Dict[str, str]` | `{}` | Dictionary of peer_id -> URL for agents THIS agent can directly reach |
 | `auth_token` | `str \| None` | `None` | Authentication token |
 | `allow_file_transfers` | `bool` | `False` | Allow incoming file transfers |
 | `allowed_senders` | `List[str]` | `[]` | Whitelist of sender IDs (empty = allow all) |
@@ -319,6 +320,170 @@ await agent.start()
 
 # Agent will retrieve relevant context before answering
 result = await agent.execute_task("What is DAIE?")
+```
+
+---
+
+## Intelligent Agent Routing
+
+The `AgentRouter` provides LLM-based intelligent routing to automatically select the best agent for each message based on content analysis.
+
+### Features
+
+- **Dynamic agent discovery** — Automatically extracts agent capabilities from configs
+- **Auto-generated routing prompts** — Creates routing prompts based on agent specialties
+- **Flexible agent handling** — Works with any agent names and types
+- **Routing history tracking** — Logs all routing decisions for debugging
+
+### Creating a Router
+
+#### From a List of Agents
+
+```python
+from daie import Agent, AgentConfig, set_llm
+from daie.agents import AgentRole, AgentRouter
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+# Create specialized agents
+assistant = Agent(config=AgentConfig(
+    name="Assistant",
+    role=AgentRole.GENERAL_PURPOSE,
+    system_prompt="You are a helpful general-purpose assistant."
+))
+
+coder = Agent(config=AgentConfig(
+    name="Coder",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You are an expert programmer. Write clean, efficient code."
+))
+
+researcher = Agent(config=AgentConfig(
+    name="Researcher",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You are a research specialist. Analyze and summarize information."
+))
+
+# Create router from agents list
+router = AgentRouter.from_agents([assistant, coder, researcher])
+```
+
+#### From a Dictionary
+
+```python
+from daie.agents.router import create_router
+
+router = create_router({
+    "assistant": assistant,
+    "coder": coder,
+    "researcher": researcher,
+})
+```
+
+### Using the Router
+
+```python
+# Route a message to the best agent
+agent_type = await router.route("Write a Python function to sort a list")
+# Returns: "coder"
+
+agent_type = await router.route("Explain quantum computing")
+# Returns: "researcher"
+
+agent_type = await router.route("What's the weather like?")
+# Returns: "assistant"
+
+# Force a specific agent (bypass routing)
+agent_type = await router.route("Hello", agent_type="assistant")
+# Returns: "assistant"
+```
+
+### Router Methods
+
+```python
+# Get routing history
+history = router.get_routing_history()
+print(f"Routed {len(history)} messages")
+# Returns: [
+#   {"message_preview": "Write a Python...", "selected_agent": "coder", "llm_decision": "coder"},
+#   ...
+# ]
+
+# Get auto-generated agent descriptions
+descriptions = router.get_agent_descriptions()
+print(descriptions)
+# Returns: {"assistant": "Assistant | Role: general-purpose | ...", ...}
+
+# Manually update an agent description
+router.update_agent_description("coder", "Expert Python developer")
+
+# Clear routing history
+router.clear_routing_history()
+```
+
+### How It Works
+
+1. **Agent Discovery** — Router extracts agent names, roles, system prompts, and personality traits from configs
+2. **Prompt Generation** — Creates a routing prompt listing all agents with their specialties
+3. **LLM Decision** — Sends the routing prompt to the router agent (first agent by default)
+4. **Decision Parsing** — Parses the LLM response to identify the selected agent
+5. **Fallback** — If routing fails, falls back to the first available agent
+
+### Example: Multi-Agent System with Routing
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.agents import AgentRole, AgentRouter
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    # Create agents
+    assistant = Agent(config=AgentConfig(
+        name="Assistant",
+        role=AgentRole.GENERAL_PURPOSE,
+        system_prompt="You are a helpful assistant."
+    ))
+    
+    coder = Agent(config=AgentConfig(
+        name="Coder",
+        role=AgentRole.SPECIALIZED,
+        system_prompt="You are an expert programmer."
+    ))
+    
+    researcher = Agent(config=AgentConfig(
+        name="Researcher",
+        role=AgentRole.SPECIALIZED,
+        system_prompt="You are a research specialist."
+    ))
+    
+    # Create router
+    router = AgentRouter.from_agents([assistant, coder, researcher])
+    
+    # Start all agents
+    await assistant.start()
+    await coder.start()
+    await researcher.start()
+    
+    # Route messages
+    messages = [
+        "Write a Python function to sort a list",
+        "Explain quantum computing",
+        "What's the weather like?",
+    ]
+    
+    for message in messages:
+        agent_type = await router.route(message)
+        print(f"Message: {message}")
+        print(f"Routed to: {agent_type}\n")
+    
+    # Stop agents
+    await assistant.stop()
+    await coder.stop()
+    await researcher.stop()
+
+asyncio.run(main())
 ```
 
 ---

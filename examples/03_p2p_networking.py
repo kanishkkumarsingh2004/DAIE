@@ -11,6 +11,9 @@ Demonstrates:
   - A2A file transfer between agents
   - Registry-based agent discovery
 
+Network Configuration:
+  - network_url: The URL where THIS agent is hosted (others use this to reach it)
+
 Note: In a production cross-machine setup, each agent would live on a
       separate host with a public-facing network_url (e.g. a DevTunnel).
       This example simulates the full protocol locally in-process.
@@ -41,11 +44,12 @@ async def main():
     # ──────────────────────────────────────────────
     # 2. Configure Agent 1 (NodeAlfa)
     # ──────────────────────────────────────────────
+    # network_url: The URL where THIS agent is hosted (others use this to reach it)
     config1 = AgentConfig(
         name="NodeAlfa",
         role=AgentRole.GENERAL_PURPOSE,
         system_prompt="You are NodeAlfa, a networking relay agent.",
-        network_url="http://localhost:8000",
+        network_url="http://localhost:8000",  # This agent is hosted on localhost:8000
     )
     agent1 = Agent(config=config1)
     await agent1.start(communication_manager=comm)
@@ -53,11 +57,12 @@ async def main():
     # ──────────────────────────────────────────────
     # 3. Configure Agent 2 (NodeBravo) with authorization
     # ──────────────────────────────────────────────
+    # network_url: The URL where THIS agent is hosted (others use this to reach it)
     config2 = AgentConfig(
         name="NodeBravo",
         role=AgentRole.GENERAL_PURPOSE,
         system_prompt="You are NodeBravo, a secure receiver agent.",
-        network_url="http://localhost:8001",
+        network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
         auth_token="secure_token_123",
         allow_file_transfers=True,
         allowed_senders=[],  # empty = allow everyone

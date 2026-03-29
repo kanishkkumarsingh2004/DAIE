@@ -77,8 +77,8 @@ class SystemConfig:
     memory_retention_days: int = 30
     """Memory retention period in days"""
 
-    memory_storage_type: str = "file"
-    """Type of memory storage (file, in-memory, redis, postgres)"""
+    memory_storage_type: str = "binary"
+    """Type of memory storage: 'vector' (ChromaDB), 'binary' (pickle), 'json' (JSON files)"""
 
     # Logging configuration
     enable_logging: bool = False

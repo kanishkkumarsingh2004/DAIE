@@ -80,15 +80,16 @@ comm = CommunicationManager()
 await comm.start()
 
 # Create agents
+# network_url: The URL where THIS agent is hosted (others use this to reach it)
 agent1 = Agent(config=AgentConfig(
     name="NodeAlfa",
-    network_url="http://localhost:8000",
+    network_url="http://localhost:8000",  # This agent is hosted on localhost:8000
 ))
 await agent1.start(communication_manager=comm)
 
 agent2 = Agent(config=AgentConfig(
     name="NodeBravo",
-    network_url="http://localhost:8001",
+    network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
 ))
 await agent2.start(communication_manager=comm)
 
@@ -133,24 +134,449 @@ result = await file_tool.execute({
 })
 ```
 
-### 4. Cross-Machine Communication
+### 4. Cross-Machine Communication (Connecting Two Agents on Different Devices)
 
-Enable communication across different machines:
+This guide shows you how to connect two AI agents running on different devices (computers) on the same network or across the internet.
+
+#### Prerequisites
+
+1. **Both devices must have DAIE installed:**
+   ```bash
+   pip install daie
+   ```
+
+2. **Both devices must have Ollama installed and running:**
+   ```bash
+   # Install Ollama
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Pull a model
+   ollama pull llama3.2:1b
+   
+   # Start Ollama server
+   ollama serve
+   ```
+
+3. **Network connectivity:**
+   - Same WiFi/LAN network (for local communication)
+   - OR internet access with port forwarding/DevTunnel (for remote communication)
+
+---
+
+#### Method 1: Local Network (Same WiFi/LAN)
+
+**Step 1: Find Device IP Addresses**
+
+On **Device 1** (e.g., your laptop):
+```bash
+# Linux/Mac
+ifconfig | grep "inet "
+
+# Windows
+ipconfig
+```
+Note the IP address (e.g., `192.168.1.100`)
+
+On **Device 2** (e.g., your desktop):
+```bash
+# Linux/Mac
+ifconfig | grep "inet "
+
+# Windows
+ipconfig
+```
+Note the IP address (e.g., `192.168.1.101`)
+
+**Step 2: Create Agent on Device 1**
+
+Create a file called `agent_device1.py`:
 
 ```python
-# Machine 1
-agent1 = Agent(config=AgentConfig(
-    name="RemoteAgent1",
-    network_url="https://your-devtunnel-url.devtunnels.ms:8000",
-    auth_token="secure_token_123",
-))
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.communication import CommunicationManager
 
-# Machine 2
-agent2 = Agent(config=AgentConfig(
-    name="RemoteAgent2",
-    network_url="https://your-devtunnel-url.devtunnels.ms:8001",
-    auth_token="secure_token_123",
-))
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    # Create communication manager
+    comm = CommunicationManager()
+    await comm.start()
+    
+    # Create agent on Device 1
+    agent1 = Agent(config=AgentConfig(
+        name="AgentOnDevice1",
+        network_url="http://192.168.1.100:8000",  # Device 1's IP
+        auth_token="secure_token_123",
+        allow_file_transfers=True
+    ))
+    
+    await agent1.start(communication_manager=comm)
+    
+    print(f"Agent 1 started on {agent1.config.network_url}")
+    print(f"Agent ID: {agent1.id}")
+    print("Waiting for messages from Device 2...")
+    
+    # Keep the agent running
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        await agent1.stop()
+        comm.stop()
+
+asyncio.run(main())
+```
+
+**Step 3: Create Agent on Device 2**
+
+Create a file called `agent_device2.py`:
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.communication import CommunicationManager
+from daie.agents.message import AgentMessage
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    # Create communication manager
+    comm = CommunicationManager()
+    await comm.start()
+    
+    # Create agent on Device 2
+    agent2 = Agent(config=AgentConfig(
+        name="AgentOnDevice2",
+        network_url="http://192.168.1.101:8000",  # Device 2's IP
+        auth_token="secure_token_123",
+        allow_file_transfers=True
+    ))
+    
+    await agent2.start(communication_manager=comm)
+    
+    print(f"Agent 2 started on {agent2.config.network_url}")
+    print(f"Agent ID: {agent2.id}")
+    
+    # Wait a bit for Agent 1 to start
+    await asyncio.sleep(2)
+    
+    # Send a message to Agent 1
+    msg = AgentMessage(
+        sender_id=agent2.id,
+        receiver_id="agent-on-device1",  # Agent 1's name (lowercase, hyphenated)
+        content="Hello from Device 2!",
+        message_type="text",
+    )
+    
+    await comm.send_message(msg)
+    print("Message sent to Agent 1!")
+    
+    # Keep the agent running
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        await agent2.stop()
+        comm.stop()
+
+asyncio.run(main())
+```
+
+**Step 4: Run Both Agents**
+
+On **Device 1**:
+```bash
+python agent_device1.py
+```
+
+On **Device 2**:
+```bash
+python agent_device2.py
+```
+
+**Step 5: Verify Connection**
+
+You should see:
+- Device 1: "Agent 1 started on http://192.168.1.100:8000"
+- Device 2: "Agent 2 started on http://192.168.1.101:8000"
+- Device 2: "Message sent to Agent 1!"
+- Device 1: Receives the message from Device 2
+
+---
+
+#### Method 2: Internet (Using DevTunnel)
+
+For connecting devices across the internet (different networks), use Microsoft DevTunnel:
+
+**Step 1: Install DevTunnel CLI**
+
+On **both devices**:
+```bash
+# Install DevTunnel
+curl -sL https://aka.ms/DevTunnelCliInstall | bash
+
+# Login to DevTunnel
+devtunnel user login
+```
+
+**Step 2: Create DevTunnel on Device 1**
+
+```bash
+# Create a tunnel for port 8000
+devtunnel create -p 8000
+
+# Host the tunnel
+devtunnel host
+```
+
+This will give you a URL like: `https://abc123.devtunnels.ms:8000`
+
+**Step 3: Create Agent on Device 1**
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.communication import CommunicationManager
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    comm = CommunicationManager()
+    await comm.start()
+    
+    agent1 = Agent(config=AgentConfig(
+        name="AgentOnDevice1",
+        network_url="https://abc123.devtunnels.ms:8000",  # DevTunnel URL
+        auth_token="secure_token_123",
+        allow_file_transfers=True
+    ))
+    
+    await agent1.start(communication_manager=comm)
+    
+    print(f"Agent 1 started on {agent1.config.network_url}")
+    print("Waiting for messages from Device 2...")
+    
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        await agent1.stop()
+        comm.stop()
+
+asyncio.run(main())
+```
+
+**Step 4: Create DevTunnel on Device 2**
+
+```bash
+# Create a tunnel for port 8000
+devtunnel create -p 8000
+
+# Host the tunnel
+devtunnel host
+```
+
+This will give you a URL like: `https://xyz789.devtunnels.ms:8000`
+
+**Step 5: Create Agent on Device 2**
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.communication import CommunicationManager
+from daie.agents.message import AgentMessage
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    comm = CommunicationManager()
+    await comm.start()
+    
+    agent2 = Agent(config=AgentConfig(
+        name="AgentOnDevice2",
+        network_url="https://xyz789.devtunnels.ms:8000",  # DevTunnel URL
+        auth_token="secure_token_123",
+        allow_file_transfers=True
+    ))
+    
+    await agent2.start(communication_manager=comm)
+    
+    print(f"Agent 2 started on {agent2.config.network_url}")
+    
+    await asyncio.sleep(2)
+    
+    msg = AgentMessage(
+        sender_id=agent2.id,
+        receiver_id="agent-on-device1",
+        content="Hello from Device 2 via the internet!",
+        message_type="text",
+    )
+    
+    await comm.send_message(msg)
+    print("Message sent to Agent 1!")
+    
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        await agent2.stop()
+        comm.stop()
+
+asyncio.run(main())
+```
+
+**Step 6: Run Both Agents**
+
+On **Device 1**:
+```bash
+python agent_device1.py
+```
+
+On **Device 2**:
+```bash
+python agent_device2.py
+```
+
+---
+
+#### Method 3: Complete Example with File Transfer
+
+Here's a complete example that demonstrates both messaging and file transfer:
+
+**Device 1 (Receiver):**
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.communication import CommunicationManager
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    comm = CommunicationManager()
+    await comm.start()
+    
+    agent1 = Agent(config=AgentConfig(
+        name="FileReceiver",
+        network_url="http://192.168.1.100:8000",
+        auth_token="secure_token_123",
+        allow_file_transfers=True
+    ))
+    
+    await agent1.start(communication_manager=comm)
+    
+    print(f"File Receiver Agent started on {agent1.config.network_url}")
+    print("Waiting for files from Device 2...")
+    
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        await agent1.stop()
+        comm.stop()
+
+asyncio.run(main())
+```
+
+**Device 2 (Sender):**
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.communication import CommunicationManager
+from daie.tools.a2a_file import A2ASendFileTool
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    comm = CommunicationManager()
+    await comm.start()
+    
+    agent2 = Agent(config=AgentConfig(
+        name="FileSender",
+        network_url="http://192.168.1.101:8000",
+        auth_token="secure_token_123",
+        allow_file_transfers=True
+    ))
+    
+    await agent2.start(communication_manager=comm)
+    
+    print(f"File Sender Agent started on {agent2.config.network_url}")
+    
+    await asyncio.sleep(2)
+    
+    # Create a test file
+    with open("test_document.txt", "w") as f:
+        f.write("This is a test document from Device 2.")
+    
+    # Send file to Agent 1
+    file_tool = A2ASendFileTool()
+    file_tool.set_agent(agent2)
+    
+    result = await file_tool.execute({
+        "receiver_id": "file-receiver",  # Agent 1's name
+        "file_path": "test_document.txt",
+        "message": "Here's a document from Device 2!",
+    })
+    
+    print(f"File transfer result: {result}")
+    
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        await agent2.stop()
+        comm.stop()
+
+asyncio.run(main())
+```
+
+---
+
+#### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| **Connection refused** | Check if Ollama is running: `ollama serve` |
+| **Cannot connect to remote agent** | Verify IP addresses and firewall settings |
+| **Authentication failed** | Ensure both agents use the same `auth_token` |
+| **Port already in use** | Change port in `network_url` (e.g., `:8001`) |
+| **DevTunnel not working** | Run `devtunnel host` on both devices |
+| **Firewall blocking** | Open ports 8000-8001 in firewall settings |
+| **Agent not receiving messages** | Check if agent is started with `communication_manager` |
+
+#### Firewall Configuration
+
+**Linux (UFW):**
+```bash
+sudo ufw allow 8000/tcp
+sudo ufw allow 8001/tcp
+```
+
+**Windows:**
+```powershell
+# Open PowerShell as Administrator
+New-NetFirewallRule -DisplayName "DAIE Agent 8000" -Direction Inbound -Port 8000 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "DAIE Agent 8001" -Direction Inbound -Port 8001 -Protocol TCP -Action Allow
+```
+
+**macOS:**
+```bash
+# macOS doesn't block outgoing connections by default
+# For incoming, use System Preferences > Security & Privacy > Firewall
 ```
 
 ### 5. Task Delegation

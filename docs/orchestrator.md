@@ -323,6 +323,7 @@ await orchestrator.start()
 
 ## Next Steps
 
+- [Node vs Orchestrator](node-vs-orchestrator.md) — Complete comparison guide with use cases
 - [Agents](agents.md) — Agent configuration and the ReAct loop
 - [Communication](communication.md) — P2P networking and file transfers
 - [Tools](tools.md) — Pre-built tools and creating custom tools

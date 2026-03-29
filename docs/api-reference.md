@@ -98,7 +98,8 @@ AgentConfig(
 | `rag_strict_context` | `bool` | `False` | RAG strict context mode |
 | `enable_audio` | `bool` | `False` | Enable audio |
 | `enable_camera` | `bool` | `False` | Enable camera |
-| `network_url` | `Optional[str]` | `None` | Network URL |
+| `network_url` | `Optional[str]` | `None` | Base URL where THIS agent is hosted (others use this to reach it) |
+| `network_connections` | `Dict[str, str]` | `{}` | Dictionary of peer_id -> URL for agents THIS agent can directly reach |
 | `auth_token` | `Optional[str]` | `None` | Authentication token |
 | `allow_file_transfers` | `bool` | `False` | Allow file transfers |
 | `allowed_senders` | `List[str]` | `[]` | Allowed senders |

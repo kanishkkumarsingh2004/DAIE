@@ -549,6 +549,12 @@ class Agent:
         return self
 
     async def _handle_message(self, message: AgentMessage):
+        """
+        Handle incoming messages asynchronously without blocking agent tasks.
+        
+        This method processes messages in a non-blocking way, allowing the agent
+        to continue running tasks while handling incoming messages.
+        """
         try:
             # Check for correlation_id to resolve pending requests
             correlation_id = message.metadata.get("correlation_id")
@@ -558,10 +564,13 @@ class Agent:
                     future.set_result(message.content)
                 return
 
+            # Process message asynchronously without blocking
             if self._message_handler:
-                await self._message_handler(message)
+                # Use create_task to avoid blocking
+                asyncio.create_task(self._message_handler(message))
             else:
-                await self._default_message_handler(message)
+                # Use create_task to avoid blocking
+                asyncio.create_task(self._default_message_handler(message))
         except Exception as exc:
             logger.error(f"Error handling message: {exc}")
 

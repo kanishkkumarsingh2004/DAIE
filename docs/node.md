@@ -261,13 +261,14 @@ node = Node(node_id="node-1", name="Production Node")
 node.start()
 
 # Create agents
+# network_url: The URL where THIS agent is hosted (others use this to reach it)
 agent1 = Agent(config=AgentConfig(
     name="Agent1",
-    network_url="http://localhost:8000",
+    network_url="http://localhost:8000",  # This agent is hosted on localhost:8000
 ))
 agent2 = Agent(config=AgentConfig(
     name="Agent2",
-    network_url="http://localhost:8001",
+    network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
 ))
 
 # Register agents with communication manager
@@ -330,6 +331,7 @@ See [`examples/03_p2p_networking.py`](../examples/03_p2p_networking.py:1) for a 
 
 ## Next Steps
 
+- [Node vs Orchestrator](node-vs-orchestrator.md) — Complete comparison guide with use cases
 - [P2P Networking](p2p.md) — P2P communication protocol
 - [Agents](agents.md) — Agent configuration and the ReAct loop
 - [Tools](tools.md) — Pre-built tools and creating custom tools

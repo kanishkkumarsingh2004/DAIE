@@ -13,6 +13,7 @@
 | **Offline-first** | ✅ Full Ollama support | ❌ Cloud-dependent | ❌ Cloud-dependent |
 | **P2P Networking** | ✅ Built-in | ❌ No | ❌ No |
 | **Agent Personas** | ✅ Gender, personality, behavior | ❌ Limited | ❌ Limited |
+| **Intelligent Routing** | ✅ LLM-based agent selection | ❌ No | ❌ No |
 | **File Transfer** | ✅ A2A secure transfer | ❌ No | ❌ No |
 | **Vision Support** | ✅ Camera + vision models | ⚠️ Limited | ❌ No |
 | **Streaming** | ✅ Library-level | ⚠️ Per-call | ❌ No |
@@ -24,6 +25,7 @@
 - 🏠 **Offline-first AI** — Run everything locally with Ollama, no cloud required
 - 🔗 **Decentralized agents** — Agents communicate directly over P2P networks
 - 🎭 **Human-like personas** — Configure gender, personality, and behavior traits
+- 🧠 **Intelligent routing** — LLM automatically selects the best agent for each message
 - 📁 **Secure file transfers** — Send files between agents with Base64 encoding
 - 👁️ **Vision capabilities** — Camera integration with vision models like Qwen-VL
 - ⚡ **Real-time streaming** — Tokens stream as they arrive, no buffering
@@ -55,6 +57,13 @@
 │                            │                                │
 │                            ▼                                │
 │  ┌─────────────────────────────────────────────────────┐    │
+│  │              AGENT ROUTER (Intelligent)             │    │
+│  │  • LLM-based routing  • Content analysis            │    │
+│  │  • Dynamic agent selection  • Routing history       │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                            │                                │
+│                            ▼                                │
+│  ┌─────────────────────────────────────────────────────┐    │
 │  │              COMMUNICATION MANAGER                  │    │
 │  │  • P2P networking  • HTTP messaging  • Auth         │    │
 │  └─────────────────────────────────────────────────────┘    │
@@ -80,6 +89,7 @@
 ### 🤖 AI Agents
 - **ReAct agent loop** — LLM reasons → picks a tool → sees the result → iterates until it gives a final answer
 - **Multi-Agent Orchestration** — Coordinate main agents and sub-agents for complex goals (e.g. Research Lab, Courtroom)
+- **Intelligent Agent Router** — LLM-based routing that automatically selects the best agent for each message based on content analysis
 - **Agent persona** — configure `gender`, `personality`, and `behavior` traits injected directly into the LLM prompt
 - **Per-agent LLM overrides** — each agent can have its own `temperature` and `max_tokens`
 
@@ -117,6 +127,7 @@ For detailed documentation, see the [docs](docs/) folder:
 - [Agents](docs/agents.md) — Agent creation, configuration, and the ReAct loop
 - [Orchestrator](docs/orchestrator.md) — Multi-agent coordination and task delegation
 - [Memory](docs/memory.md) — Agent memory management (working, semantic, episodic)
+- [Agent Router](docs/agents.md#intelligent-agent-routing) — LLM-based intelligent agent routing
 
 ### 🔍 RAG Systems
 - [RAG](docs/rag.md) — Retrieval-Augmented Generation with TF-IDF
@@ -126,9 +137,18 @@ For detailed documentation, see the [docs](docs/) folder:
 
 ### 🌐 Networking & Communication
 - [P2P Networking](docs/p2p.md) — Peer-to-peer communication protocol for agents
+- [Network Configuration](docs/network_configuration.md) — Detailed guide on `network_url` and `network_connections`
 - [Node](docs/node.md) — Node abstraction for managing agents and resources
+- [Orchestrator](docs/orchestrator.md) — Multi-agent coordination and task delegation
+- [Node vs Orchestrator](docs/node-vs-orchestrator.md) — Complete comparison guide with 100+ use cases and decision matrix
 - [Communication](docs/communication.md) — P2P networking, messaging, and file transfers
 - [LLM Configuration](docs/llm.md) — Multi-provider LLM setup and streaming
+
+### 🏗️ Architecture Patterns
+- **Node Architecture**: Distributed infrastructure for multi-location systems
+- **Orchestrator Pattern**: Hierarchical workflow coordination for complex tasks
+- **Hybrid Architecture**: Combine Node + Orchestrator for enterprise-scale systems
+- **Agent Router**: LLM-based intelligent routing for optimal agent selection
 
 ### 🛠️ Developer Tools
 - [CLI](docs/cli.md) — Command-line interface for agent and system management
@@ -398,6 +418,57 @@ config = AgentConfig(
 )
 agent = Agent(config=config)
 # The agent will automatically retrieve relevant context before answering
+```
+
+### 6. Intelligent Agent Routing
+
+The `AgentRouter` uses LLM to automatically select the best agent for each message based on content analysis.
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, set_llm
+from daie.agents import AgentRole, AgentRouter
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+async def main():
+    # Create specialized agents
+    assistant = Agent(config=AgentConfig(
+        name="Assistant",
+        role=AgentRole.GENERAL_PURPOSE,
+        system_prompt="You are a helpful general-purpose assistant."
+    ))
+    
+    coder = Agent(config=AgentConfig(
+        name="Coder",
+        role=AgentRole.SPECIALIZED,
+        system_prompt="You are an expert programmer. Write clean, efficient code."
+    ))
+    
+    researcher = Agent(config=AgentConfig(
+        name="Researcher",
+        role=AgentRole.SPECIALIZED,
+        system_prompt="You are a research specialist. Analyze and summarize information."
+    ))
+    
+    # Create router from agents list
+    router = AgentRouter.from_agents([assistant, coder, researcher])
+    
+    # Router automatically selects the best agent
+    agent_type = await router.route("Write a Python function to sort a list")
+    # Returns: "coder"
+    
+    agent_type = await router.route("Explain quantum computing")
+    # Returns: "researcher"
+    
+    agent_type = await router.route("What's the weather like?")
+    # Returns: "assistant"
+    
+    # Get routing history
+    history = router.get_routing_history()
+    print(f"Routed {len(history)} messages")
+
+asyncio.run(main())
 ```
 
 ---
@@ -702,7 +773,7 @@ daie core logs
 
 ```
 src/daie/
-├── agents/         Agent, AgentConfig, AgentRole, AgentMessage, Orchestrator
+├── agents/         Agent, AgentConfig, AgentRole, AgentMessage, Orchestrator, AgentRouter
 ├── core/           LLMManager, LLMConfig, LLMType, set_llm(), get_llm(), DecentralizedAISystem, Node
 ├── tools/          Tool base class, @tool decorator, FileManagerTool,
 │                   APICallTool, HTTPGetTool, HTTPPostTool, SeleniumChromeTool, ToolRegistry,
@@ -741,6 +812,7 @@ execute_task("Create notes.txt")
 | Level | File | Description |
 |---|---|---|
 | 🟡 Intermediate | `examples/02_custom_tools.py` | Custom `@tool` decorator + `FileManagerTool` with ReAct agent loop |
+| 🟡 Intermediate | `examples/09_intelligent_routing.py` | LLM-based intelligent agent routing with multiple specialized agents |
 | 🔴 Advanced | `examples/classroom_demo.py` | Multi-agent classroom orchestration with Professor and Student agents |
 | 🔴 Advanced | `examples/courtroom_demo.py` | Multi-agent courtroom simulation with Judge, Prosecutor, and Defender |
 
@@ -753,12 +825,245 @@ execute_task("Create notes.txt")
 | Level | File | Description |
 |---|---|---|
 | 🔴 Advanced | `examples/03_p2p_networking.py` | Multi-agent P2P messaging, authorization, and A2A file transfer |
+| 🔴 Advanced | `examples/07_node_agents_interactive.py` | Interactive Node-based chat system with multiple agents |
+| 🔴 Advanced | `examples/08_node_agents_demo.py` | Automated Node demonstration with resource management |
+
+### 🏗️ Architecture Examples
+| Level | File | Description |
+|---|---|---|
+| 🔴 Advanced | `examples/classroom_demo.py` | Multi-agent classroom orchestration with Professor and Student agents |
+| 🔴 Advanced | `examples/courtroom_demo.py` | Multi-agent courtroom simulation with Judge, Prosecutor, and Defender |
 
 Run any example:
 
 ```bash
 source venv/bin/activate
 python examples/01_basic_chat.py
+```
+
+---
+
+## 🏗️ Architecture Patterns
+
+### When to Use Node
+**Use Node when you need:**
+- Distributed networks across multiple machines/locations
+- Resource management (GPU, memory, model cache)
+- Peer-to-peer communication between agents
+- Horizontal scalability by adding nodes
+- Edge computing with local processing
+- High availability with no single point of failure
+- Geographic distribution across regions
+- Multi-tenant systems with resource isolation
+
+**Don't use Node when:**
+- Simple task coordination on a single machine
+- Quick prototyping without infrastructure setup
+- Stateless operations that don't need resource management
+- Team lacks distributed systems expertise
+
+### When to Use Orchestrator
+**Use Orchestrator when you need:**
+- Task decomposition into manageable sub-tasks
+- Specialized agents with different skills
+- Result aggregation from multiple agents
+- Workflow coordination with clear hierarchy
+- Research/analysis tasks requiring multiple experts
+- Content creation workflows
+- Customer support routing
+- Multi-step workflows
+
+**Don't use Orchestrator when:**
+- Flat peer structure with equal agents
+- Direct communication without mediation
+- Resource management is required
+- Distributed network across multiple machines
+
+### When to Use Hybrid (Node + Orchestrator)
+**Use Hybrid when you need:**
+- Enterprise-scale systems with multiple teams
+- Distributed teams with local coordination
+- Resource-aware task execution
+- Complex distributed workflows
+- Maximum scalability and flexibility
+- Edge computing with central coordination
+- Multi-location with specialized teams
+
+**Decision Matrix:**
+| Scenario | Node | Orchestrator | Hybrid |
+|----------|------|--------------|--------|
+| Single machine, simple tasks | ❌ | ✅ | ❌ |
+| Multiple machines, no coordination | ✅ | ❌ | ❌ |
+| Single machine, complex workflows | ❌ | ✅ | ❌ |
+| Multiple machines, complex workflows | ❌ | ❌ | ✅ |
+| Resource management needed | ✅ | ❌ | ✅ |
+| Task delegation needed | ❌ | ✅ | ✅ |
+| Geographic distribution | ✅ | ❌ | ✅ |
+| Enterprise-scale systems | ✅ | ❌ | ✅ |
+
+📖 **Full guide**: [Node vs Orchestrator](docs/node-vs-orchestrator.md) — 100+ use cases, decision matrix, and real-world examples
+
+---
+
+## 🌍 Real-World Use Cases
+
+### Distributed Research Network
+- Multiple labs across different locations
+- Each lab manages its own resources (GPU clusters, specialized hardware)
+- Labs collaborate on research projects
+- Orchestrator within each lab coordinates local tasks
+
+### Smart City Traffic Management
+- Multiple districts with local coordination
+- Each district manages traffic cameras and sensors
+- Orchestrator coordinates traffic signals within district
+- Nodes share traffic data across districts
+
+### Multi-Location Customer Support
+- Support centers in different time zones
+- 24/7 coverage across time zones
+- Each center manages its own resources
+- Orchestrator routes tickets to appropriate specialist
+
+### Autonomous Vehicle Fleet
+- Each vehicle manages its own sensors and compute
+- Orchestrator coordinates navigation decisions
+- Nodes share traffic and road condition data
+- Resource management tracks battery, compute, sensors
+
+### Distributed Content Creation
+- Multiple teams (writing, design, video)
+- Each team manages its own tools and resources
+- Orchestrator coordinates content workflow
+- Nodes share assets and drafts
+
+---
+
+## 💡 Project Ideas
+
+### Beginner Projects
+1. **Personal AI Assistant Network** — Create a node with multiple specialized assistants (calendar, email, research, coding)
+2. **Study Group Simulator** — Simulate a study group with a professor and students using Orchestrator
+
+### Intermediate Projects
+3. **Multi-Location News Network** — Create a distributed news network with editorial teams in different locations
+4. **E-commerce Support System** — Build a distributed customer support system with specialized teams
+
+### Advanced Projects
+5. **Distributed AI Research Lab** — Create a research network with multiple labs, each with specialized equipment and expertise
+6. **Smart Factory Automation** — Build an automated factory system with multiple production lines
+
+📖 **Full project ideas**: [Node vs Orchestrator](docs/node-vs-orchestrator.md) — Detailed code examples for each project
+
+---
+
+## 🔧 Core Components
+
+### Agent System
+- **ReAct Loop**: LLM reasons → picks a tool → sees result → iterates until final answer
+- **Persona System**: Configure gender, personality, and behavior traits
+- **Tool Integration**: 8+ pre-built tools with custom `@tool` decorator
+- **Memory Management**: Working, semantic, and episodic memory
+
+### Multi-Agent Coordination
+- **Orchestrator**: Main agent coordinates sub-agents for complex tasks
+- **Agent Router**: LLM-based intelligent routing for optimal agent selection
+- **Task Delegation**: Automatic task decomposition and result aggregation
+
+### Networking & Communication
+- **P2P Networking**: Direct agent-to-agent communication via HTTP
+- **Authentication**: Token-based auth with sender whitelists
+- **File Transfer**: Secure A2A file transfer with Base64 encoding
+- **Node Registry**: Decentralized agent discovery
+
+### RAG System
+- **TF-IDF Retrieval**: Simple but effective document retrieval
+- **Per-Agent Knowledge**: Each agent can have its own knowledge base
+- **Document Loading**: Support for .txt, .pdf, .md files
+
+### LLM Support
+- **Multi-Provider**: Ollama (default), OpenAI, Anthropic, Google, Azure, OpenRouter
+- **Streaming**: Library-level streaming for real-time responses
+- **Per-Agent Overrides**: Each agent can have its own temperature and max_tokens
+
+---
+
+## 📊 Performance & Scalability
+
+### Performance Ratings
+
+| Component | Rating | Notes |
+|-----------|--------|-------|
+| **Setup Time** | ⭐⭐⭐⭐⭐ | Quick to get started |
+| **Scalability** | ⭐⭐⭐⭐⭐ | Horizontal (nodes) + vertical (sub-agents) |
+| **Resource Efficiency** | ⭐⭐⭐⭐⭐ | Built-in resource tracking per node |
+| **Communication Speed** | ⭐⭐⭐⭐ | Direct P2P + A2A messaging |
+| **Fault Tolerance** | ⭐⭐⭐⭐ | Distributed + orchestrator backup |
+| **Complexity** | ⭐⭐⭐ | Moderate learning curve |
+
+### Scalability Features
+- **Horizontal Scaling**: Add nodes to increase capacity
+- **Vertical Scaling**: Add sub-agents to orchestrators
+- **Load Distribution**: Distribute work across multiple machines
+- **Resource Isolation**: Separate resources per node
+- **Geographic Distribution**: Deploy across multiple regions
+
+### Optimization Tips
+1. **Use streaming** for real-time responses
+2. **Enable RAG** for context-aware answers
+3. **Configure personas** for better agent behavior
+4. **Use AgentRouter** for intelligent task routing
+5. **Deploy nodes** close to data sources
+6. **Monitor resources** per node
+7. **Implement health checks** for node status
+
+---
+
+## 🔒 Security Features
+
+- **Authentication**: Token-based auth for agent connections
+- **Authorization**: Sender whitelists for message filtering
+- **Encryption**: Built-in encryption utilities
+- **Secure File Transfer**: Base64 encoding for A2A file transfers
+- **Resource Isolation**: Per-node resource isolation
+- **Access Control**: Per-node and per-agent access control
+
+---
+
+## 🛠️ Developer Experience
+
+### Easy Setup
+```bash
+pip install daie
+```
+
+### Simple API
+```python
+from daie import Agent, AgentConfig, set_llm
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+agent = Agent(config=AgentConfig(name="Alex", personality="helpful"))
+await agent.start()
+response = await agent.send_message("Hello!")
+```
+
+### Comprehensive Documentation
+- [Getting Started](docs/getting-started.md) — Installation and quick start
+- [Agents](docs/agents.md) — Agent creation and configuration
+- [Node vs Orchestrator](docs/node-vs-orchestrator.md) — Architecture comparison
+- [Tools](docs/tools.md) — Pre-built and custom tools
+- [Examples](examples/) — Working code examples
+
+### Testing
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test file
+pytest tests/test_agents.py
+
+# Run with coverage
+pytest --cov=src/daie tests/
 ```
 
 ---
@@ -797,7 +1102,51 @@ python examples/01_basic_chat.py
 
 ---
 
+## Current Status
+
+### ✅ Production Ready
+DAIE is a mature, production-ready framework with comprehensive features:
+
+- **Core Framework**: Fully implemented and tested
+- **Agent System**: Complete with ReAct loop, personas, and tool integration
+- **Multi-Agent Orchestration**: Orchestrator pattern for complex task coordination
+- **Intelligent Routing**: LLM-based agent selection with AgentRouter
+- **P2P Networking**: Full peer-to-peer communication with authentication
+- **RAG System**: TF-IDF based retrieval with per-agent knowledge bases
+- **Tools**: 8+ pre-built tools with custom `@tool` decorator support
+- **Memory Management**: Working, semantic, and episodic memory systems
+- **CLI**: Complete command-line interface for agent and system management
+- **Documentation**: Comprehensive docs with examples and guides
+
+### 📊 Test Coverage
+- **Unit Tests**: 20+ test files covering all major components
+- **Integration Tests**: End-to-end testing for multi-agent scenarios
+- **Example Tests**: All examples have corresponding test coverage
+
+### 🔧 Recent Improvements
+- Enhanced Node vs Orchestrator documentation with 100+ use cases
+- Added decision matrix for architecture selection
+- Expanded "When to Use" guides with detailed scenarios
+- Improved error handling and logging throughout
+
+---
+
 ## Changelog
+
+### v1.0.6 (Latest)
+- **Enhanced Documentation**: Expanded Node vs Orchestrator guide with 100+ use cases and decision matrix
+- **Comprehensive Use Cases**: Added detailed "When to Use" sections for Node, Orchestrator, and Hybrid architectures
+- **Architecture Decision Guide**: Added decision matrix comparing Node vs Orchestrator vs Hybrid across 20 scenarios
+- **Real-World Examples**: Added 40+ real-world use cases for Hybrid architecture
+- **Improved README**: Updated with current status, architecture overview, and comprehensive feature list
+
+### v1.0.5
+- **Intelligent Agent Router**: Added `AgentRouter` class for LLM-based intelligent routing that automatically selects the best agent for each message based on content analysis.
+- **Dynamic Agent Discovery**: Router automatically extracts agent capabilities from configs (name, role, system prompt, personality).
+- **Auto-generated Routing Prompts**: Creates routing prompts based on agent specialties for optimal agent selection.
+- **Routing History Tracking**: Logs all routing decisions for debugging and analysis.
+- **New Example**: Added `examples/09_intelligent_routing.py` demonstrating multi-agent routing.
+- **Documentation**: Added comprehensive AgentRouter documentation to `docs/agents.md`.
 
 ### v1.0.4
 - Generic Multi-Agent Orchestration: Replaced rigid `Classroom` with a flexible `Orchestrator` supporting any coordination context.
@@ -837,6 +1186,106 @@ python examples/01_basic_chat.py
 
 ---
 
+## 🤝 Community & Support
+
+### Getting Help
+- **Documentation**: Comprehensive docs in the [docs](docs/) folder
+- **Examples**: Working code examples in the [examples](examples/) folder
+- **Issues**: Report bugs and request features on GitHub
+- **Discussions**: Join community discussions
+
+### Contributing
+We welcome contributions! Here's how to get started:
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes** and add tests
+4. **Run tests**: `pytest tests/`
+5. **Commit your changes**: `git commit -m 'Add amazing feature'`
+6. **Push to the branch**: `git push origin feature/amazing-feature`
+7. **Open a Pull Request**
+
+### Development Setup
+```bash
+git clone https://github.com/kanishkkumarsingh2004/DAIE.git
+cd DAIE
+python -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
+pytest tests/
+```
+
+### Code Style
+- **Formatter**: Black
+- **Linter**: Flake8
+- **Type Checker**: MyPy
+- **Tests**: pytest with pytest-asyncio
+
+---
+
+## 📈 Roadmap
+
+### Upcoming Features
+- [ ] **WebSocket Support**: Real-time bidirectional communication
+- [ ] **Database Integration**: Persistent storage for agents and memory
+- [ ] **Advanced RAG**: Vector database support (FAISS, ChromaDB)
+- [ ] **Agent Marketplace**: Share and discover agent configurations
+- [ ] **Visual Workflow Builder**: Drag-and-drop workflow design
+- [ ] **Monitoring Dashboard**: Real-time agent and node monitoring
+- [ ] **Kubernetes Support**: Container orchestration for nodes
+- [ ] **GraphQL API**: Flexible API for agent management
+
+### Long-term Vision
+- **Decentralized AI Network**: Global network of AI agents
+- **Agent Economy**: Agents can offer services and earn rewards
+- **Cross-Platform**: Support for mobile, web, and IoT devices
+- **Enterprise Features**: SSO, RBAC, audit logging
+
+---
+
+## 📚 Learning Resources
+
+### Tutorials
+1. **Getting Started**: [docs/getting-started.md](docs/getting-started.md)
+2. **Building Your First Agent**: [examples/01_basic_chat.py](examples/01_basic_chat.py)
+3. **Adding Tools**: [examples/02_custom_tools.py](examples/02_custom_tools.py)
+4. **P2P Networking**: [examples/03_p2p_networking.py](examples/03_p2p_networking.py)
+5. **Multi-Agent Orchestration**: [examples/classroom_demo.py](examples/classroom_demo.py)
+
+### Architecture Guides
+- **Node vs Orchestrator**: [docs/node-vs-orchestrator.md](docs/node-vs-orchestrator.md)
+- **Agent Configuration**: [docs/agents.md](docs/agents.md)
+- **Communication**: [docs/communication.md](docs/communication.md)
+- **Memory Management**: [docs/memory.md](docs/memory.md)
+
+### Video Tutorials
+- Coming soon!
+
+---
+
+## 📊 Statistics
+
+- **Lines of Code**: 10,000+
+- **Test Files**: 20+
+- **Examples**: 10+
+- **Documentation Pages**: 15+
+- **Supported LLM Providers**: 6 (Ollama, OpenAI, Anthropic, Google, Azure, OpenRouter)
+- **Pre-built Tools**: 8+
+- **Architecture Patterns**: 3 (Node, Orchestrator, Hybrid)
+
+---
+
+## 🙏 Acknowledgments
+
+- **Ollama** for local LLM support
+- **LangChain** for inspiration
+- **FastAPI** for HTTP server
+- **Pydantic** for data validation
+- **Rich** for beautiful terminal output
+- **Typer** for CLI framework
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
@@ -844,3 +1293,11 @@ MIT — see [LICENSE](LICENSE)
 ## Author
 
 Built by **Kanishk Kumar Singh** — kanishkkumar2004@gmail.com
+
+---
+
+## ⭐ Star History
+
+If you find DAIE useful, please give it a star on GitHub! It helps others discover the project.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=kanishkkumarsingh2004/DAIE&type=Date)](https://star-history.com/#kanishkkumarsingh2004/DAIE&Date)

@@ -14,23 +14,32 @@ from daie.registry.manager import NodeRegistry
 logging.basicConfig(level=logging.ERROR)
 
 class TestP2PNetwork(unittest.IsolatedAsyncioTestCase):
+    """
+    Test P2P networking functionality.
+    
+    Network Configuration:
+    - network_url: The URL where THIS agent is hosted (others use this to reach it)
+    - network_connections: Dict of peer_id -> URL for agents THIS agent can directly reach
+    """
 
     async def asyncSetUp(self):
         # Setup sender agent
+        # network_url: The URL where THIS agent is hosted (others use this to reach it)
         config1 = AgentConfig(
             name="SenderAgent",
             role=AgentRole.GENERAL_PURPOSE,
             capabilities=["send_files"],
-            network_url="http://localhost:8000"
+            network_url="http://localhost:8000"  # This agent is hosted on localhost:8000
         )
         self.agent1 = Agent(config=config1)
         
         # Setup receiver agent
+        # network_url: The URL where THIS agent is hosted (others use this to reach it)
         config2 = AgentConfig(
             name="ReceiverAgent",
             role=AgentRole.GENERAL_PURPOSE,
             capabilities=["receive_files"],
-            network_url="http://localhost:8001",
+            network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
             allow_file_transfers=True,
             auth_token="secret-token-123"
         )
@@ -41,6 +50,7 @@ class TestP2PNetwork(unittest.IsolatedAsyncioTestCase):
         self.comm2 = CommunicationManager()
         
         # We must manually register nodes into each other's registry to simulate discovery
+        # network_url: The URL where the agent is hosted (others use this to reach it)
         self.comm1.registry.register_node(self.agent2.id, {"role": "general-purpose"}, network_url="http://localhost:8001")
         self.comm2.registry.register_node(self.agent1.id, {"role": "general-purpose"}, network_url="http://localhost:8000")
 

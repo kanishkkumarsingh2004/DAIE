@@ -9,6 +9,59 @@ DAIE provides a memory management system that allows agents to store and retriev
 - **Tag-Based Retrieval** — Retrieve memories by tags for efficient filtering
 - **Agent-Specific Memory** — Each agent has its own isolated memory space
 - **Automatic Initialization** — Memory is automatically initialized when an agent starts
+- **Multiple Storage Backends** — Choose between vector database or binary storage
+- **Semantic Search** — Vector database backend enables semantic similarity search
+
+---
+
+## Storage Backends
+
+DAIE supports two storage backends for persistent memory:
+
+### Vector Database (Recommended)
+
+Uses ChromaDB for semantic search capabilities. This is the fastest and most powerful option.
+
+**Features:**
+- Semantic search using embeddings
+- Fast retrieval with vector indexing
+- Persistent storage
+- Metadata filtering
+
+**Requirements:**
+```bash
+pip install chromadb
+```
+
+**Usage:**
+```python
+from daie.config import SystemConfig
+from daie.memory import MemoryManager
+
+config = SystemConfig(memory_storage_type="vector")
+memory_manager = MemoryManager(config=config)
+memory_manager.start()
+```
+
+### Binary File (Default)
+
+Uses Python's pickle format for fast serialization and deserialization.
+
+**Features:**
+- Fast read/write operations
+- Compact file size
+- Native Python object support
+- Simple implementation
+
+**Usage:**
+```python
+from daie.config import SystemConfig
+from daie.memory import MemoryManager
+
+config = SystemConfig(memory_storage_type="binary")
+memory_manager = MemoryManager(config=config)
+memory_manager.start()
+```
 
 ---
 
@@ -17,10 +70,11 @@ DAIE provides a memory management system that allows agents to store and retriev
 ```python
 from daie import Agent, AgentConfig, set_llm
 from daie.memory import MemoryManager
+from daie.config import SystemConfig
 
 set_llm(ollama_llm="llama3.2:latest")
 
-# Create memory manager
+# Create memory manager with binary storage (default)
 memory_manager = MemoryManager()
 memory_manager.start()
 
@@ -46,6 +100,13 @@ memories = memory_manager.retrieve_memories(
     agent_id=agent.id,
     memory_type="working",
     tags=["user_preference"]
+)
+
+# Semantic search (only with vector backend)
+similar = memory_manager.search_similar(
+    agent_id=agent.id,
+    query="user preferences",
+    limit=5
 )
 ```
 
@@ -100,9 +161,14 @@ memory_manager.store_memory(
 
 ```python
 from daie.memory import MemoryManager
+from daie.config import SystemConfig
 
-# Create memory manager
+# Create memory manager with default (binary) storage
 memory_manager = MemoryManager()
+
+# Or with specific storage type
+config = SystemConfig(memory_storage_type="vector")
+memory_manager = MemoryManager(config=config)
 
 # Start the memory manager
 memory_manager.start()
@@ -120,8 +186,11 @@ memory_manager.stop()
 | `initialize_agent_memory(agent_id)` | Initialize memory for a specific agent |
 | `store_memory(agent_id, content, memory_type, tags)` | Store a memory item |
 | `retrieve_memories(agent_id, memory_type, tags)` | Retrieve memories by type and tags |
+| `search_similar(agent_id, query, memory_type, limit)` | Semantic search for similar memories |
 | `delete_memory(agent_id, memory_id)` | Delete a specific memory |
 | `clear_agent_memory(agent_id)` | Clear all memories for an agent |
+| `get_memory_count(agent_id, memory_type)` | Get count of memory items |
+| `get_storage_info()` | Get information about storage backend |
 
 ### Storing Memories
 
@@ -157,6 +226,25 @@ memories = memory_manager.retrieve_memories(
 )
 ```
 
+### Semantic Search
+
+```python
+# Search for similar memories (vector backend only)
+similar = memory_manager.search_similar(
+    agent_id="agent-123",
+    query="user preferences",
+    memory_type="working",  # Optional: filter by type
+    limit=10
+)
+
+# Works with all backends (falls back to text matching)
+similar = memory_manager.search_similar(
+    agent_id="agent-123",
+    query="Python programming",
+    limit=5
+)
+```
+
 ---
 
 ## Memory Structure
@@ -167,13 +255,11 @@ Each memory item contains:
 @dataclass
 class MemoryItem:
     id: str                    # Unique identifier
-    agent_id: str              # Agent this memory belongs to
     content: str               # The memory content
     memory_type: str           # "working", "semantic", or "episodic"
-    tags: List[str]            # Tags for categorization
-    created_at: float          # Timestamp of creation
-    updated_at: float          # Timestamp of last update
+    timestamp: float           # Timestamp of creation
     metadata: Dict[str, Any]   # Additional metadata
+    tags: List[str]            # Tags for categorization
 ```
 
 ---
@@ -185,8 +271,11 @@ Memory is automatically integrated with agents when a `MemoryManager` is provide
 ```python
 from daie import Agent, AgentConfig
 from daie.memory import MemoryManager
+from daie.config import SystemConfig
 
-memory_manager = MemoryManager()
+# Use vector database for best performance
+config = SystemConfig(memory_storage_type="vector")
+memory_manager = MemoryManager(config=config)
 memory_manager.start()
 
 agent = Agent(config=AgentConfig(
@@ -209,25 +298,34 @@ By default, memories are stored in the `agent_memory/` directory:
 
 ```
 agent_memory/
+├── .chroma/              # Vector database files (if using vector backend)
 ├── agent-123/
-│   ├── working/
-│   │   └── memories.json
-│   ├── semantic/
-│   │   └── memories.json
-│   └── episodic/
-│       └── memories.json
+│   └── memory.pkl        # Binary file (if using binary backend)
 └── agent-456/
     └── ...
 ```
 
 ---
 
+## Performance Comparison
+
+| Backend | Write Speed | Read Speed | File Size | Semantic Search |
+|---------|-------------|------------|-----------|-----------------|
+| Vector | Fast | Very Fast | Medium | ✅ Yes |
+| Binary | Very Fast | Very Fast | Small | ❌ No (text matching) |
+
+**Recommendation:** Use `vector` backend for production systems requiring semantic search capabilities. Use `binary` for simple, fast storage without semantic search needs.
+
+---
+
 ## Best Practices
 
-1. **Use Tags Effectively** — Tags help organize and retrieve memories efficiently
-2. **Choose Appropriate Memory Types** — Use working memory for temporary context, semantic for facts, episodic for events
-3. **Regular Cleanup** — Clear old working memories to prevent clutter
-4. **Meaningful Content** — Store concise, meaningful content for better retrieval
+1. **Use Vector Backend** — For production systems, use the vector database backend for semantic search capabilities
+2. **Use Tags Effectively** — Tags help organize and retrieve memories efficiently
+3. **Choose Appropriate Memory Types** — Use working memory for temporary context, semantic for facts, episodic for events
+4. **Regular Cleanup** — Clear old working memories to prevent clutter
+5. **Meaningful Content** — Store concise, meaningful content for better retrieval
+6. **Install Dependencies** — Install ChromaDB for vector backend: `pip install chromadb`
 
 ---
 

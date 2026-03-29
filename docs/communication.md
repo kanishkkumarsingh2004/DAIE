@@ -58,15 +58,16 @@ comm = CommunicationManager()
 await comm.start()
 
 # Create agents
+# network_url: The URL where THIS agent is hosted (others use this to reach it)
 agent1 = Agent(config=AgentConfig(
     name="NodeAlfa",
-    network_url="http://localhost:8000",
+    network_url="http://localhost:8000",  # This agent is hosted on localhost:8000
 ))
 await agent1.start(communication_manager=comm)
 
 agent2 = Agent(config=AgentConfig(
     name="NodeBravo",
-    network_url="http://localhost:8001",
+    network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
 ))
 await agent2.start(communication_manager=comm)
 ```

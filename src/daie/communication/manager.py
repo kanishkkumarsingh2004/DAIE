@@ -114,12 +114,20 @@ class CommunicationManager:
         )
         
         # Register Agent capabilities and network config to NodeRegistry
+        # network_url: The URL where THIS agent is hosted (others use this to reach it)
+        # network_connections: Dict of peer_id -> URL for agents THIS agent can directly reach
         network_url = getattr(agent.config, 'network_url', None)
+        network_connections = getattr(agent.config, 'network_connections', {})
         capabilities = {
             "role": getattr(agent.role, 'value', str(agent.role)) if hasattr(agent, 'role') else "unknown",
             "tools": agent.config.capabilities,
         }
-        self.registry.register_node(agent.id, capabilities, network_url=network_url)
+        self.registry.register_node(
+            agent.id, 
+            capabilities, 
+            network_url=network_url,
+            network_connections=network_connections
+        )
 
         return self
 
@@ -252,7 +260,7 @@ class CommunicationManager:
             return False
 
     async def _send_message_internal(self, message: AgentMessage):
-        """Internal message sending implementation"""
+        """Internal message sending implementation with routing support"""
         # For development and testing, use a simple in-memory communication
         if not hasattr(self, "_inbox"):
             self._inbox = {}
@@ -276,13 +284,57 @@ class CommunicationManager:
             await receiver._handle_message(message)
         else:
             # Try to dispatch over the network via P2P HTTP
-            node = self.registry.get_node(message.receiver_id)
-            if node and node.get("network_url"):
-                network_url = node["network_url"]
+            # First check if sender has direct connection to receiver
+            sender_node = self.registry.get_node(message.sender_id)
+            receiver_node = self.registry.get_node(message.receiver_id)
+            
+            if not receiver_node:
+                logger.warning(f"Receiver agent {message.receiver_id} not found in registry.")
+                return
+            
+            # Check for direct connection
+            direct_url = None
+            if sender_node:
+                sender_connections = sender_node.get("network_connections", {})
+                if message.receiver_id in sender_connections:
+                    direct_url = sender_connections[message.receiver_id]
+            
+            if direct_url:
+                # Direct connection exists
+                logger.info(f"Sending message directly to {message.receiver_id} at {direct_url}")
+                asyncio.create_task(self._send_remote_message(message, direct_url))
+            elif receiver_node.get("network_url"):
+                # Try direct URL from receiver node
+                network_url = receiver_node["network_url"]
                 logger.info(f"Routing message to remote agent {message.receiver_id} at {network_url}")
                 asyncio.create_task(self._send_remote_message(message, network_url))
             else:
-                logger.warning(f"Receiver agent {message.receiver_id} not found locally or in registry.")
+                # Try to find a route through intermediate nodes
+                route = self.registry.find_route(message.sender_id, message.receiver_id)
+                if route and len(route) > 1:
+                    # Route through intermediate node
+                    next_hop = route[1]  # First hop after sender
+                    next_hop_node = self.registry.get_node(next_hop)
+                    if next_hop_node:
+                        # Get URL for next hop
+                        next_hop_url = None
+                        if sender_node:
+                            sender_connections = sender_node.get("network_connections", {})
+                            next_hop_url = sender_connections.get(next_hop)
+                        
+                        if not next_hop_url:
+                            next_hop_url = next_hop_node.get("network_url")
+                        
+                        if next_hop_url:
+                            logger.info(f"Routing message to {message.receiver_id} via intermediate node {next_hop} at {next_hop_url}")
+                            # Add routing metadata
+                            message.metadata["route"] = route
+                            message.metadata["final_destination"] = message.receiver_id
+                            message.receiver_id = next_hop  # Send to next hop
+                            asyncio.create_task(self._send_remote_message(message, next_hop_url))
+                            return
+                
+                logger.warning(f"No route found to receiver agent {message.receiver_id}")
                 
     async def _send_remote_message(self, message: AgentMessage, network_url: str):
         try:
@@ -347,12 +399,25 @@ class CommunicationManager:
         return count
 
     def _handle_message(self, agent_id: str, message: AgentMessage):
-        """Handle incoming messages"""
+        """Handle incoming messages with routing support"""
         if agent_id not in self._agents:
             logger.warning(f"Received message for unknown agent: {agent_id}")
             return
 
         try:
+            # Check if this message is being routed through this node
+            final_destination = message.metadata.get("final_destination")
+            if final_destination and final_destination != agent_id:
+                # This message needs to be forwarded to final destination
+                logger.info(f"Forwarding message from {message.sender_id} to final destination {final_destination} via {agent_id}")
+                # Update receiver_id to final destination and send
+                message.receiver_id = final_destination
+                # Remove routing metadata to prevent loops
+                message.metadata.pop("final_destination", None)
+                message.metadata.pop("route", None)
+                asyncio.create_task(self.send_message(message))
+                return
+            
             agent = self._agents[agent_id]
             asyncio.create_task(agent._handle_message(message))
         except Exception as e:
@@ -467,6 +532,71 @@ class CommunicationManager:
             "total_peers": len(self._peers),
             "message_handlers": len(self._message_handlers),
         }
+
+    def get_network_topology(self) -> Dict[str, any]:
+        """
+        Get the complete network topology showing all nodes and their connections.
+        
+        Returns:
+            Dictionary containing nodes and their connections
+        """
+        return self.registry.get_network_topology()
+
+    def find_route(self, from_agent: str, to_agent: str) -> Optional[List[str]]:
+        """
+        Find a route between two agents through the network.
+        
+        Args:
+            from_agent: Starting agent ID
+            to_agent: Destination agent ID
+            
+        Returns:
+            List of agent IDs forming the route, or None if no route exists
+        """
+        return self.registry.find_route(from_agent, to_agent)
+
+    def get_connected_peers(self, agent_id: str) -> Dict[str, str]:
+        """
+        Get all peers directly connected to an agent.
+        
+        Args:
+            agent_id: Agent ID to get connections for
+            
+        Returns:
+            Dictionary of peer_id -> network_url for connected peers
+        """
+        return self.registry.get_connected_peers(agent_id)
+
+    def setup_bidirectional_connection(self, agent_a_id: str, agent_b_id: str, 
+                                      url_a: str, url_b: str) -> bool:
+        """
+        Setup bidirectional connection between two agents.
+        
+        Args:
+            agent_a_id: First agent ID
+            agent_b_id: Second agent ID
+            url_a: Network URL for agent A
+            url_b: Network URL for agent B
+            
+        Returns:
+            True if connection setup successfully
+        """
+        # Update agent A's connections to include B
+        node_a = self.registry.get_node(agent_a_id)
+        if node_a:
+            connections_a = node_a.get("network_connections", {})
+            connections_a[agent_b_id] = url_b
+            self.registry.update_connections(agent_a_id, connections_a)
+        
+        # Update agent B's connections to include A
+        node_b = self.registry.get_node(agent_b_id)
+        if node_b:
+            connections_b = node_b.get("network_connections", {})
+            connections_b[agent_a_id] = url_a
+            self.registry.update_connections(agent_b_id, connections_b)
+        
+        logger.info(f"Setup bidirectional connection between {agent_a_id} and {agent_b_id}")
+        return True
 
     def receive_messages(self, agent_id: str) -> List[AgentMessage]:
         """

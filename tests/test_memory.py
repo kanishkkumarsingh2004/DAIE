@@ -24,11 +24,16 @@ This test file validates the memory management system in the Decentralized AI Ec
    - Counting memories by type
    - Memory persistence across sessions
 
+5. **Storage Backends**: Different storage options
+   - Binary file storage (pickle) - Primary
+   - Vector database storage (ChromaDB) - Optional
+
 These tests ensure that agents can effectively manage their memories, enabling them to learn from experiences, recall information, and maintain context across interactions in the decentralized environment.
 """
 
 import pytest
-from unittest.mock import Mock, patch
+import tempfile
+import shutil
 from daie.memory.manager import MemoryManager, MemoryItem
 from daie.config import SystemConfig
 
@@ -37,22 +42,31 @@ class TestMemoryManager:
     """Tests for MemoryManager class."""
 
     @pytest.fixture
-    def memory_manager(self):
-        """Create a new memory manager instance with in-memory storage for each test."""
+    def temp_dir(self):
+        """Create a temporary directory for tests."""
+        temp_dir = tempfile.mkdtemp()
+        yield temp_dir
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    @pytest.fixture
+    def memory_manager(self, temp_dir):
+        """Create a new memory manager instance with binary storage for each test."""
         config = SystemConfig()
-        config.memory_storage_type = "in-memory"
+        config.memory_storage_type = "binary"
+        config.memory_root_path = temp_dir
         manager = MemoryManager(config=config)
         manager.start()
         return manager
 
     def test_memory_manager_creation(self, mock_logger, memory_manager):
-        """Test memory manager creation."""
+        """Test memory manager creation with binary storage."""
         assert memory_manager is not None
         assert memory_manager.is_initialized is True
         assert hasattr(memory_manager, "_agent_memories")
+        assert memory_manager.config.memory_storage_type == "binary"
 
     def test_memory_manager_agent_memory_operations(self, mock_logger, memory_manager):
-        """Test agent memory initialization, storage, and retrieval."""
+        """Test agent memory initialization, storage, and retrieval with binary storage."""
         # Initialize agent memory
         memory_manager.initialize_agent_memory("agent1")
         assert "agent1" in memory_manager._agent_memories
@@ -79,7 +93,7 @@ class TestMemoryManager:
         assert memories[0].metadata == {"key": "value"}
 
     def test_memory_manager_retrieve_filtered(self, mock_logger, memory_manager):
-        """Test retrieving memories with filters."""
+        """Test retrieving memories with filters using binary storage."""
         memory_manager.initialize_agent_memory("agent1")
 
         # Store different types of memories
@@ -109,7 +123,7 @@ class TestMemoryManager:
         assert len(limited_memories) == 1
 
     def test_memory_manager_clear_memory(self, mock_logger, memory_manager):
-        """Test clearing agent memory."""
+        """Test clearing agent memory with binary storage."""
         memory_manager.initialize_agent_memory("agent1")
         memory_manager.store_memory("agent1", "Test content", "working")
 
@@ -119,7 +133,7 @@ class TestMemoryManager:
         assert memory_manager.get_memory_count("agent1") == 0
 
     def test_memory_manager_count_operations(self, mock_logger, memory_manager):
-        """Test memory count operations."""
+        """Test memory count operations with binary storage."""
         memory_manager.initialize_agent_memory("agent1")
         memory_manager.store_memory("agent1", "Memory 1", "working")
         memory_manager.store_memory("agent1", "Memory 2", "working")
@@ -130,10 +144,11 @@ class TestMemoryManager:
         assert memory_manager.get_memory_count("agent1", "semantic") == 1
         assert memory_manager.get_memory_count("agent1", "episodic") == 0
 
-    def test_memory_manager_stop_start(self, mock_logger):
-        """Test memory manager start and stop operations."""
+    def test_memory_manager_stop_start(self, mock_logger, temp_dir):
+        """Test memory manager start and stop operations with binary storage."""
         config = SystemConfig()
-        config.memory_storage_type = "in-memory"
+        config.memory_storage_type = "binary"
+        config.memory_root_path = temp_dir
         manager = MemoryManager(config=config)
 
         manager.start()
@@ -141,6 +156,58 @@ class TestMemoryManager:
 
         manager.stop()
         assert manager.is_initialized is False
+
+    def test_memory_persistence(self, mock_logger, temp_dir):
+        """Test memory persistence across sessions with binary storage."""
+        # First session
+        config1 = SystemConfig()
+        config1.memory_storage_type = "binary"
+        config1.memory_root_path = temp_dir
+        manager1 = MemoryManager(config=config1)
+        manager1.start()
+        
+        manager1.initialize_agent_memory("agent1")
+        manager1.store_memory("agent1", "Persistent memory", "working", tags=["test"])
+        manager1.stop()
+
+        # Second session - should load from disk
+        config2 = SystemConfig()
+        config2.memory_storage_type = "binary"
+        config2.memory_root_path = temp_dir
+        manager2 = MemoryManager(config=config2)
+        manager2.start()
+        
+        memories = manager2.retrieve_memories("agent1")
+        assert len(memories) == 1
+        assert memories[0].content == "Persistent memory"
+        manager2.stop()
+
+    def test_search_similar(self, mock_logger, memory_manager):
+        """Test search_similar with binary storage (text matching fallback)."""
+        memory_manager.initialize_agent_memory("agent1")
+        
+        memory_manager.store_memory(
+            "agent1", "Python programming language", "semantic", tags=["programming"]
+        )
+        memory_manager.store_memory(
+            "agent1", "Java programming language", "semantic", tags=["programming"]
+        )
+        memory_manager.store_memory(
+            "agent1", "Cooking recipes", "semantic", tags=["cooking"]
+        )
+
+        # Search for programming-related memories
+        results = memory_manager.search_similar("agent1", "programming")
+        assert len(results) >= 2
+
+    def test_get_storage_info(self, mock_logger, memory_manager):
+        """Test get_storage_info with binary storage."""
+        info = memory_manager.get_storage_info()
+        assert info["storage_type"] == "binary"
+        assert info["is_initialized"] is True
+        assert "root_path" in info
+        assert "agent_count" in info
+        assert "total_memories" in info
 
 
 if __name__ == "__main__":

@@ -1,18 +1,26 @@
 """
 Memory manager for agent memory management
+
+This module provides the MemoryManager class for managing agent memory
+with support for multiple storage backends including vector database,
+binary files, and JSON files.
 """
 
 import logging
 import os
-import json
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-# UUID v7 implementation (time-ordered UUID)
-import uuid
 import time
 import random
+import uuid
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
+
 from daie.config import SystemConfig
-from daie.utils.logger import ensure_directory_exists
+from daie.memory.storage import (
+    StorageBackend,
+    MemoryItem,
+    create_storage_backend,
+    VectorDatabaseStorage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,43 +56,39 @@ def uuid7() -> uuid.UUID:
     return uuid.UUID(bytes=bytes(uuid_bytes))
 
 
-@dataclass
-class MemoryItem:
-    """Memory item structure"""
-
-    id: str
-    content: str
-    memory_type: str
-    timestamp: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    tags: List[str] = field(default_factory=list)
-
-
 class MemoryManager:
     """
     Memory manager for handling agent memory
-
+    
     This class manages the memory system for agents, providing persistent
     storage for knowledge, experiences, and context. It supports different
     types of memory including working memory, semantic memory, and episodic
     memory.
-
+    
+    Storage backends:
+    - "vector": Uses ChromaDB for semantic search capabilities (recommended)
+    - "binary": Uses pickle for fast binary serialization
+    - "json": Uses JSON files (human-readable, slower)
+    
     Example:
     >>> from daie.memory import MemoryManager
     >>> from daie.config import SystemConfig
-
-    >>> # Create memory manager
-    >>> config = SystemConfig()
+    
+    >>> # Create memory manager with vector database
+    >>> config = SystemConfig(memory_storage_type="vector")
     >>> memory_manager = MemoryManager(config=config)
-
+    
     >>> # Initialize agent memory
     >>> memory_manager.initialize_agent_memory("agent1")
-
+    
     >>> # Store memory
     >>> memory_manager.store_memory("agent1", "Test content", "working", tags=["test"])
-
+    
     >>> # Retrieve memories
     >>> memories = memory_manager.retrieve_memories("agent1", "working")
+    
+    >>> # Semantic search (only with vector backend)
+    >>> similar = memory_manager.search_similar("agent1", "test query")
     """
 
     def __init__(self, config: Optional[SystemConfig] = None):
@@ -97,10 +101,17 @@ class MemoryManager:
         self.config = config or SystemConfig()
         self._is_initialized = False
         self._agent_memories: Dict[str, Dict[str, List[MemoryItem]]] = {}
-        self._storage = None
-        self._root_path = ensure_directory_exists(self.config.memory_root_path)
-
-        logger.info("Memory manager initialized with storage path: %s", self._root_path)
+        self._storage: Optional[StorageBackend] = None
+        self._root_path = self.config.memory_root_path
+        
+        # Ensure root directory exists
+        os.makedirs(self._root_path, exist_ok=True)
+        
+        logger.info(
+            "Memory manager initialized with storage type: %s at path: %s",
+            self.config.memory_storage_type,
+            self._root_path
+        )
 
     @property
     def is_initialized(self) -> bool:
@@ -110,7 +121,7 @@ class MemoryManager:
     def start(self) -> None:
         """
         Start memory manager
-
+        
         This method initializes the memory system and connects to storage.
         """
         if self._is_initialized:
@@ -120,14 +131,16 @@ class MemoryManager:
         logger.info("Starting memory manager...")
 
         try:
-            # Initialize storage
-            self._initialize_storage()
+            # Initialize storage backend
+            self._storage = create_storage_backend(self.config.memory_storage_type)
+            self._storage.initialize(self._root_path)
 
             # Load existing agent memories
             self._load_agent_memories()
 
             self._is_initialized = True
-            logger.info("Memory manager started successfully")
+            logger.info("Memory manager started successfully with %s backend", 
+                       self.config.memory_storage_type)
 
         except Exception as e:
             logger.error(f"Failed to start memory manager: {e}")
@@ -139,95 +152,55 @@ class MemoryManager:
             logger.warning("Memory manager already stopped")
             return
 
-        # Save all agent memories to file system
+        # Save all agent memories to storage
         for agent_id in self._agent_memories:
             self._save_agent_memory(agent_id)
 
         self._is_initialized = False
         logger.info("Memory manager stopped")
 
-    def _initialize_storage(self):
-        """Initialize storage system based on configuration"""
-        if self.config.memory_storage_type == "file":
-            logger.info("Using file system storage at: %s", self._root_path)
-        elif self.config.memory_storage_type == "in-memory":
-            logger.info("Using in-memory storage (non-persistent)")
-        else:
-            logger.warning(
-                "Unsupported storage type: %s, using file system instead",
-                self.config.memory_storage_type,
-            )
-            self.config.memory_storage_type = "file"
-
-    def _get_agent_directory(self, agent_id: str) -> str:
-        """Get the directory for a specific agent's memory"""
-        agent_dir = os.path.join(self._root_path, agent_id)
-        ensure_directory_exists(agent_dir)
-        return agent_dir
-
     def _load_agent_memory(self, agent_id: str):
-        """Load agent memory from file system"""
-        if self.config.memory_storage_type != "file":
+        """Load agent memory from storage"""
+        if not self._storage:
             return
 
-        agent_dir = self._get_agent_directory(agent_id)
-        memory_file = os.path.join(agent_dir, "memory.json")
-
-        if os.path.exists(memory_file):
-            try:
-                with open(memory_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self._agent_memories[agent_id] = {}
-                    for memory_type, items in data.items():
-                        self._agent_memories[agent_id][memory_type] = [
-                            MemoryItem(**item) for item in items
-                        ]
-                logger.debug(
-                    "Loaded memory for agent %s: %d items",
-                    agent_id,
-                    sum(
-                        len(items) for items in self._agent_memories[agent_id].values()
-                    ),
-                )
-            except Exception as e:
-                logger.error(f"Failed to load memory for agent {agent_id}: {e}")
-                self._agent_memories[agent_id] = {}
-        else:
-            self._agent_memories[agent_id] = {}
+        try:
+            self._agent_memories[agent_id] = self._storage.load_agent_memory(agent_id)
+            
+            total_items = sum(
+                len(items) for items in self._agent_memories[agent_id].values()
+            )
+            logger.debug(
+                "Loaded memory for agent %s: %d items",
+                agent_id,
+                total_items,
+            )
+        except Exception as e:
+            logger.error(f"Failed to load memory for agent {agent_id}: {e}")
+            self._agent_memories[agent_id] = {
+                "working": [],
+                "semantic": [],
+                "episodic": [],
+            }
 
     def _save_agent_memory(self, agent_id: str):
-        """Save agent memory to file system"""
-        if self.config.memory_storage_type != "file":
+        """Save agent memory to storage"""
+        if not self._storage:
             return
 
         if agent_id not in self._agent_memories:
             return
 
-        agent_dir = self._get_agent_directory(agent_id)
-        memory_file = os.path.join(agent_dir, "memory.json")
-
         try:
-            data = {}
-            for memory_type, items in self._agent_memories[agent_id].items():
-                data[memory_type] = [
-                    {
-                        "id": item.id,
-                        "content": item.content,
-                        "memory_type": item.memory_type,
-                        "timestamp": item.timestamp,
-                        "metadata": item.metadata,
-                        "tags": item.tags,
-                    }
-                    for item in items
-                ]
-
-            with open(memory_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-
+            self._storage.save_agent_memory(agent_id, self._agent_memories[agent_id])
+            
+            total_items = sum(
+                len(items) for items in self._agent_memories[agent_id].values()
+            )
             logger.debug(
                 "Saved memory for agent %s: %d items",
                 agent_id,
-                sum(len(items) for items in self._agent_memories[agent_id].values()),
+                total_items,
             )
         except Exception as e:
             logger.error(f"Failed to save memory for agent {agent_id}: {e}")
@@ -237,17 +210,18 @@ class MemoryManager:
         logger.debug("Loading agent memories from storage...")
         self._agent_memories = {}
 
-        if self.config.memory_storage_type == "file":
-            try:
-                # List all directories in the root path
-                for agent_dir in os.listdir(self._root_path):
-                    agent_dir_path = os.path.join(self._root_path, agent_dir)
-                    if os.path.isdir(agent_dir_path):
-                        self._load_agent_memory(agent_dir)
-                logger.debug("Loaded memories for %d agents", len(self._agent_memories))
-            except Exception as e:
-                logger.error(f"Failed to load agent memories: {e}")
-                self._agent_memories = {}
+        if not self._storage:
+            return
+
+        try:
+            agent_ids = self._storage.list_agents()
+            for agent_id in agent_ids:
+                self._load_agent_memory(agent_id)
+            
+            logger.debug("Loaded memories for %d agents", len(self._agent_memories))
+        except Exception as e:
+            logger.error(f"Failed to load agent memories: {e}")
+            self._agent_memories = {}
 
     def initialize_agent_memory(self, agent_id: str) -> "MemoryManager":
         """
@@ -323,7 +297,7 @@ class MemoryManager:
         content_preview = str(content)[:50] if content else ""
         logger.debug(f"Memory stored for agent {agent_id}: {content_preview}...")
 
-        # Save to persistent storage (async would be better but keeping sync for compatibility)
+        # Save to persistent storage
         self._save_agent_memory(agent_id)
 
         return memory_item.id
@@ -369,6 +343,65 @@ class MemoryManager:
         all_memories.sort(key=lambda x: x.timestamp, reverse=True)
         return all_memories[:limit]
 
+    def search_similar(
+        self,
+        agent_id: str,
+        query: str,
+        memory_type: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[MemoryItem]:
+        """
+        Search for similar memories using semantic search
+        
+        This method is only available when using the vector database backend.
+        For other backends, it falls back to tag-based retrieval.
+
+        Args:
+            agent_id: Agent ID
+            query: Search query
+            memory_type: Optional memory type filter
+            limit: Maximum number of results
+
+        Returns:
+            List of similar memory items
+        """
+        if not self._is_initialized:
+            logger.warning("Memory manager not initialized")
+            return []
+
+        # Use vector search if available
+        if isinstance(self._storage, VectorDatabaseStorage):
+            try:
+                return self._storage.search_similar(
+                    agent_id, query, memory_type, limit
+                )
+            except Exception as e:
+                logger.error(f"Vector search failed: {e}")
+                return []
+        
+        # Fallback: search in memory using simple text matching
+        if agent_id not in self._agent_memories:
+            return []
+
+        all_memories = []
+        if memory_type:
+            if memory_type in self._agent_memories[agent_id]:
+                all_memories.extend(self._agent_memories[agent_id][memory_type])
+        else:
+            for memories in self._agent_memories[agent_id].values():
+                all_memories.extend(memories)
+
+        # Simple text matching
+        query_lower = query.lower()
+        matching = [
+            item for item in all_memories
+            if query_lower in item.content.lower()
+        ]
+
+        # Sort by timestamp (newest first)
+        matching.sort(key=lambda x: x.timestamp, reverse=True)
+        return matching[:limit]
+
     def clear_agent_memory(self, agent_id: str) -> None:
         """
         Clear all memory for an agent
@@ -379,17 +412,12 @@ class MemoryManager:
         if agent_id in self._agent_memories:
             del self._agent_memories[agent_id]
 
-            if self.config.memory_storage_type == "file":
-                agent_dir = self._get_agent_directory(agent_id)
-                memory_file = os.path.join(agent_dir, "memory.json")
-                if os.path.exists(memory_file):
-                    try:
-                        os.remove(memory_file)
-                        logger.debug(f"Cleared memory for agent: {agent_id}")
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to clear memory for agent {agent_id}: {e}"
-                        )
+        if self._storage:
+            try:
+                self._storage.delete_agent_memory(agent_id)
+                logger.debug(f"Cleared memory for agent: {agent_id}")
+            except Exception as e:
+                logger.error(f"Failed to clear memory for agent {agent_id}: {e}")
 
     def get_memory_count(self, agent_id: str, memory_type: Optional[str] = None) -> int:
         """
@@ -413,3 +441,21 @@ class MemoryManager:
             return sum(
                 len(memories) for memories in self._agent_memories[agent_id].values()
             )
+
+    def get_storage_info(self) -> Dict[str, Any]:
+        """
+        Get information about the storage backend
+
+        Returns:
+            Dictionary with storage information
+        """
+        return {
+            "storage_type": self.config.memory_storage_type,
+            "root_path": self._root_path,
+            "is_initialized": self._is_initialized,
+            "agent_count": len(self._agent_memories),
+            "total_memories": sum(
+                self.get_memory_count(agent_id)
+                for agent_id in self._agent_memories
+            ),
+        }

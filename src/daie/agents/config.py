@@ -82,7 +82,27 @@ class AgentConfig:
     """Optional authentication token for receiving messages."""
 
     network_url: Optional[str] = None
-    """Base URL for over-the-network P2P communication (e.g., https://my-devtunnel.example.com)."""
+    """Base URL for over-the-network P2P communication (e.g., https://my-devtunnel.example.com).
+    
+    This is the URL where THIS agent is hosted. Other agents use this URL to send messages to this agent.
+    Examples:
+    - Local: "http://localhost:8000"
+    - LAN: "http://192.168.1.100:8000"
+    - Internet: "https://abc123.devtunnels.ms:8000"
+    """
+
+    network_connections: Dict[str, str] = field(default_factory=dict)
+    """Dictionary of peer_id -> network_url for bidirectional connections.
+    
+    These are the URLs of OTHER agents that THIS agent can directly communicate with.
+    Example: {"agent_b_id": "http://localhost:8001", "agent_c_id": "http://localhost:8002"}
+    
+    This allows the agent to know which peers it can directly communicate with without routing.
+    Used for:
+    - Direct P2P communication
+    - Message routing optimization
+    - Network topology awareness
+    """
 
     allow_file_transfers: bool = False
     """Whether to allow incoming file transfers via A2A over the network."""

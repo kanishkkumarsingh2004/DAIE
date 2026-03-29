@@ -4,6 +4,7 @@ Core system components for the Decentralized AI Library
 
 from daie.core.system import DecentralizedAISystem
 from daie.core.node import Node
+from daie.core.hybrid import HybridOrchestratorNode, MultiNodeHybridSystem
 from daie.core.llm_manager import (
     LLMManager,
     LLMConfig,
@@ -17,6 +18,8 @@ from daie.core.llm_manager import (
 __all__ = [
     "DecentralizedAISystem",
     "Node",
+    "HybridOrchestratorNode",
+    "MultiNodeHybridSystem",
     "LLMManager",
     "LLMConfig",
     "LLMType",

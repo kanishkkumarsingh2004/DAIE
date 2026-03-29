@@ -36,6 +36,9 @@ An **Orchestrator** is a coordination pattern where a main agent delegates tasks
 ### Hybrid (Node + Orchestrator)
 A **Hybrid** approach combines both Node and Orchestrator architectures, allowing you to build distributed systems with both infrastructure management and workflow coordination. This is the most powerful and flexible approach for enterprise-scale multi-agent systems.
 
+### HybridOrchestratorNode
+A **HybridOrchestratorNode** is a simplified wrapper that combines Node and Orchestrator into a single, easy-to-use class. It handles the complexity of wiring together infrastructure management (Node) with workflow coordination (Orchestrator), providing a batteries-included approach for hybrid architectures. Use this when you want the benefits of hybrid without the boilerplate code.
+
 ---
 
 ## Architecture Comparison
@@ -526,6 +529,261 @@ research_node.stop()
 analysis_node.stop()
 comm.stop()
 ```
+
+---
+
+## HybridOrchestratorNode: Simple Hybrid Setup
+
+The manual approach above gives you full control, but requires significant boilerplate code. For a simpler, batteries-included experience, use the **`HybridOrchestratorNode`** class.
+
+### What is HybridOrchestratorNode?
+
+`HybridOrchestratorNode` is a high-level abstraction that automatically combines Node and Orchestrator architectures into a single, easy-to-use class. It handles all the wiring for you:
+
+- ✅ **Automatic Node creation** — Creates and manages the Node internally
+- ✅ **Automatic Orchestrator setup** — Wires up the Orchestrator with your agents
+- ✅ **Built-in CommunicationManager** — No need to create and manage separately
+- ✅ **Optional intelligent routing** — Can enable AgentRouter for LLM-based message routing
+- ✅ **Resource management** — Built-in GPU, memory, and custom resource tracking
+- ✅ **Simple API** — Just set agents and call `start()`
+
+### Architecture: HybridOrchestratorNode
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                HybridOrchestratorNode                       │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                    ORCHESTRATOR                     │    │
+│  │  ┌─────────────┐                                    │    │
+│  │  │ Main Agent  │ (Coordinator)                      │    │
+│  │  └─────────────┘                                    │    │
+│  │         │                                           │    │
+│  │         ├─────────────────┬─────────────────┐       │    │
+│  │         ▼                 ▼                 ▼       │    │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │    │
+│  │  │ Sub-Agent 1 │  │ Sub-Agent 2 │  │ Sub-Agent N │  │    │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                          │                                  │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              NODE (Infrastructure Layer)            │    │
+│  │  • Resource management (GPU, memory, etc.)          │    │
+│  │  • Agent hosting                                    │    │
+│  │  • P2P connections to other nodes                   │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                          │                                  │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │         CommunicationManager (P2P + A2A)            │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                          │                                  │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │         AgentRouter (Optional, LLM-based)           │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Quick Start: Single Hybrid Node
+
+```python
+from daie import Agent, AgentConfig, set_llm
+from daie.agents import AgentRole
+from daie.core.hybrid import HybridOrchestratorNode
+
+# Configure LLM
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+# Create hybrid system (one line!)
+hybrid = HybridOrchestratorNode(
+    node_id="research-lab",
+    node_name="AI Research Lab",
+    context_name="Research Lab",
+    main_role="Professor",
+    sub_role="Researcher",
+    enable_router=True,  # Enable intelligent routing
+    resources={
+        "gpu_count": 4,
+        "memory_gb": 32,
+        "model_cache": {"llama3.2": True}
+    }
+)
+
+# Set main agent (orchestrator)
+professor = Agent(config=AgentConfig(
+    name="Professor",
+    role=AgentRole.COORDINATOR,
+    system_prompt="You coordinate research projects."
+))
+hybrid.set_main_agent(professor)
+
+# Add sub-agents
+researcher = Agent(config=AgentConfig(
+    name="Researcher",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You conduct research and gather information."
+))
+hybrid.add_sub_agent(researcher)
+
+analyst = Agent(config=AgentConfig(
+    name="Analyst",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You analyze data and identify trends."
+))
+hybrid.add_sub_agent(analyst)
+
+# Start and use
+await hybrid.start()
+
+# Execute task via orchestrator
+result = await hybrid.execute_task("Research AI trends")
+
+# Or route message to best agent (if router enabled)
+response = await hybrid.route_message("Analyze market data")
+
+# Or get collaborative response from all agents
+collab = await hybrid.execute_collaborative_task("Research and analyze AI trends")
+
+# Check status
+status = hybrid.get_status()
+print(f"Node: {status['node_name']}, Agents: {status['total_agents']}")
+
+# Cleanup
+await hybrid.stop()
+```
+
+### Multi-Node Hybrid System
+
+For distributed systems with multiple hybrid nodes, use `MultiNodeHybridSystem`:
+
+```python
+from daie import Agent, AgentConfig, set_llm
+from daie.agents import AgentRole
+from daie.core.hybrid import MultiNodeHybridSystem
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+# Create multi-node system
+system = MultiNodeHybridSystem()
+
+# Create research lab node
+research_node = system.create_node(
+    node_id="research-lab",
+    node_name="Research Lab",
+    context_name="Research Lab"
+)
+
+# Configure research team
+professor = Agent(config=AgentConfig(
+    name="Professor",
+    role=AgentRole.COORDINATOR,
+    system_prompt="You coordinate research projects."
+))
+research_node.set_main_agent(professor)
+
+researcher = Agent(config=AgentConfig(
+    name="Researcher",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You conduct research."
+))
+research_node.add_sub_agent(researcher)
+
+# Create content creation node
+content_node = system.create_node(
+    node_id="content-creation",
+    node_name="Content Creation",
+    context_name="Content Creation"
+)
+
+# Configure content team
+editor = Agent(config=AgentConfig(
+    name="Editor",
+    role=AgentRole.COORDINATOR,
+    system_prompt="You coordinate content creation."
+))
+content_node.set_main_agent(editor)
+
+writer = Agent(config=AgentConfig(
+    name="Writer",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You write clear content."
+))
+content_node.add_sub_agent(writer)
+
+# Connect nodes for P2P communication
+system.connect_nodes("research-lab", "content-creation")
+
+# Start all nodes
+await system.start_all()
+
+# Execute task on specific node
+result = await system.execute_task("research-lab", "Research AI trends")
+
+# Broadcast task to all nodes
+results = await system.broadcast_task("Analyze market impact")
+
+# Check system status
+status = system.get_system_status()
+print(f"Total nodes: {status['total_nodes']}")
+
+# Cleanup
+await system.stop_all()
+```
+
+### HybridOrchestratorNode API Reference
+
+#### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `node_id` | `str` | Required | Unique identifier for the node |
+| `node_name` | `str` | `"Hybrid Node"` | Display name for the node |
+| `context_name` | `str` | `"Hybrid System"` | Name of the orchestration context |
+| `main_role` | `str` | `"Coordinator"` | Role name for the main agent |
+| `sub_role` | `str` | `"Specialist"` | Role name for sub-agents |
+| `enable_router` | `bool` | `True` | Enable intelligent AgentRouter |
+| `comm_manager` | `CommunicationManager` | `None` | Optional communication manager |
+| `resources` | `Dict[str, Any]` | `None` | Initial node resources |
+
+#### Key Methods
+
+| Method | Description |
+|--------|-------------|
+| `set_main_agent(agent)` | Set the main agent (orchestrator) |
+| `add_sub_agent(agent)` | Add a sub-agent to the system |
+| `add_resource(name, value)` | Add a resource to the node |
+| `connect_to_node(peer_node_id)` | Connect to another node |
+| `start()` | Start the hybrid system |
+| `execute_task(task)` | Execute task via orchestrator |
+| `route_message(message)` | Route message to best agent |
+| `execute_collaborative_task(task)` | Get response from all agents |
+| `get_status()` | Get system status |
+| `stop()` | Stop the hybrid system |
+
+### Comparison: Manual vs HybridOrchestratorNode
+
+| Aspect | Manual Approach | HybridOrchestratorNode |
+|--------|----------------|------------------------|
+| **Setup Complexity** | High (50+ lines) | Low (10-15 lines) |
+| **Boilerplate** | Significant | Minimal |
+| **Control** | Full | Full (same API) |
+| **Flexibility** | Maximum | High |
+| **Learning Curve** | Steeper | Gentler |
+| **Best For** | Custom architectures | Standard hybrid setups |
+
+### When to Use HybridOrchestratorNode
+
+✅ **Use HybridOrchestratorNode when:**
+- You want a quick, simple hybrid setup
+- You need standard Node + Orchestrator integration
+- You want built-in resource management
+- You prefer less boilerplate code
+- You're building a standard multi-agent system
+
+❌ **Use manual approach when:**
+- You need custom Node/Orchestrator configurations
+- You want to mix multiple Orchestrators on one Node
+- You need fine-grained control over component lifecycle
+- You're building a highly specialized architecture
 
 ---
 

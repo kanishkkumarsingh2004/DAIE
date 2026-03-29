@@ -148,6 +148,7 @@ For detailed documentation, see the [docs](docs/) folder:
 - **Node Architecture**: Distributed infrastructure for multi-location systems
 - **Orchestrator Pattern**: Hierarchical workflow coordination for complex tasks
 - **Hybrid Architecture**: Combine Node + Orchestrator for enterprise-scale systems
+- **HybridOrchestratorNode**: Simplified hybrid setup combining Node + Orchestrator in one class
 - **Agent Router**: LLM-based intelligent routing for optimal agent selection
 
 ### 🛠️ Developer Tools
@@ -967,6 +968,7 @@ python examples/01_basic_chat.py
 
 ### Multi-Agent Coordination
 - **Orchestrator**: Main agent coordinates sub-agents for complex tasks
+- **HybridOrchestratorNode**: Simplified hybrid setup combining Node + Orchestrator in one class
 - **Agent Router**: LLM-based intelligent routing for optimal agent selection
 - **Task Delegation**: Automatic task decomposition and result aggregation
 

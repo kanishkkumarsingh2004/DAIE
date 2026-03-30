@@ -2,11 +2,10 @@
 Common utility functions
 """
 
-import uuid
 import re
 import time
-from typing import Optional, Any
-
+from typing import Any
+from daie.memory.manager import uuid7
 
 def generate_id() -> str:
     """
@@ -15,7 +14,7 @@ def generate_id() -> str:
     Returns:
         Unique ID string
     """
-    return str(uuid.uuid4())
+    return str(uuid7())
 
 
 def validate_email(email: str) -> bool:

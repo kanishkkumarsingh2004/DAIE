@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 
 try:
     import uvicorn
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
     from typing import List
+    import json
 
     from daie.core.system import DecentralizedAISystem
     from daie.config import SystemConfig
@@ -169,48 +170,75 @@ try:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    from fastapi import Request
     from daie.agents.message import AgentMessage
     
-    @app.post("/api/v1/a2a/message")
-    async def receive_a2a_message(request: Request):
-        if not system:
-            raise HTTPException(status_code=500, detail="System not initialized")
-            
-        data = await request.json()
-        receiver_id = data.get("receiver_id")
+    @app.websocket("/ws/a2a/message")
+    async def websocket_a2a_message(websocket: WebSocket):
+        await websocket.accept()
+        logger.info("WebSocket connection established for A2A messaging")
         
-        agent = system.get_agent(receiver_id)
-        if not agent:
-            raise HTTPException(status_code=404, detail="Receiver agent not found")
-            
-        # Auth check
-        expected_token = getattr(agent.config, 'auth_token', None)
-        if expected_token:
-            auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
-                raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
-            
-            token = auth_header.split(" ")[1]
-            if token != expected_token:
-                raise HTTPException(status_code=401, detail="Unauthorized: Invalid token")
-                
-        if not hasattr(agent, 'communication_manager') or not agent.communication_manager:
-            raise HTTPException(status_code=500, detail="Agent CommunicationManager not active")
-            
-        message = AgentMessage(
-            sender_id=data.get("sender_id", ""),
-            receiver_id=data.get("receiver_id", ""),
-            content=data.get("content", ""),
-            message_type=data.get("message_type", "text"),
-            metadata=data.get("metadata", {})
-        )
-        
-        # Inject the message into the agent's queue directly (or via communication manager)
-        import asyncio
-        asyncio.create_task(agent._handle_message(message))
-        
-        return {"status": "Message delivered"}
+        try:
+            while True:
+                try:
+                    # Receive message from WebSocket
+                    data = await websocket.receive_text()
+                    message_data = json.loads(data)
+                    
+                    receiver_id = message_data.get("receiver_id")
+                    
+                    if not system:
+                        await websocket.send_text(json.dumps({"error": "System not initialized"}))
+                        continue
+                    
+                    agent = system.get_agent(receiver_id)
+                    if not agent:
+                        await websocket.send_text(json.dumps({"error": "Receiver agent not found"}))
+                        continue
+                        
+                    # Auth check via message metadata
+                    expected_token = getattr(agent.config, 'auth_token', None)
+                    if expected_token:
+                        auth_token = message_data.get("auth_token", "")
+                        if auth_token != expected_token:
+                            await websocket.send_text(json.dumps({"error": "Unauthorized: Invalid token"}))
+                            continue
+                        
+                    if not hasattr(agent, 'communication_manager') or not agent.communication_manager:
+                        await websocket.send_text(json.dumps({"error": "Agent CommunicationManager not active"}))
+                        continue
+                        
+                    message = AgentMessage(
+                        sender_id=message_data.get("sender_id", ""),
+                        receiver_id=message_data.get("receiver_id", ""),
+                        content=message_data.get("content", ""),
+                        message_type=message_data.get("message_type", "text"),
+                        metadata=message_data.get("metadata", {})
+                    )
+                    
+                    # Inject the message into the agent's queue directly (or via communication manager)
+                    import asyncio
+                    task = asyncio.create_task(agent._handle_message(message))
+                    # Add error handling for the background task
+                    task.add_done_callback(lambda t: t.exception() if t.done() and not t.cancelled() else None)
+                    
+                    # Send acknowledgment
+                    await websocket.send_text(json.dumps({"status": "Message delivered"}))
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON received: {e}")
+                    await websocket.send_text(json.dumps({"error": "Invalid JSON format"}))
+                except Exception as e:
+                    logger.error(f"Error processing message: {e}")
+                    await websocket.send_text(json.dumps({"error": f"Internal server error: {str(e)}"}))
+                    
+        except WebSocketDisconnect:
+            logger.info("WebSocket connection closed")
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+        finally:
+            try:
+                await websocket.close()
+            except Exception as close_error:
+                logger.debug(f"Error closing WebSocket: {close_error}")
 
     def start_server(host: str = "0.0.0.0", port: int = 3333, reload: bool = False):
         """Start the central core server"""

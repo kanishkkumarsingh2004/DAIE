@@ -65,7 +65,7 @@
 │                            ▼                                │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │              COMMUNICATION MANAGER                  │    │
-│  │  • P2P networking  • HTTP messaging  • Auth         │    │
+│  │  • P2P networking  • WebSocket Support  • Auth      │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                            │                                │
 │                            ▼                                │
@@ -108,7 +108,8 @@
 - **Camera & audio** — optional OpenCV camera capture and PyAudio microphone/speaker support
 
 ### 🌐 Networking & Communication
-- **P2P networking** — agents communicate across machines via HTTP with authentication & authorization
+- **P2P networking** — agents communicate across machines via WebSocket with authentication & authorization
+- **WebSocket Support** — Real-time bidirectional communication
 - **Multi-provider LLM** — Ollama (default), OpenAI, Anthropic, Google, Azure, OpenRouter
 
 ### 🛠️ Developer Tools
@@ -348,7 +349,7 @@ async def main():
     agent1 = Agent(config=AgentConfig(
         name="NodeAlfa",
         role=AgentRole.GENERAL_PURPOSE,
-        network_url="http://localhost:8000",
+        network_url="ws://localhost:8000",
     ))
     await agent1.start(communication_manager=comm)
 
@@ -356,7 +357,7 @@ async def main():
     agent2 = Agent(config=AgentConfig(
         name="NodeBravo",
         role=AgentRole.GENERAL_PURPOSE,
-        network_url="http://localhost:8001",
+        network_url="ws://localhost:8001",
         auth_token="secure_token_123",
         allow_file_transfers=True,
     ))
@@ -499,7 +500,7 @@ config = AgentConfig(
     task_timeout=30,       # seconds before execute_task times out
 
     # P2P Networking
-    network_url="http://your-ip-or-devtunnel:8000",
+    network_url="ws://your-ip-or-devtunnel:8000",
     auth_token="secure_secret_here",
     allow_file_transfers=True,
     allowed_senders=["agent-id-1", "agent-id-2"],   # whitelist (empty = allow all)
@@ -634,7 +635,7 @@ result = await agent.execute_task("What is 12 * 34?")
 DAIE supports multi-agent communication via its `CommunicationManager`. Agents can:
 
 - **Discover peers** via the built-in `NodeRegistry`
-- **Send direct messages** between agents (in-process or via HTTP for remote agents)
+- **Send direct messages** between agents (in-process or via WebSocket for remote agents)
 - **Transfer files** securely using Base64 encoding with the `A2ASendFileTool`
 - **Authorize senders** with `allowed_senders` whitelists
 - **Authenticate connections** with `auth_token`
@@ -650,7 +651,7 @@ await comm.start()
 
 config = AgentConfig(
     name="NetworkWorker",
-    network_url="http://<your-public-ip-or-devtunnel>:8000",
+    network_url="ws://<your-public-ip-or-devtunnel>:8000",
     auth_token="secure_cross_machine_token123",
     allow_file_transfers=True
 )
@@ -780,7 +781,7 @@ src/daie/
 │                   APICallTool, HTTPGetTool, HTTPPostTool, SeleniumChromeTool, ToolRegistry,
 │                   A2ASendFileTool, A2ASendMessageTool, A2ADelegateTaskTool
 ├── utils/          AudioManager, CameraManager, encryption, logging, serialization
-├── communication/  CommunicationManager (in-memory + HTTP P2P)
+├── communication/  CommunicationManager (in-memory + WebSocket P2P)
 ├── registry/       NodeRegistry (decentralized agent discovery)
 ├── memory/         MemoryManager (working, semantic, episodic)
 ├── protocols/      Protocol definitions (ACP - Agent Connect Protocol)
@@ -973,7 +974,7 @@ python examples/01_basic_chat.py
 - **Task Delegation**: Automatic task decomposition and result aggregation
 
 ### Networking & Communication
-- **P2P Networking**: Direct agent-to-agent communication via HTTP
+- **P2P Networking**: Direct agent-to-agent communication via WebSocket
 - **Authentication**: Token-based auth with sender whitelists
 - **File Transfer**: Secure A2A file transfer with Base64 encoding
 - **Node Registry**: Decentralized agent discovery
@@ -1131,63 +1132,6 @@ DAIE is a mature, production-ready framework with comprehensive features:
 - Expanded "When to Use" guides with detailed scenarios
 - Improved error handling and logging throughout
 
----
-
-## Changelog
-
-### v1.0.6 (Latest)
-- **Enhanced Documentation**: Expanded Node vs Orchestrator guide with 100+ use cases and decision matrix
-- **Comprehensive Use Cases**: Added detailed "When to Use" sections for Node, Orchestrator, and Hybrid architectures
-- **Architecture Decision Guide**: Added decision matrix comparing Node vs Orchestrator vs Hybrid across 20 scenarios
-- **Real-World Examples**: Added 40+ real-world use cases for Hybrid architecture
-- **Improved README**: Updated with current status, architecture overview, and comprehensive feature list
-
-### v1.0.5
-- **Intelligent Agent Router**: Added `AgentRouter` class for LLM-based intelligent routing that automatically selects the best agent for each message based on content analysis.
-- **Dynamic Agent Discovery**: Router automatically extracts agent capabilities from configs (name, role, system prompt, personality).
-- **Auto-generated Routing Prompts**: Creates routing prompts based on agent specialties for optimal agent selection.
-- **Routing History Tracking**: Logs all routing decisions for debugging and analysis.
-- **New Example**: Added `examples/09_intelligent_routing.py` demonstrating multi-agent routing.
-- **Documentation**: Added comprehensive AgentRouter documentation to `docs/agents.md`.
-
-### v1.0.4
-- Generic Multi-Agent Orchestration: Replaced rigid `Classroom` with a flexible `Orchestrator` supporting any coordination context.
-- Decentralized RAG: Enabled unique `rag_document_path` per agent, allowing specialized knowledge bases within the same system.
-- Vision Support: Integrated `images` parameter in `LLMManager` for Ollama models (e.g. `qwen3-vl:2b`).
-- New Example: Added `examples/05_vision_chat.py` for real-time camera-based AI chat.
-- Smart Delegation: Orchestrator now injects sub-agent goals into the coordinator's system prompt for intelligent task routing.
-- Agent Persona system: configurable `gender`, `personality`, and `behavior` traits dynamically injected into LLM prompts for both chat and ReAct tool loops.
-- Per-agent LLM overrides: `temperature` and `max_tokens` from `AgentConfig` are now passed into every `invoke()` call, allowing multiple agents with different settings on the same global LLM.
-- Increased Ollama HTTP timeouts (to 300s) to support massive local models (e.g. `wizard-vicuna-uncensored:7b`).
-- Fixed silent crash bugs during HTTP streaming with proper error reporting.
-- Rewrote `examples/03_p2p_networking.py` to correctly demonstrate in-process multi-agent messaging, authorization, and file transfer.
-- Added graceful `Ctrl+C` handling in `examples/01_basic_chat.py`.
-
-### v1.0.3
-- Networked P2P Architecture using `httpx` and `fastapi` for robust peer-to-peer Agent interaction.
-- Support for cross-machine `A2ASendFileTool` with built-in Base64 security blocking uninvited file transfers.
-- `AgentConfig` enhancements providing decentralized node discovery support with DevTunnel and manual IPs.
-- Configurable authentication tokens (`auth_token`) for incoming connections.
-
-### v1.0.2
-- ReAct-style tool-use loop in `execute_task()` — LLM reasons and picks tools autonomously
-- Token streaming via `set_llm(stream=True)` — library-level, no per-call config needed
-- Compact tool schema in system prompt — works with small models like `gemma3:1b`
-- Fixed `camera.py` — added missing `numpy` import, added `CV2_AVAILABLE` guards
-- Fixed `tools/__init__.py` — lazy selenium imports, no crash without browser extras
-- Fixed `pyproject.toml` — only actually-used packages in core dependencies
-
-### v1.0.1
-- HTTP session pooling for LLM calls
-- Lazy task queue initialization
-- Configurable task timeouts
-- Optional selenium/fastapi imports
-
-### v1.0.0
-- Initial release
-
----
-
 ## 🤝 Community & Support
 
 ### Getting Help
@@ -1222,26 +1166,6 @@ pytest tests/
 - **Linter**: Flake8
 - **Type Checker**: MyPy
 - **Tests**: pytest with pytest-asyncio
-
----
-
-## 📈 Roadmap
-
-### Upcoming Features
-- [ ] **WebSocket Support**: Real-time bidirectional communication
-- [ ] **Database Integration**: Persistent storage for agents and memory
-- [ ] **Advanced RAG**: Vector database support (FAISS, ChromaDB)
-- [ ] **Agent Marketplace**: Share and discover agent configurations
-- [ ] **Visual Workflow Builder**: Drag-and-drop workflow design
-- [ ] **Monitoring Dashboard**: Real-time agent and node monitoring
-- [ ] **Kubernetes Support**: Container orchestration for nodes
-- [ ] **GraphQL API**: Flexible API for agent management
-
-### Long-term Vision
-- **Decentralized AI Network**: Global network of AI agents
-- **Agent Economy**: Agents can offer services and earn rewards
-- **Cross-Platform**: Support for mobile, web, and IoT devices
-- **Enterprise Features**: SSO, RBAC, audit logging
 
 ---
 

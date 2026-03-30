@@ -117,7 +117,7 @@ class A2ADelegateTaskTool(Tool):
         )
 
         # Create a future to wait for the response
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         future = loop.create_future()
         self._agent_ref._pending_responses[correlation_id] = future
 

@@ -80,9 +80,52 @@ async def test_auth():
     
     comm.stop()
 
+async def test_mdns_discovery():
+    print("\n--- Testing mDNS Discovery ---")
+    registry = NodeRegistry("test_registry.json", enable_mdns=True, enable_dht=False)
+    
+    # Register agent with network URL
+    registry.register_node(
+        "agent_mdns",
+        {"role": "test", "skills": ["mdns"]},
+        network_url="http://localhost:8000"
+    )
+    
+    # Discover via mDNS
+    discovered = registry.discover_agents_mdns(timeout=1.0)
+    print(f"Discovered via mDNS: {[a['agent_id'] for a in discovered]}")
+    
+    # Cleanup
+    registry.cleanup()
+    print("mDNS discovery test completed.")
+
+async def test_dht_discovery():
+    print("\n--- Testing DHT Discovery ---")
+    registry = NodeRegistry("test_registry.json", enable_mdns=False, enable_dht=True, dht_port=8469)
+    
+    # Register agent with network URL
+    registry.register_node(
+        "agent_dht",
+        {"role": "test", "skills": ["dht"]},
+        network_url="http://localhost:8001"
+    )
+    
+    # Wait for DHT propagation
+    await asyncio.sleep(1.0)
+    
+    # Discover via DHT
+    discovered = await registry.discover_agents_dht(["agent_dht"])
+    print(f"Discovered via DHT: {[a['agent_id'] for a in discovered]}")
+    
+    # Cleanup
+    registry.cleanup()
+    print("DHT discovery test completed.")
+
 async def main():
     await test_registry()
     await test_auth()
+    await test_mdns_discovery()
+    await test_dht_discovery()
     import os
     if os.path.exists("test_registry.json"):
         os.remove("test_registry.json")

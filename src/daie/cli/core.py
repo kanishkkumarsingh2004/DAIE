@@ -47,10 +47,12 @@ def read_pid():
         try:
             with open(pid_file, "r") as f:
                 pid = int(f.read().strip())
-            # Check if process is actually running
-            if os.path.exists(f"/proc/{pid}"):
+            # Check if process is actually running (cross-platform)
+            try:
+                import signal
+                os.kill(pid, 0)  # Signal 0 checks if process exists
                 return pid
-            else:
+            except (OSError, ProcessLookupError):
                 # PID file exists but process doesn't, clean it up
                 pid_file.unlink()
         except Exception:
@@ -249,45 +251,75 @@ def stop_core(
         console.print("[bold red]Force stopping...[/bold red]")
 
     try:
-        # Try graceful shutdown first
-        os.kill(pid, signal.SIGTERM)
+        # Try graceful shutdown first (cross-platform)
+        import platform
+        import subprocess
+        
+        if platform.system() == "Windows":
+            # Windows: Use taskkill for graceful shutdown
+            subprocess.run(
+                ["taskkill", "/PID", str(pid)],
+                capture_output=True,
+                timeout=5
+            )
+        else:
+            # Unix: Use SIGTERM
+            os.kill(pid, signal.SIGTERM)
 
         console.print("[bold blue]Initiating shutdown...[/bold blue]")
 
-        # Wait for process to terminate
+        # Wait for process to terminate (cross-platform)
         import time
 
         max_wait = 10
         wait_time = 0
         while wait_time < max_wait:
-            if not os.path.exists(f"/proc/{pid}"):
+            try:
+                os.kill(pid, 0)  # Check if process exists
+            except (OSError, ProcessLookupError):
                 break
             time.sleep(0.5)
             wait_time += 0.5
 
-        if os.path.exists(f"/proc/{pid}") and force:
-            console.print("[bold red]Process did not terminate, force killing...[/bold red]")
-            os.kill(pid, signal.SIGKILL)
-            time.sleep(1)
+        try:
+            os.kill(pid, 0)  # Check if process still exists
+            if force:
+                console.print("[bold red]Process did not terminate, force killing...[/bold red]")
+                if platform.system() == "Windows":
+                    # Windows: Use taskkill /F for force kill
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", str(pid)],
+                        capture_output=True,
+                        timeout=5
+                    )
+                else:
+                    # Unix: Use SIGKILL
+                    os.kill(pid, signal.SIGKILL)
+                time.sleep(1)
+                try:
+                    os.kill(pid, 0)
+                    # Process still exists after force kill
+                    console.print(
+                        Panel(
+                            "[bold red]Error:[/bold red] Failed to stop central core system",
+                            title="[red]❌ Shutdown Failed[/red]",
+                            border_style="red",
+                        )
+                    )
+                    raise typer.Exit(code=1)
+                except (OSError, ProcessLookupError):
+                    pass
+        except (OSError, ProcessLookupError):
+            pass
 
-        if not os.path.exists(f"/proc/{pid}"):
-            remove_pid_file()
-            console.print(
-                Panel(
-                    "[bold green]Central core system stopped successfully[/bold green]",
-                    title="[green]✅ Shutdown Complete[/green]",
-                    border_style="green",
-                )
+        remove_pid_file()
+        console.print(
+            Panel(
+                "[bold green]Central core system stopped successfully[/bold green]",
+                title="[green]✅ Shutdown Complete[/green]",
+                border_style="green",
             )
-        else:
-            console.print(
-                Panel(
-                    "[bold red]Error:[/bold red] Failed to stop central core system",
-                    title="[red]❌ Shutdown Failed[/red]",
-                    border_style="red",
-                )
-            )
-            raise typer.Exit(code=1)
+        )
 
     except Exception as e:
         console.print(
@@ -298,7 +330,9 @@ def stop_core(
             )
         )
         # Clean up PID file if process doesn't exist
-        if not os.path.exists(f"/proc/{pid}"):
+        try:
+            os.kill(pid, 0)
+        except (OSError, ProcessLookupError):
             remove_pid_file()
         raise typer.Exit(code=1)
 

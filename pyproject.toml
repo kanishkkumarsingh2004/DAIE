@@ -36,10 +36,13 @@ dependencies = [
     "selenium>=4.18.0",
     "webdriver-manager>=4.0.0",
     "uvicorn>=0.40.0",
+    "websockets>=12.0",
     "nats-py>=2.6.0",
     "numpy>=2.0.0",
     "opencv-python>=4.8.0",
     "pyaudio>=0.2.14",
+    "zeroconf>=0.130.0",
+    "kademlia>=2.0.0",
 ]
 
 [project.optional-dependencies]

@@ -26,34 +26,42 @@ logger = logging.getLogger(__name__)
 
 
 def uuid7() -> uuid.UUID:
-    """Generate a UUID v7 (time-ordered UUID)"""
-    # Get current timestamp in milliseconds
-    timestamp_ms = int(time.time() * 1000)
+    """Generate a UUID v7 (time-ordered UUID)
     
-    # Generate random bytes for the rest
-    random_bytes = random.randbytes(10)
+    UUID v7 format:
+    - 48 bits: timestamp in milliseconds
+    - 4 bits: version (0111 for v7)
+    - 12 bits: random
+    - 2 bits: variant (10)
+    - 62 bits: random
     
-    # Construct UUID v7:
-    # - 48 bits: timestamp in milliseconds
-    # - 4 bits: version (0111 for v7)
-    # - 12 bits: random
-    # - 2 bits: variant (10)
-    # - 62 bits: random
-    
-    # Convert timestamp to 6 bytes (48 bits)
-    timestamp_bytes = timestamp_ms.to_bytes(6, byteorder='big')
-    
-    # Combine with random bytes
-    uuid_bytes = timestamp_bytes + random_bytes
-    
-    # Set version bits (bits 4-7 of byte 6 to 0111)
-    uuid_bytes = bytearray(uuid_bytes)
-    uuid_bytes[6] = (uuid_bytes[6] & 0x0F) | 0x70  # Version 7
-    
-    # Set variant bits (bits 6-7 of byte 8 to 10)
-    uuid_bytes[8] = (uuid_bytes[8] & 0x3F) | 0x80  # Variant 10
-    
-    return uuid.UUID(bytes=bytes(uuid_bytes))
+    Returns:
+        UUID v7 instance
+    """
+    try:
+        # Get current timestamp in milliseconds
+        timestamp_ms = int(time.time() * 1000)
+        
+        # Generate random bytes using os.urandom for cryptographic randomness
+        random_bytes = os.urandom(10)
+        
+        # Convert timestamp to 6 bytes (48 bits)
+        timestamp_bytes = timestamp_ms.to_bytes(6, byteorder='big')
+        
+        # Combine with random bytes
+        uuid_bytes = bytearray(timestamp_bytes + random_bytes)
+        
+        # Set version bits (bits 4-7 of byte 6 to 0111)
+        uuid_bytes[6] = (uuid_bytes[6] & 0x0F) | 0x70  # Version 7
+        
+        # Set variant bits (bits 6-7 of byte 8 to 10)
+        uuid_bytes[8] = (uuid_bytes[8] & 0x3F) | 0x80  # Variant 10
+        
+        return uuid.UUID(bytes=bytes(uuid_bytes))
+    except Exception as e:
+        logger.error(f"Failed to generate UUID v7: {e}")
+        # Fallback to UUID v4 if v7 generation fails
+        return uuid.uuid4()
 
 
 class MemoryManager:

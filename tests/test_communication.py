@@ -149,6 +149,173 @@ class TestCommunicationManager:
         peers = manager.get_peers()
         assert len(peers) == 1
 
+    @pytest.mark.asyncio
+    async def test_communication_manager_encryption(self, mock_logger):
+        """Test end-to-end encryption for messages."""
+        config = SystemConfig()
+        config.enable_e2e_encryption = True
+        manager = CommunicationManager(config=config)
+
+        await manager.start()
+
+        # Register agents
+        agent1 = MagicMock()
+        agent1.id = "agent1"
+        agent1.name = "Agent 1"
+        agent1.config = MagicMock()
+        agent1.config.allowed_senders = []
+        agent1._handle_message = MagicMock()
+
+        agent2 = MagicMock()
+        agent2.id = "agent2"
+        agent2.name = "Agent 2"
+        agent2.config = MagicMock()
+        agent2.config.allowed_senders = []
+        agent2._handle_message = MagicMock()
+
+        manager.register_agent(agent1)
+        manager.register_agent(agent2)
+
+        # Send encrypted message
+        message = AgentMessage(
+            sender_id="agent1",
+            receiver_id="agent2",
+            content="Secret message",
+            message_type="text",
+        )
+
+        success = await manager.send_message(message)
+        assert success is True
+
+        # Verify message was encrypted
+        assert message.metadata.get("encrypted") is True
+
+    @pytest.mark.asyncio
+    async def test_communication_manager_audit_logging(self, mock_logger):
+        """Test audit logging for A2A communications."""
+        config = SystemConfig()
+        config.enable_audit_logging = True
+        manager = CommunicationManager(config=config)
+
+        await manager.start()
+
+        # Register agents
+        agent1 = MagicMock()
+        agent1.id = "agent1"
+        agent1.name = "Agent 1"
+        agent1.config = MagicMock()
+        agent1.config.allowed_senders = []
+        agent1._handle_message = MagicMock()
+
+        agent2 = MagicMock()
+        agent2.id = "agent2"
+        agent2.name = "Agent 2"
+        agent2.config = MagicMock()
+        agent2.config.allowed_senders = []
+        agent2._handle_message = MagicMock()
+
+        manager.register_agent(agent1)
+        manager.register_agent(agent2)
+
+        # Send message and verify audit log
+        message = AgentMessage(
+            sender_id="agent1",
+            receiver_id="agent2",
+            content="Test message",
+            message_type="text",
+        )
+
+        success = await manager.send_message(message)
+        assert success is True
+
+    @pytest.mark.asyncio
+    async def test_communication_manager_rate_limiting(self, mock_logger):
+        """Test rate limiting for A2A communications."""
+        config = SystemConfig()
+        config.enable_rate_limiting = True
+        config.rate_limit_window = 1  # 1 second window
+        config.rate_limit_max_messages = 2  # Max 2 messages per window
+        manager = CommunicationManager(config=config)
+
+        await manager.start()
+
+        # Register agents
+        agent1 = MagicMock()
+        agent1.id = "agent1"
+        agent1.name = "Agent 1"
+        agent1.config = MagicMock()
+        agent1.config.allowed_senders = []
+        agent1._handle_message = MagicMock()
+
+        agent2 = MagicMock()
+        agent2.id = "agent2"
+        agent2.name = "Agent 2"
+        agent2.config = MagicMock()
+        agent2.config.allowed_senders = []
+        agent2._handle_message = MagicMock()
+
+        manager.register_agent(agent1)
+        manager.register_agent(agent2)
+
+        # Send messages up to rate limit
+        for i in range(2):
+            message = AgentMessage(
+                sender_id="agent1",
+                receiver_id="agent2",
+                content=f"Message {i}",
+                message_type="text",
+            )
+            success = await manager.send_message(message)
+            assert success is True
+
+        # Third message should be rate limited
+        message = AgentMessage(
+            sender_id="agent1",
+            receiver_id="agent2",
+            content="Rate limited message",
+            message_type="text",
+        )
+        success = await manager.send_message(message)
+        assert success is False
+
+    @pytest.mark.asyncio
+    async def test_communication_manager_rate_limiting_disabled(self, mock_logger):
+        """Test rate limiting when disabled."""
+        config = SystemConfig()
+        config.enable_rate_limiting = False
+        manager = CommunicationManager(config=config)
+
+        await manager.start()
+
+        # Register agents
+        agent1 = MagicMock()
+        agent1.id = "agent1"
+        agent1.name = "Agent 1"
+        agent1.config = MagicMock()
+        agent1.config.allowed_senders = []
+        agent1._handle_message = MagicMock()
+
+        agent2 = MagicMock()
+        agent2.id = "agent2"
+        agent2.name = "Agent 2"
+        agent2.config = MagicMock()
+        agent2.config.allowed_senders = []
+        agent2._handle_message = MagicMock()
+
+        manager.register_agent(agent1)
+        manager.register_agent(agent2)
+
+        # Send many messages - should all succeed when rate limiting is disabled
+        for i in range(10):
+            message = AgentMessage(
+                sender_id="agent1",
+                receiver_id="agent2",
+                content=f"Message {i}",
+                message_type="text",
+            )
+            success = await manager.send_message(message)
+            assert success is True
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

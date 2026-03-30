@@ -4,17 +4,24 @@ Communication manager for agent communication
 
 import asyncio
 import logging
+import json
+import time
 from typing import Dict, List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass, field
+from collections import defaultdict
 
 from daie.config import SystemConfig
 from daie.agents.message import AgentMessage
 from daie.registry.manager import NodeRegistry
+from daie.utils.encryption import generate_encryption_key, encrypt_data, decrypt_data
 
 if TYPE_CHECKING:
     from daie.agents import Agent
 
 logger = logging.getLogger(__name__)
+
+# Audit logger for A2A communications
+audit_logger = logging.getLogger("daie.audit")
 
 
 @dataclass
@@ -78,6 +85,20 @@ class CommunicationManager:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         
         self.registry = NodeRegistry()
+        
+        # End-to-end encryption support
+        self._encryption_keys: Dict[str, bytes] = {}  # agent_id -> encryption key
+        self._enable_encryption = getattr(config, 'enable_e2e_encryption', True)
+        
+        # Audit logging
+        self._enable_audit_logging = getattr(config, 'enable_audit_logging', True)
+        self._audit_log_file = getattr(config, 'audit_log_file', None)
+        
+        # Rate limiting
+        self._enable_rate_limiting = getattr(config, 'enable_rate_limiting', True)
+        self._rate_limit_window = getattr(config, 'rate_limit_window', 60)  # seconds
+        self._rate_limit_max_messages = getattr(config, 'rate_limit_max_messages', 100)
+        self._message_counts: Dict[str, List[float]] = defaultdict(list)  # agent_id -> list of timestamps
 
         logger.info("Communication manager initialized")
 
@@ -246,6 +267,19 @@ class CommunicationManager:
                 f"Sending message from {message.sender_id} to {message.receiver_id}"
             )
 
+            # Rate limiting check
+            if self._enable_rate_limiting and not self._check_rate_limit(message.sender_id):
+                logger.warning(f"Rate limit exceeded for agent {message.sender_id}")
+                self._audit_log("RATE_LIMIT_EXCEEDED", message, "Rate limit exceeded")
+                return False
+
+            # Encrypt message content if encryption is enabled
+            if self._enable_encryption and message.receiver_id != "*":
+                message = self._encrypt_message(message)
+
+            # Audit log for message send
+            self._audit_log("MESSAGE_SEND", message)
+
             # Handle broadcast messages
             if message.receiver_id == "*":
                 await self.broadcast_message(message)
@@ -257,11 +291,149 @@ class CommunicationManager:
 
         except Exception as e:
             logger.error(f"Error sending message: {e}")
+            self._audit_log("MESSAGE_SEND_ERROR", message, str(e))
             return False
+
+    def _encrypt_message(self, message: AgentMessage) -> AgentMessage:
+        """
+        Encrypt message content for end-to-end encryption
+
+        Args:
+            message: Message to encrypt
+
+        Returns:
+            Encrypted message
+        """
+        try:
+            # Get or generate encryption key for receiver
+            if message.receiver_id not in self._encryption_keys:
+                self._encryption_keys[message.receiver_id] = generate_encryption_key()
+            
+            key = self._encryption_keys[message.receiver_id]
+            
+            # Encrypt message content
+            encrypted_content = encrypt_data(message.content, key)
+            
+            # Create encrypted message
+            encrypted_msg = AgentMessage(
+                id=message.id,
+                sender_id=message.sender_id,
+                receiver_id=message.receiver_id,
+                content=encrypted_content,
+                message_type=message.message_type,
+                timestamp=message.timestamp,
+                metadata={
+                    **message.metadata,
+                    "encrypted": True,
+                    "encryption_key_id": message.receiver_id
+                }
+            )
+            
+            return encrypted_msg
+        except Exception as e:
+            logger.error(f"Encryption failed: {e}")
+            return message
+
+    def _decrypt_message(self, message: AgentMessage) -> AgentMessage:
+        """
+        Decrypt message content for end-to-end encryption
+
+        Args:
+            message: Message to decrypt
+
+        Returns:
+            Decrypted message
+        """
+        try:
+            # Check if message is encrypted
+            if not message.metadata.get("encrypted", False):
+                return message
+            
+            key_id = message.metadata.get("encryption_key_id")
+            if not key_id or key_id not in self._encryption_keys:
+                logger.warning(f"No decryption key found for message {message.id}")
+                return message
+            
+            key = self._encryption_keys[key_id]
+            
+            # Decrypt message content
+            decrypted_content = decrypt_data(message.content, key)
+            
+            # Create decrypted message
+            decrypted_msg = AgentMessage(
+                id=message.id,
+                sender_id=message.sender_id,
+                receiver_id=message.receiver_id,
+                content=decrypted_content,
+                message_type=message.message_type,
+                timestamp=message.timestamp,
+                metadata={k: v for k, v in message.metadata.items() if k not in ["encrypted", "encryption_key_id"]}
+            )
+            
+            return decrypted_msg
+        except Exception as e:
+            logger.error(f"Decryption failed: {e}")
+            return message
+
+    def _audit_log(self, event_type: str, message: AgentMessage, details: str = ""):
+        """
+        Log audit event for A2A communication
+
+        Args:
+            event_type: Type of event (e.g., MESSAGE_SEND, MESSAGE_RECEIVE)
+            message: Related message
+            details: Additional details
+        """
+        if not self._enable_audit_logging:
+            return
+        
+        try:
+            audit_entry = {
+                "timestamp": time.time(),
+                "event_type": event_type,
+                "message_id": message.id,
+                "sender_id": message.sender_id,
+                "receiver_id": message.receiver_id,
+                "message_type": message.message_type,
+                "details": details
+            }
+            
+            audit_logger.info(json.dumps(audit_entry))
+        except Exception as e:
+            logger.error(f"Audit logging failed: {e}")
+
+    def _check_rate_limit(self, agent_id: str) -> bool:
+        """
+        Check if agent has exceeded rate limit
+
+        Args:
+            agent_id: Agent ID to check
+
+        Returns:
+            True if within rate limit, False otherwise
+        """
+        if not self._enable_rate_limiting:
+            return True
+        
+        current_time = time.time()
+        window_start = current_time - self._rate_limit_window
+        
+        # Clean old timestamps
+        self._message_counts[agent_id] = [
+            ts for ts in self._message_counts[agent_id] if ts > window_start
+        ]
+        
+        # Check if within limit
+        if len(self._message_counts[agent_id]) >= self._rate_limit_max_messages:
+            return False
+        
+        # Add current timestamp
+        self._message_counts[agent_id].append(current_time)
+        return True
 
     async def _send_message_internal(self, message: AgentMessage):
         """Internal message sending implementation with routing support"""
-        # For development and testing, use a simple in-memory communication
+        # Use a simple in-memory communication
         if not hasattr(self, "_inbox"):
             self._inbox = {}
 
@@ -279,8 +451,16 @@ class CommunicationManager:
             allowed = getattr(receiver.config, 'allowed_senders', [])
             if allowed and message.sender_id not in allowed:
                 logger.warning(f"Blocked message from {message.sender_id} to {message.receiver_id}: sender not in allowed_senders whitelist.")
+                self._audit_log("MESSAGE_BLOCKED", message, "Sender not in allowed_senders whitelist")
                 return
 
+            # Decrypt message if encrypted
+            if self._enable_encryption and message.metadata.get("encrypted", False):
+                message = self._decrypt_message(message)
+            
+            # Audit log for message receive
+            self._audit_log("MESSAGE_RECEIVE", message)
+            
             await receiver._handle_message(message)
         else:
             # Try to dispatch over the network via P2P HTTP
@@ -338,31 +518,38 @@ class CommunicationManager:
                 
     async def _send_remote_message(self, message: AgentMessage, network_url: str):
         try:
-            import httpx
+            import websockets
             sender_agent = self._agents.get(message.sender_id)
             token = getattr(sender_agent.config, 'auth_token', '') if sender_agent else ''
             
-            headers = {"Content-Type": "application/json"}
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-                
-            endpoint = f"{network_url.rstrip('/')}/api/v1/a2a/message"
+            # Convert HTTP URL to WebSocket URL
+            ws_url = network_url.replace('http://', 'ws://').replace('https://', 'wss://')
+            endpoint = f"{ws_url.rstrip('/')}/ws/a2a/message"
             
-            async with httpx.AsyncClient() as client:
+            async with websockets.connect(endpoint) as websocket:
                 msg_dict = {
                     "sender_id": message.sender_id,
                     "receiver_id": message.receiver_id,
                     "content": message.content,
                     "message_type": message.message_type,
-                    "metadata": message.metadata
+                    "metadata": message.metadata,
+                    "auth_token": token
                 }
-                response = await client.post(endpoint, json=msg_dict, headers=headers, timeout=15.0)
-                if response.status_code >= 400:
-                    logger.error(f"Failed to send remote message to {endpoint}: {response.text}")
+                await websocket.send(json.dumps(msg_dict))
+                
+                # Wait for acknowledgment
+                response = await websocket.recv()
+                response_data = json.loads(response)
+                
+                if "error" in response_data:
+                    logger.error(f"Failed to send remote message to {endpoint}: {response_data['error']}")
+                    self._audit_log("MESSAGE_SEND_REMOTE_ERROR", message, response_data['error'])
                 else:
                     logger.debug(f"Remote message delivered to {endpoint}")
+                    self._audit_log("MESSAGE_SEND_REMOTE_SUCCESS", message)
         except Exception as e:
             logger.error(f"Error sending remote message to {network_url}: {e}")
+            self._audit_log("MESSAGE_SEND_REMOTE_ERROR", message, str(e))
 
     async def broadcast_message(self, message: AgentMessage) -> int:
         """
@@ -376,7 +563,7 @@ class CommunicationManager:
         """
         count = 0
 
-        # For testing, we'll store the broadcast message in each agent's inbox
+        # Store the broadcast message in each agent's inbox
         if not hasattr(self, "_inbox"):
             self._inbox = {}
 
@@ -418,10 +605,18 @@ class CommunicationManager:
                 asyncio.create_task(self.send_message(message))
                 return
             
+            # Decrypt message if encrypted
+            if self._enable_encryption and message.metadata.get("encrypted", False):
+                message = self._decrypt_message(message)
+            
+            # Audit log for message receive
+            self._audit_log("MESSAGE_RECEIVE", message)
+            
             agent = self._agents[agent_id]
             asyncio.create_task(agent._handle_message(message))
         except Exception as e:
             logger.error(f"Error handling message for agent {agent_id}: {e}")
+            self._audit_log("MESSAGE_RECEIVE_ERROR", message, str(e))
 
     async def start(self) -> None:
         """
@@ -437,7 +632,7 @@ class CommunicationManager:
         logger.info("Starting communication manager...")
 
         try:
-            self._loop = asyncio.get_event_loop()
+            self._loop = asyncio.get_running_loop()
 
             # Initialize communication connection
             self._connection = await self._initialize_connection()
@@ -608,7 +803,7 @@ class CommunicationManager:
         Returns:
             List of messages received
         """
-        # For testing purposes, we'll track messages in memory
+        # Track messages in memory
         if not hasattr(self, "_inbox"):
             self._inbox = {}
 

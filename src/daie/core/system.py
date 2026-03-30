@@ -158,7 +158,7 @@ class DecentralizedAISystem:
             logger.info(f"System started successfully with {len(self.agents)} agents")
 
             # Run event loop with shutdown handlers
-            self._loop = asyncio.get_event_loop()
+            self._loop = asyncio.get_running_loop()
             self._shutdown_event = asyncio.Event()
 
             # Set up signal handlers

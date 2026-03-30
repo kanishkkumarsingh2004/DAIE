@@ -2,30 +2,69 @@
 Decentralized Registry Module
 
 Provides local/P2P capability discovery so agents can find each other dynamically.
+Supports mDNS for local network discovery and DHT for federated discovery.
 """
 
 import json
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
 import os
 import time
+import socket
 
 logger = logging.getLogger(__name__)
+
+# Optional imports for mDNS and DHT
+try:
+    from zeroconf import ServiceBrowser, ServiceInfo, Zeroconf
+    MDNS_AVAILABLE = True
+except ImportError:
+    MDNS_AVAILABLE = False
+    logger.warning("zeroconf not installed. mDNS discovery disabled.")
+
+try:
+    from kademlia.network import Server
+    DHT_AVAILABLE = True
+except ImportError:
+    DHT_AVAILABLE = False
+    logger.warning("kademlia not installed. DHT discovery disabled.")
 
 class NodeRegistry:
     """
     Local file-based or memory-based decentralized registry simulator.
     In a fully P2P system, this would broadcast capabilities via zero-conf or DHT.
     For local network capability testing, it logs capabilities securely.
+    
+    Supports:
+    - mDNS for local network discovery
+    - DHT for federated discovery across networks
     """
 
-    def __init__(self, registry_file: str = "node_registry.json"):
+    def __init__(self, registry_file: str = "node_registry.json", enable_mdns: bool = True, enable_dht: bool = False, dht_port: int = 8468):
         # We can store the registry in the same config path if available
         self.registry_file = registry_file
         self._nodes: Dict[str, Dict[str, Any]] = {}
         
+        # mDNS support
+        self._enable_mdns = enable_mdns and MDNS_AVAILABLE
+        self._zeroconf = None
+        self._mdns_browser = None
+        self._mdns_services: Dict[str, ServiceInfo] = {}
+        
+        # DHT support
+        self._enable_dht = enable_dht and DHT_AVAILABLE
+        self._dht_server = None
+        self._dht_port = dht_port
+        
         # Initialize memory from file if it exists (for persistent local mesh)
         self._load_registry()
+        
+        # Start discovery services
+        if self._enable_mdns:
+            self._start_mdns()
+        if self._enable_dht:
+            self._start_dht()
 
     def _load_registry(self):
         if os.path.exists(self.registry_file):
@@ -42,6 +81,142 @@ class NodeRegistry:
                 json.dump(self._nodes, f, indent=4)
         except Exception as e:
             logger.error(f"Failed to save registry: {e}")
+
+    def _start_mdns(self):
+        """Start mDNS service for local network discovery"""
+        if not MDNS_AVAILABLE:
+            logger.warning("mDNS not available. Install zeroconf package.")
+            return
+        
+        try:
+            self._zeroconf = Zeroconf()
+            logger.info("mDNS service started for local network discovery")
+        except Exception as e:
+            logger.error(f"Failed to start mDNS: {e}")
+            self._enable_mdns = False
+
+    def _start_dht(self):
+        """Start DHT service for federated discovery"""
+        if not DHT_AVAILABLE:
+            logger.warning("DHT not available. Install kademlia package.")
+            return
+        
+        try:
+            self._dht_server = Server()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            loop.run_until_complete(self._dht_server.listen(self._dht_port))
+            logger.info(f"DHT service started on port {self._dht_port}")
+        except Exception as e:
+            logger.error(f"Failed to start DHT: {e}")
+            self._enable_dht = False
+
+    def _stop_mdns(self):
+        """Stop mDNS service"""
+        if self._zeroconf:
+            try:
+                self._zeroconf.close()
+                logger.info("mDNS service stopped")
+            except Exception as e:
+                logger.error(f"Error stopping mDNS: {e}")
+
+    def _stop_dht(self):
+        """Stop DHT service"""
+        if self._dht_server:
+            try:
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._dht_server.stop())
+                logger.info("DHT service stopped")
+            except Exception as e:
+                logger.error(f"Error stopping DHT: {e}")
+
+    def _publish_mdns_service(self, agent_id: str, network_url: str, capabilities: Dict[str, Any]):
+        """Publish agent service via mDNS"""
+        if not self._enable_mdns or not self._zeroconf:
+            return
+        
+        try:
+            # Parse network URL to get host and port
+            from urllib.parse import urlparse
+            parsed = urlparse(network_url)
+            host = parsed.hostname or "localhost"
+            port = parsed.port or 8000
+            
+            # Create service info
+            service_type = "_daie-agent._tcp.local."
+            service_name = f"{agent_id}.{service_type}"
+            
+            # Encode capabilities as TXT record
+            txt_data = {
+                "capabilities": json.dumps(capabilities),
+                "agent_id": agent_id
+            }
+            
+            service_info = ServiceInfo(
+                service_type,
+                service_name,
+                addresses=[socket.inet_aton(host)],
+                port=port,
+                properties=txt_data,
+                server=f"{agent_id}.local.",
+            )
+            
+            self._zeroconf.register_service(service_info)
+            self._mdns_services[agent_id] = service_info
+            logger.info(f"Published mDNS service for agent {agent_id}")
+        except Exception as e:
+            logger.error(f"Failed to publish mDNS service for {agent_id}: {e}")
+
+    def _unpublish_mdns_service(self, agent_id: str):
+        """Unpublish agent service from mDNS"""
+        if not self._enable_mdns or not self._zeroconf:
+            return
+        
+        try:
+            if agent_id in self._mdns_services:
+                self._zeroconf.unregister_service(self._mdns_services[agent_id])
+                del self._mdns_services[agent_id]
+                logger.info(f"Unpublished mDNS service for agent {agent_id}")
+        except Exception as e:
+            logger.error(f"Failed to unpublish mDNS service for {agent_id}: {e}")
+
+    async def _publish_dht_node(self, agent_id: str, network_url: str, capabilities: Dict[str, Any]):
+        """Publish agent node to DHT"""
+        if not self._enable_dht or not self._dht_server:
+            return
+        
+        try:
+            # Store node info in DHT
+            node_data = {
+                "network_url": network_url,
+                "capabilities": capabilities,
+                "timestamp": time.time()
+            }
+            
+            await self._dht_server.set(agent_id, json.dumps(node_data))
+            logger.info(f"Published DHT node for agent {agent_id}")
+        except Exception as e:
+            logger.error(f"Failed to publish DHT node for {agent_id}: {e}")
+
+    async def _discover_dht_node(self, agent_id: str) -> Optional[Dict[str, Any]]:
+        """Discover agent node from DHT"""
+        if not self._enable_dht or not self._dht_server:
+            return None
+        
+        try:
+            result = await self._dht_server.get(agent_id)
+            if result:
+                return json.loads(result)
+        except Exception as e:
+            logger.error(f"Failed to discover DHT node for {agent_id}: {e}")
+        return None
 
     def register_node(self, agent_id: str, capabilities: Dict[str, Any], network_url: Optional[str] = None, network_connections: Optional[Dict[str, str]] = None) -> bool:
         """
@@ -62,6 +237,22 @@ class NodeRegistry:
             "status": "active"
         }
         self._save_registry()
+        
+        # Publish to mDNS if enabled and network_url is provided
+        if self._enable_mdns and network_url:
+            self._publish_mdns_service(agent_id, network_url, capabilities)
+        
+        # Publish to DHT if enabled and network_url is provided
+        if self._enable_dht and network_url:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._publish_dht_node(agent_id, network_url, capabilities))
+            except RuntimeError:
+                # No running loop, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self._publish_dht_node(agent_id, network_url, capabilities))
+        
         logger.info(f"Registered node {agent_id} to decentralized registry (URL: {network_url}, Connections: {len(network_connections or {})}).")
         return True
 
@@ -74,6 +265,24 @@ class NodeRegistry:
             self._nodes[agent_id]["status"] = "inactive"
             self._nodes[agent_id]["last_seen"] = time.time()
             self._save_registry()
+            
+            # Unpublish from mDNS
+            if self._enable_mdns:
+                self._unpublish_mdns_service(agent_id)
+            
+            # Remove from DHT
+            if self._enable_dht and self._dht_server:
+                try:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(self._dht_server.set(agent_id, ""))
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(self._dht_server.set(agent_id, ""))
+                except Exception as e:
+                    logger.error(f"Failed to remove DHT node for {agent_id}: {e}")
+            
             logger.info(f"Deregistered node {agent_id} from decentralized registry.")
             return True
         return False
@@ -99,6 +308,113 @@ class NodeRegistry:
             if query_lower in cap_str:
                 results.append({"agent_id": k, **v})
                 
+        return results
+
+    def discover_agents_mdns(self, timeout: float = 2.0) -> List[Dict[str, Any]]:
+        """
+        Discover agents on the local network using mDNS.
+        
+        Args:
+            timeout: Discovery timeout in seconds
+            
+        Returns:
+            List of discovered agents
+        """
+        if not self._enable_mdns or not self._zeroconf:
+            logger.warning("mDNS discovery not enabled")
+            return []
+        
+        results = []
+        try:
+            # Browse for DAIE agent services
+            service_type = "_daie-agent._tcp.local."
+            browser = ServiceBrowser(self._zeroconf, service_type, handlers=[self._on_mdns_service_added])
+            
+            # Wait for discovery
+            time.sleep(timeout)
+            
+            # Stop browser
+            browser.cancel()
+            
+            # Return discovered nodes
+            for agent_id, service_info in self._mdns_services.items():
+                if agent_id in self._nodes:
+                    results.append({"agent_id": agent_id, **self._nodes[agent_id]})
+            
+            logger.info(f"Discovered {len(results)} agents via mDNS")
+        except Exception as e:
+            logger.error(f"mDNS discovery failed: {e}")
+        
+        return results
+
+    def _on_mdns_service_added(self, zeroconf, service_type, name):
+        """Callback for mDNS service discovery"""
+        try:
+            info = zeroconf.get_service_info(service_type, name)
+            if info:
+                # Extract agent ID from service name
+                agent_id = name.split(".")[0]
+                
+                # Extract capabilities from TXT record
+                capabilities = {}
+                if info.properties:
+                    cap_str = info.properties.get(b"capabilities", b"{}").decode("utf-8")
+                    capabilities = json.loads(cap_str)
+                
+                # Build network URL
+                if info.addresses:
+                    host = socket.inet_ntoa(info.addresses[0])
+                    port = info.port
+                    network_url = f"http://{host}:{port}"
+                    
+                    # Register discovered node
+                    if agent_id not in self._nodes:
+                        self._nodes[agent_id] = {
+                            "capabilities": capabilities,
+                            "network_url": network_url,
+                            "network_connections": {},
+                            "last_seen": time.time(),
+                            "status": "active"
+                        }
+                        logger.info(f"Discovered agent {agent_id} via mDNS at {network_url}")
+        except Exception as e:
+            logger.error(f"Error processing mDNS service: {e}")
+
+    async def discover_agents_dht(self, agent_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Discover agents from DHT by their IDs.
+        
+        Args:
+            agent_ids: List of agent IDs to discover
+            
+        Returns:
+            List of discovered agents
+        """
+        if not self._enable_dht or not self._dht_server:
+            logger.warning("DHT discovery not enabled")
+            return []
+        
+        results = []
+        try:
+            for agent_id in agent_ids:
+                node_data = await self._discover_dht_node(agent_id)
+                if node_data:
+                    # Register discovered node
+                    if agent_id not in self._nodes:
+                        self._nodes[agent_id] = {
+                            "capabilities": node_data.get("capabilities", {}),
+                            "network_url": node_data.get("network_url"),
+                            "network_connections": {},
+                            "last_seen": time.time(),
+                            "status": "active"
+                        }
+                        results.append({"agent_id": agent_id, **self._nodes[agent_id]})
+                        logger.info(f"Discovered agent {agent_id} via DHT")
+            
+            logger.info(f"Discovered {len(results)} agents via DHT")
+        except Exception as e:
+            logger.error(f"DHT discovery failed: {e}")
+        
         return results
 
     def get_node(self, agent_id: str) -> Optional[Dict[str, Any]]:
@@ -205,3 +521,16 @@ class NodeRegistry:
         self._save_registry()
         logger.info(f"Updated connections for node {agent_id}: {len(connections)} connections")
         return True
+
+    def cleanup(self):
+        """Cleanup resources and stop discovery services"""
+        self._stop_mdns()
+        self._stop_dht()
+        logger.info("NodeRegistry cleanup completed")
+
+    def __del__(self):
+        """Destructor to ensure cleanup"""
+        try:
+            self.cleanup()
+        except Exception:
+            pass

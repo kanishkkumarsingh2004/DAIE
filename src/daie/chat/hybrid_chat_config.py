@@ -14,6 +14,7 @@ import asyncio
 import logging
 
 from daie.core.hybrid import HybridOrchestratorNode, MultiNodeHybridSystem
+from daie.core.llm_manager import get_llm_config
 
 
 @dataclass
@@ -176,8 +177,10 @@ class HybridChatConfig:
                     # Send message and get response with retry logic
                     response = await self._send_message_with_retry(user_input)
                     
-                    # Display response
-                    if response:
+                    # Display response only if streaming is disabled
+                    # (when streaming is enabled, tokens are already printed as they arrive)
+                    cfg = get_llm_config()
+                    if response and not cfg.stream:
                         print(f"\n{response}\n")
                     
                     # Reset retry count on successful interaction

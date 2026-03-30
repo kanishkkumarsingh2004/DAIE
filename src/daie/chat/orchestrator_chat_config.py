@@ -20,6 +20,7 @@ import asyncio
 import logging
 
 from daie.core.hybrid import MultiNodeHybridSystem
+from daie.core.llm_manager import get_llm_config
 
 
 @dataclass
@@ -203,10 +204,14 @@ class OrchestratorChatConfig:
                         task = user_input[10:].strip()
                         print(f"\n\033[92mBroadcasting to all nodes...\033[0m")
                         results = await self.system.broadcast_task(task)
-                        print(f"\n\033[93mBroadcast Results:\033[0m")
-                        for node_id, result in results.items():
-                            print(f"\n  {node_id}:")
-                            print(f"  {result}\n")
+                        # Display response only if streaming is disabled
+                        # (when streaming is enabled, tokens are already printed as they arrive)
+                        cfg = get_llm_config()
+                        if not cfg.stream:
+                            print(f"\n\033[93mBroadcast Results:\033[0m")
+                            for node_id, result in results.items():
+                                print(f"\n  {node_id}:")
+                                print(f"  {result}\n")
                         continue
                     
                     # Handle node-specific commands
@@ -217,8 +222,12 @@ class OrchestratorChatConfig:
                             task = user_input[len(node_id) + 1:].strip()
                             print(f"\n\033[92mExecuting on {node_id}...\033[0m")
                             result = await self.system.execute_task(node_id, task)
-                            print(f"\n\033[93m{node_id} Result:\033[0m")
-                            print(f"{result}\n")
+                            # Display response only if streaming is disabled
+                            # (when streaming is enabled, tokens are already printed as they arrive)
+                            cfg = get_llm_config()
+                            if not cfg.stream:
+                                print(f"\n\033[93m{node_id} Result:\033[0m")
+                                print(f"{result}\n")
                             handled = True
                             break
                     

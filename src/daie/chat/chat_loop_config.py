@@ -19,6 +19,7 @@ import asyncio
 import sys
 
 from daie.agents.agent import Agent
+from daie.core.llm_manager import get_llm_config
 
 
 @dataclass
@@ -167,8 +168,10 @@ class ChatLoopConfig:
                     # Send message and get response with retry logic
                     response = await self._send_message_with_retry(user_input)
                     
-                    # Display response
-                    if response:
+                    # Display response only if streaming is disabled
+                    # (when streaming is enabled, tokens are already printed as they arrive)
+                    cfg = get_llm_config()
+                    if response and not cfg.stream:
                         if self.show_agent_name and hasattr(self.agent, 'config'):
                             agent_name = self.agent.config.name
                             prefix = self.agent_name_prefix.format(agent_name=agent_name)

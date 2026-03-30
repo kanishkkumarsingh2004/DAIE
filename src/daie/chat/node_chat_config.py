@@ -19,6 +19,7 @@ import asyncio
 import logging
 
 from daie.core.hybrid import HybridOrchestratorNode
+from daie.core.llm_manager import get_llm_config
 
 
 @dataclass
@@ -218,8 +219,12 @@ class NodeChatConfig:
                         except:
                             pass
                     
-                    print(f"\n\033[93mFinal Answer:\033[0m")
-                    print(f"{final_display}\n")
+                    # Display response only if streaming is disabled
+                    # (when streaming is enabled, tokens are already printed as they arrive)
+                    cfg = get_llm_config()
+                    if not cfg.stream:
+                        print(f"\n\033[93mFinal Answer:\033[0m")
+                        print(f"{final_display}\n")
                     
                     print("-" * 30 + "\n")
                     

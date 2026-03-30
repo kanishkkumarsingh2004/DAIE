@@ -29,6 +29,7 @@
 - 📁 **Secure file transfers** — Send files between agents with Base64 encoding
 - 👁️ **Vision capabilities** — Camera integration with vision models like Qwen-VL
 - ⚡ **Real-time streaming** — Tokens stream as they arrive, no buffering
+- 💬 **Pre-configured chat loops** — Ready-to-use chat loops for agents, nodes, orchestrators, and hybrid systems
 
 ---
 
@@ -106,6 +107,7 @@
 - **Streaming tokens** — set `stream=True` once, tokens print as they arrive
 - **Vision Capabilities** — Support for vision models (e.g. `qwen3-vl:2b`) with camera integration
 - **Camera & audio** — optional OpenCV camera capture and PyAudio microphone/speaker support
+- **Chat Loop Configs** — Pre-configured chat loops for agents, nodes, orchestrators, and hybrid systems
 
 ### 🌐 Networking & Communication
 - **P2P networking** — agents communicate across machines via WebSocket with authentication & authorization
@@ -144,6 +146,7 @@ For detailed documentation, see the [docs](docs/) folder:
 - [Node vs Orchestrator](docs/node-vs-orchestrator.md) — Complete comparison guide with 100+ use cases and decision matrix
 - [Communication](docs/communication.md) — P2P networking, messaging, and file transfers
 - [LLM Configuration](docs/llm.md) — Multi-provider LLM setup and streaming
+- [Chat Configs](docs/chat-configs.md) — Pre-configured chat loops for agents, nodes, orchestrators, and hybrid systems
 
 ### 🏗️ Architecture Patterns
 - **Node Architecture**: Distributed infrastructure for multi-location systems
@@ -472,6 +475,39 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### 7. Chat Loop Config (Pre-configured Chat Loops)
+
+The `daie.chat` module provides pre-configured chat loop setups so you don't need to write the full boilerplate code. Simply configure and run!
+
+```python
+from daie import Agent, AgentConfig, set_llm
+from daie.chat import ChatLoopConfig
+
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+# Create your agent
+agent = Agent(config=AgentConfig(
+    name="LUNA",
+    system_prompt="You are a helpful AI assistant.",
+    personality="friendly and helpful"
+))
+
+# Run the chat loop with minimal code!
+chat_loop = ChatLoopConfig(agent=agent)
+chat_loop.run()
+```
+
+**Available Chat Loop Configs:**
+
+| Config | Target | Use Case |
+|--------|--------|----------|
+| `ChatLoopConfig` | Simple Agent | Basic chat with an agent |
+| `NodeChatConfig` | Single Node | Advanced chat with orchestrator and sub-agents |
+| `OrchestratorChatConfig` | Multi-Node System | Multi-node collaboration and task execution |
+| `HybridChatConfig` | Hybrid System | Simple chat with hybrid systems |
+
+📖 **Full guide**: [Chat Configs](docs/chat-configs.md) — Complete documentation for all chat loop configurations
 
 ---
 
@@ -809,6 +845,7 @@ execute_task("Create notes.txt")
 |---|---|---|
 | 🟢 Beginner | `examples/01_basic_chat.py` | Interactive streaming chat with persona traits (gender, personality, behavior) |
 | 🟡 Intermediate | `examples/05_vision_chat.py` | Real-time vision-enabled chat using `qwen3-vl:2b` and local camera |
+| 🟡 Intermediate | `examples/12_chat_loop_config.py` | Pre-configured chat loops for agents, nodes, orchestrators, and hybrid systems |
 
 ### 🤖 AI Agents
 | Level | File | Description |
@@ -966,6 +1003,7 @@ python examples/01_basic_chat.py
 - **Persona System**: Configure gender, personality, and behavior traits
 - **Tool Integration**: 8+ pre-built tools with custom `@tool` decorator
 - **Memory Management**: Working, semantic, and episodic memory
+- **Chat Loop Configs**: Pre-configured chat loops for agents, nodes, orchestrators, and hybrid systems
 
 ### Multi-Agent Coordination
 - **Orchestrator**: Main agent coordinates sub-agents for complex tasks
@@ -1050,6 +1088,16 @@ await agent.start()
 response = await agent.send_message("Hello!")
 ```
 
+### Pre-configured Chat Loops
+```python
+from daie import Agent, AgentConfig
+from daie.chat import ChatLoopConfig
+
+agent = Agent(config=AgentConfig(name="LUNA", personality="friendly"))
+chat_loop = ChatLoopConfig(agent=agent)
+chat_loop.run()  # Start interactive chat with minimal code!
+```
+
 ### Comprehensive Documentation
 - [Getting Started](docs/getting-started.md) — Installation and quick start
 - [Agents](docs/agents.md) — Agent creation and configuration
@@ -1120,6 +1168,7 @@ DAIE is a mature, production-ready framework with comprehensive features:
 - **Memory Management**: Working, semantic, and episodic memory systems
 - **CLI**: Complete command-line interface for agent and system management
 - **Documentation**: Comprehensive docs with examples and guides
+- **Chat Loop Configs**: Pre-configured chat loops for agents, nodes, orchestrators, and hybrid systems
 
 ### 📊 Test Coverage
 - **Unit Tests**: 20+ test files covering all major components
@@ -1177,12 +1226,14 @@ pytest tests/
 3. **Adding Tools**: [examples/02_custom_tools.py](examples/02_custom_tools.py)
 4. **P2P Networking**: [examples/03_p2p_networking.py](examples/03_p2p_networking.py)
 5. **Multi-Agent Orchestration**: [examples/classroom_demo.py](examples/classroom_demo.py)
+6. **Pre-configured Chat Loops**: [examples/12_chat_loop_config.py](examples/12_chat_loop_config.py)
 
 ### Architecture Guides
 - **Node vs Orchestrator**: [docs/node-vs-orchestrator.md](docs/node-vs-orchestrator.md)
 - **Agent Configuration**: [docs/agents.md](docs/agents.md)
 - **Communication**: [docs/communication.md](docs/communication.md)
 - **Memory Management**: [docs/memory.md](docs/memory.md)
+- **Chat Configs**: [docs/chat-configs.md](docs/chat-configs.md)
 
 ### Video Tutorials
 - Coming soon!
@@ -1198,6 +1249,7 @@ pytest tests/
 - **Supported LLM Providers**: 6 (Ollama, OpenAI, Anthropic, Google, Azure, OpenRouter)
 - **Pre-built Tools**: 8+
 - **Architecture Patterns**: 3 (Node, Orchestrator, Hybrid)
+- **Chat Loop Configs**: 4 (ChatLoopConfig, NodeChatConfig, OrchestratorChatConfig, HybridChatConfig)
 
 ---
 

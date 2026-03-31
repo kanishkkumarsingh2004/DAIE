@@ -5,6 +5,23 @@ All notable changes to the Decentralized AI Ecosystem (DAIE) library will be doc
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-03-31
+### Added
+- **Zero-Dependency Core**: Replaced several external dependencies (`requests`, `python-dotenv`, `rich`, `typer`) with in-house, lightweight implementations (`http_client`, `env`, `console`, `cli.core`).
+- **In-House Tracing**: Removed OpenTelemetry in favor of a custom, lightweight tracing architecture in `daie.core.tracing`.
+- **Enhanced Guardrails**: Implemented strict task-level token and tool-call guardrails directly in `AgentConfig`.
+- **One-File Demo**: Added a comprehensive "Full Power" demonstration snippet to `README.md`.
+
+### Changed
+- **BREAKING**: Standardized Agent instantiation to use the `Agent(config=config)` pattern.
+- **BREAKING**: Enforced mandatory asynchronous lifecycle synchronization; all agents and nodes must be started with `await start()` and stopped with `await stop()`.
+- **Dependency Promotion**: `numpy`, `pydantic`, and `pydantic-settings` are now core dependencies to ensure production stability.
+- **Documentation Overhaul**: Synchronized all `docs/` and `examples/` with the latest v1.0.5 API and async patterns.
+
+### Removed
+- `otel` (OpenTelemetry) as a core dependency.
+- `requests`, `python-dotenv`, `rich`, and `typer` as core dependencies.
+
 ## [1.0.4] - 2026-03-31
 ### Added
 - **Observability**: Added OpenTelemetry (OTel) support for distributed tracing across agent nodes.

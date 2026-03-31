@@ -34,12 +34,11 @@ Example usage:
 
 __version__ = "1.0.4"
 
-from daie.agents import (Agent, AgentConfig, AgentMessage, AgentRole,
-                         Orchestrator)
+from daie.agents import (Agent, AgentConfig, AgentMessage, AgentRole)
 from daie.cli import cli
 from daie.core import (DecentralizedAISystem, HybridOrchestratorNode,
                        LLMConfig, LLMManager, LLMType, MultiNodeHybridSystem,
-                       Node, get_llm, get_llm_config, reset_llm_config,
+                       Node, Orchestrator, get_llm, get_llm_config, reset_llm_config,
                        set_llm)
 from daie.tools import Tool, ToolRegistry
 

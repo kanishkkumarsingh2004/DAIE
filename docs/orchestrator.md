@@ -59,6 +59,17 @@ The Orchestrator enables multi-agent coordination, allowing a main agent to dele
 
 ---
 
+## Nested Architecture
+
+The `Orchestrator` is one layer of a broader nested architecture.
+It can be embedded inside a `HybridOrchestratorNode` for combined node + orchestration management, and multiple hybrid nodes can be connected using `MultiNodeHybridSystem`.
+
+- `HybridOrchestratorNode` adds resource, node connectivity, and local routing capabilities.
+- `MultiNodeHybridSystem` enables cross-device P2P connectivity and parent/child node hierarchies.
+- Together, they support N-layer nested coordination for complex distributed AI systems.
+
+---
+
 ## Quick Start
 
 ```python

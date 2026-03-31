@@ -1,0 +1,39 @@
+{
+    "agent_search": {
+        "capabilities": {
+            "role": "searcher",
+            "skills": [
+                "web",
+                "scrape"
+            ]
+        },
+        "network_url": null,
+        "network_connections": {},
+        "last_seen": 1774987716.2197216,
+        "status": "active"
+    },
+    "agent_mdns": {
+        "capabilities": {
+            "role": "test",
+            "skills": [
+                "mdns"
+            ]
+        },
+        "network_url": "http://localhost:8000",
+        "network_connections": {},
+        "last_seen": 1774987716.9404914,
+        "status": "active"
+    },
+    "agent_dht": {
+        "capabilities": {
+            "role": "test",
+            "skills": [
+                "dht"
+            ]
+        },
+        "network_url": "http://localhost:8001",
+        "network_connections": {},
+        "last_seen": 1774987717.9446201,
+        "status": "active"
+    }
+}

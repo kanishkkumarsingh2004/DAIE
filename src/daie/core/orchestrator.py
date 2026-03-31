@@ -4,9 +4,11 @@ Orchestrator architecture for multi-agent coordination.
 
 import asyncio
 import logging
-from typing import Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
-from daie.agents.agent import Agent
+if TYPE_CHECKING:
+    from daie.agents.agent import Agent
+
 from daie.communication.manager import CommunicationManager
 
 logger = logging.getLogger(__name__)
@@ -23,8 +25,8 @@ class Orchestrator:
 
     def __init__(
         self,
-        main_agent: Agent,
-        sub_agents: List[Agent],
+        main_agent: "Agent",
+        sub_agents: List["Agent"],
         context_name: str = "Classroom",
         main_role: str = "Teacher",
         sub_role: str = "Student",
@@ -37,6 +39,9 @@ class Orchestrator:
         self.sub_role = sub_role
         self.comm_manager = comm_manager or CommunicationManager()
         self._is_running = False
+        self._parent_orchestrator_id: Optional[str] = None
+        self._child_orchestrator_ids: List[str] = []
+        self._child_node_ids: List[str] = []
 
     async def start(self):
         """Start the main agent and all sub-agents."""
@@ -101,6 +106,105 @@ class Orchestrator:
         logger.info(f"{self.context_name} received task: {task}")
         # The main agent's execute_task has the ReAct loop and A2A tools
         return await self.main_agent.execute_task(task)
+
+    def set_parent(self, parent_orchestrator_id: str) -> "Orchestrator":
+        """
+        Set a parent orchestrator for this orchestrator.
+
+        Args:
+            parent_orchestrator_id: Unique identifier of the parent orchestrator
+
+        Returns:
+            Self for method chaining
+        """
+        self._parent_orchestrator_id = parent_orchestrator_id
+        logger.debug(f"Orchestrator {self.context_name} set parent to {parent_orchestrator_id}")
+        return self
+
+    def add_child_orchestrator(self, child_orchestrator_id: str) -> "Orchestrator":
+        """
+        Add a child orchestrator to this orchestrator.
+
+        Args:
+            child_orchestrator_id: Unique identifier of the child orchestrator
+
+        Returns:
+            Self for method chaining
+        """
+        if child_orchestrator_id not in self._child_orchestrator_ids:
+            self._child_orchestrator_ids.append(child_orchestrator_id)
+            logger.debug(f"Orchestrator {self.context_name} added child orchestrator {child_orchestrator_id}")
+        return self
+
+    def remove_child_orchestrator(self, child_orchestrator_id: str) -> "Orchestrator":
+        """
+        Remove a child orchestrator from this orchestrator.
+
+        Args:
+            child_orchestrator_id: Unique identifier of the child orchestrator to remove
+
+        Returns:
+            Self for method chaining
+        """
+        if child_orchestrator_id in self._child_orchestrator_ids:
+            self._child_orchestrator_ids.remove(child_orchestrator_id)
+            logger.debug(f"Orchestrator {self.context_name} removed child orchestrator {child_orchestrator_id}")
+        return self
+
+    @property
+    def parent_orchestrator_id(self) -> Optional[str]:
+        """Get the parent orchestrator ID"""
+        return self._parent_orchestrator_id
+
+    @property
+    def child_orchestrator_ids(self) -> List[str]:
+        """Get list of child orchestrator IDs"""
+        return self._child_orchestrator_ids.copy()
+
+    @property
+    def child_orchestrator_count(self) -> int:
+        """Get number of child orchestrators"""
+        return len(self._child_orchestrator_ids)
+
+    def add_child_node(self, child_node_id: str) -> "Orchestrator":
+        """
+        Add a child node to this orchestrator.
+
+        Args:
+            child_node_id: Unique identifier of the child node
+
+        Returns:
+            Self for method chaining
+        """
+        if child_node_id not in self._child_node_ids:
+            self._child_node_ids.append(child_node_id)
+            logger.debug(f"Orchestrator {self.context_name} added child node {child_node_id}")
+        return self
+
+    def remove_child_node(self, child_node_id: str) -> "Orchestrator":
+        """
+        Remove a child node from this orchestrator.
+
+        Args:
+            child_node_id: Unique identifier of the child node to remove
+
+        Returns:
+            Self for method chaining
+        """
+        if child_node_id in self._child_node_ids:
+            self._child_node_ids.remove(child_node_id)
+            logger.debug(f"Orchestrator {self.context_name} removed child node {child_node_id}")
+        return self
+
+    @property
+    def child_node_ids(self) -> List[str]:
+        """Get list of child node IDs"""
+        return self._child_node_ids.copy()
+
+    @property
+    def child_node_count(self) -> int:
+        """Get number of child nodes"""
+        return len(self._child_node_ids)
 
     async def stop(self):
         """Stop all agents in the orchestrator."""

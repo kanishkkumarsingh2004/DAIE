@@ -2,7 +2,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from daie.agents import Agent, AgentConfig, Orchestrator
+from daie.agents import Agent, AgentConfig
+from daie.core.orchestrator import Orchestrator
 
 
 @pytest.mark.asyncio

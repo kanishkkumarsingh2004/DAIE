@@ -30,6 +30,8 @@ class Node:
         self._agents: List[str] = []
         self._resources: Dict[str, Any] = {}
         self._connections: List[str] = []
+        self._parent_node_id: Optional[str] = None
+        self._child_node_ids: List[str] = []
 
         logger.info(f"Node {self.name} (ID: {self.node_id}) created")
 
@@ -202,6 +204,73 @@ class Node:
         """
         return self._resources.copy()
 
+    def set_parent(self, parent_node_id: str) -> "Node":
+        """
+        Set a parent node for this node.
+
+        Args:
+            parent_node_id: Unique identifier of the parent node
+
+        Returns:
+            Self for method chaining
+        """
+        if parent_node_id == self.node_id:
+            logger.warning(f"Node {self.name} cannot be its own parent")
+            return self
+        
+        self._parent_node_id = parent_node_id
+        logger.debug(f"Node {self.name} set parent to {parent_node_id}")
+        return self
+
+    def add_child(self, child_node_id: str) -> "Node":
+        """
+        Add a child node to this node.
+
+        Args:
+            child_node_id: Unique identifier of the child node
+
+        Returns:
+            Self for method chaining
+        """
+        if child_node_id == self.node_id:
+            logger.warning(f"Node {self.name} cannot be its own child")
+            return self
+        
+        if child_node_id not in self._child_node_ids:
+            self._child_node_ids.append(child_node_id)
+            logger.debug(f"Node {self.name} added child node {child_node_id}")
+        return self
+
+    def remove_child(self, child_node_id: str) -> "Node":
+        """
+        Remove a child node from this node.
+
+        Args:
+            child_node_id: Unique identifier of the child node to remove
+
+        Returns:
+            Self for method chaining
+        """
+        if child_node_id in self._child_node_ids:
+            self._child_node_ids.remove(child_node_id)
+            logger.debug(f"Node {self.name} removed child node {child_node_id}")
+        return self
+
+    @property
+    def parent_node_id(self) -> Optional[str]:
+        """Get the parent node ID"""
+        return self._parent_node_id
+
+    @property
+    def child_node_ids(self) -> List[str]:
+        """Get list of child node IDs"""
+        return self._child_node_ids.copy()
+
+    @property
+    def child_count(self) -> int:
+        """Get number of child nodes"""
+        return len(self._child_node_ids)
+
     def get_status(self) -> Dict[str, Any]:
         """
         Get node status information
@@ -217,6 +286,9 @@ class Node:
             "agents": self.agents,
             "connection_count": self.connection_count,
             "connections": self.connections,
+            "parent_node_id": self._parent_node_id,
+            "child_node_ids": self._child_node_ids,
+            "child_count": self.child_count,
             "resources": self.get_resource_info(),
         }
 

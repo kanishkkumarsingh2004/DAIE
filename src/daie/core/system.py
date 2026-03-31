@@ -2,18 +2,22 @@
 Decentralized AI System - Main orchestrator for the AI ecosystem
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 import signal
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from daie.agents import Agent
 from daie.communication import CommunicationManager
 from daie.config import ConfigManager, SystemConfig
 from daie.memory import MemoryManager
 from daie.tools import ToolRegistry
+
+if TYPE_CHECKING:
+    from daie.agents import Agent
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +86,8 @@ class DecentralizedAISystem:
         agent_configs = config_mgr.load_agents_config()
 
         for agent_cfg in agent_configs:
+            from daie.agents import Agent
+
             agent = Agent(config=agent_cfg)
             # Register it via internal dictionary directly without throwing if it exists,
             # but usually it's a new instance so ID is new.

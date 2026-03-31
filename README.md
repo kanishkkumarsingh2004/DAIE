@@ -19,7 +19,8 @@
 | **Streaming** | ✅ Library-level | ⚠️ Per-call | ❌ No |
 | **Custom Tools** | ✅ `@tool` decorator | ⚠️ Complex | ⚠️ Complex |
 | **Multi-Agent** | ✅ Orchestrator pattern | ⚠️ Chains | ✅ Crews |
-| **Size** | 📦 Lightweight | 📦📦📦 Heavy | 📦📦 Medium |
+| **Dependencies** | 🪶 Ultra-lightweight | 📦📦📦 Heavy | 📦📦 Medium |
+| **Philosophy** | ✅ Zero-dependency core | ❌ Dependency heavy | ❌ Dependency heavy |
 
 **DAIE is for you if you want:**
 - 🏠 **Offline-first AI** — Run everything locally with Ollama, no cloud required
@@ -246,7 +247,10 @@ pip install "daie[docs]"     # sphinx, sphinx-rtd-theme, nbsphinx
 
 **Requires Python 3.10+**
 
-**Core dependencies:** cryptography, python-dotenv, pydantic, pydantic-settings, pyyaml, requests, rich, typer, selenium, webdriver-manager, uvicorn, nats-py, numpy, opencv-python, pyaudio
+**Core dependencies:** `pyyaml`, `selenium`, `webdriver-manager`, `uvicorn`, `websockets`, `nats-py`, `pyaudio`, `zeroconf`, `kademlia`, `numpy`, `pydantic`, `pydantic-settings`
+
+> [!TIP]
+> **Zero-Dependency Philosophy**: DAIE includes in-house, lightweight replacements for `requests`, `python-dotenv`, `rich`, `typer`, and `cryptography` to keep the core footprint minimal and avoid dependency hell.
 
 ---
 
@@ -476,7 +480,77 @@ async def main():
 asyncio.run(main())
 ```
 
-### 7. Chat Loop Config (Pre-configured Chat Loops)
+### 7. Full-Power One-File Demo (Orchestrator + Tools + Guardrails)
+
+Copy this into a single file (e.g., `demo.py`) and run it to see the full architecture in action.
+
+```python
+import asyncio
+from daie import Agent, AgentConfig, Orchestrator, set_llm
+from daie.agents import AgentRole
+from daie.tools import FileManagerTool, APICallTool, tool
+
+# 1. Setup - Local LLM with streaming enabled
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+# 2. Define a custom tool for the agents to use
+@tool(name="code_executor", description="Executes snippets of python code safely.")
+async def execute_code(code: str) -> str:
+    # In a real app, use a sandbox!
+    return f"Code executed successfully. Output: [Simulated result for {len(code)} chars]"
+
+async def main():
+    print("🚀 Initializing Decentralized AI Ecosystem Demo...")
+
+    # 3. Create a specialized Researcher agent
+    researcher = Agent(config=AgentConfig(
+        name="Researcher",
+        role=AgentRole.SPECIALIZED,
+        goal="Gather and summarize technical information",
+        rag_document_path="docs/",  # Optional: local knowledge base
+    ))
+
+    # 4. Create a specialized Coder agent with guardrails
+    coder = Agent(config=AgentConfig(
+        name="Coder",
+        role=AgentRole.SPECIALIZED,
+        goal="Write and verify optimized Python code",
+        max_tokens_per_task=2000,   # Production guardrail
+        max_tool_calls_per_task=5,  # Production guardrail
+    ))
+    coder.add_tool(execute_code)
+    coder.add_tool(FileManagerTool())
+
+    # 5. Create the Orchestrator to coordinate them
+    # The Coordinator agent manages the sub-agents autonomously
+    boss = Agent(config=AgentConfig(name="Boss", role=AgentRole.COORDINATOR))
+    
+    system = Orchestrator(
+        main_agent=boss,
+        sub_agents=[researcher, coder],
+        context_name="SoftwareDevelopmentLab"
+    )
+
+    # 6. Start the system (Lifecycle management is mandatory)
+    await system.start()
+
+    print("\n--- System is online. Executing high-level task ---")
+    
+    # 7. Execute a complex multi-step task
+    task = "Research how to implement uuid7 in Python, then write a sample script and save it to 'uuid_sample.py'."
+    result = await system.execute_task(task)
+
+    print("\n--- Task Complete ---")
+    print(f"Final Outcome:\n{result}")
+
+    # 8. Shutdown cleanly
+    await system.stop()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 8. Chat Loop Config (Pre-configured Chat Loops)
 
 The `daie.chat` module provides pre-configured chat loop setups so you don't need to write the full boilerplate code. Simply configure and run!
 

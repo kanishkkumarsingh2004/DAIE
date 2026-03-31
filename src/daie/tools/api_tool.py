@@ -5,7 +5,7 @@ API call tool using requests library
 import logging
 from typing import Any, Dict
 
-import requests
+from daie.utils import http_client as requests
 
 from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 

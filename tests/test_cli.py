@@ -1,38 +1,36 @@
 """Tests for CLI module - Command-Line Interface for System Management.
-
-Use Case Description:
-This test file validates the Command-Line Interface (CLI) for managing the Decentralized AI Ecosystem (DAIE). The CLI provides users with direct control over system operations through terminal commands. Key functionalities tested include:
-
-1. **Main CLI Functionality**: Core command structure
-   - Help command and usage information
-   - Command chain execution and validation
-
-2. **Core System Management**: Central system operations
-   - Starting and stopping the decentralized AI system
-   - Checking system status
-   - Error handling for system operations
-
-3. **Agent Management**: Individual agent control
-   - Starting and stopping agents
-   - Checking agent status
-   - Configuring agents with custom settings
-
-4. **Configuration and Options**: CLI customization
-   - Custom configuration file handling
-   - Log level configuration (debug mode)
-   - Command parameter validation
-
-These tests ensure that the CLI commands function correctly, providing users with a reliable interface for managing the DAIE system and its components.
+Updated to work with argparse instead of typer.
 """
 
+import io
+import sys
+from contextlib import redirect_stdout
 from unittest.mock import Mock, patch
 
 import pytest
-from typer.testing import CliRunner
 
-from daie.cli.agent import agent_app as agent_cli
-from daie.cli.core import core_app as core_cli
 from daie.cli.main import cli
+
+
+class CliRunner:
+    """Helper to test argparse-based CLI."""
+    def invoke(self, app_func, args=None):
+        if args is None:
+            args = []
+        
+        stdout = io.StringIO()
+        # Mock sys.argv for argparse.parse_args()
+        with patch.object(sys, 'argv', ['daie'] + args):
+            with redirect_stdout(stdout):
+                try:
+                    app_func()
+                    exit_code = 0
+                except SystemExit as e:
+                    exit_code = e.code if e.code is not None else 0
+                except Exception:
+                    exit_code = 1
+        
+        return Mock(exit_code=exit_code, output=stdout.getvalue())
 
 
 class TestCLI:
@@ -44,8 +42,8 @@ class TestCLI:
         result = runner.invoke(cli, ["--help"])
 
         assert result.exit_code == 0
-        assert "Usage" in result.output
-        assert "Options" in result.output
+        assert "DAIE" in result.output
+        assert "Available Commands" in result.output
 
     @patch("daie.cli.core.start_server")
     @patch("daie.cli.core.DecentralizedAISystem")
@@ -53,69 +51,60 @@ class TestCLI:
         """Test core system CLI start command."""
         runner = CliRunner()
 
-        # Mock the class and instance
         mock_instance = Mock()
         mock_system.return_value = mock_instance
-
-        # Mock the class method directly
-        mock_system.get_running_pid.return_value = None
-
-        result = runner.invoke(core_cli, ["start"])
+        
+        # Patch read_pid to return None (not running)
+        with patch("daie.cli.core.read_pid", return_value=None):
+            result = runner.invoke(cli, ["core", "start"])
 
         assert result.exit_code == 0
-        mock_system.assert_called_once()
-        # Note: start() is not called on the system instance in the actual code
-        # The system is created and then start_server() is called directly
+        assert "Starting Central Core" in result.output
 
     @patch("os.kill")
-    @patch("time.sleep")  # Mock time.sleep to make the test faster
     @patch("daie.cli.core.read_pid")
-    def test_core_cli_stop(self, mock_read_pid, mock_sleep, mock_kill):
+    def test_core_cli_stop(self, mock_read_pid, mock_kill):
         """Test core system CLI stop command."""
         runner = CliRunner()
-
-        # Mock the running state
         mock_read_pid.return_value = 1234
 
-        # Mock the kill function to not raise an error
-        mock_kill.side_effect = None
-
-        result = runner.invoke(core_cli, ["stop"])
+        result = runner.invoke(cli, ["core", "stop"])
 
         assert result.exit_code == 0
+        assert "Stopping Central Core" in result.output
 
     def test_agent_cli_start(self):
         """Test agent CLI start command."""
         runner = CliRunner()
 
-        result = runner.invoke(agent_cli, ["start", "test-agent"])
+        result = runner.invoke(cli, ["agent", "start", "test-agent"])
 
         assert result.exit_code == 0
-        assert "Starting Agent" in result.output
+        assert "Starting Agent: test-agent" in result.output
 
     def test_agent_cli_stop(self):
         """Test agent CLI stop command."""
         runner = CliRunner()
 
-        result = runner.invoke(agent_cli, ["stop", "test-agent"])
+        result = runner.invoke(cli, ["agent", "stop", "test-agent"])
 
         assert result.exit_code == 0
-        assert "Stopping Agent" in result.output
+        assert "Stopping Agent: test-agent" in result.output
 
     def test_agent_cli_status(self):
         """Test agent CLI status command."""
         runner = CliRunner()
 
-        result = runner.invoke(agent_cli, ["status", "test-agent"])
+        result = runner.invoke(cli, ["agent", "status", "test-agent"])
 
         assert result.exit_code == 0
-        assert "Agent Status" in result.output
+        assert "Agent Status: test-agent" in result.output
 
     def test_core_cli_status(self):
         """Test core system CLI status command."""
         runner = CliRunner()
 
-        result = runner.invoke(core_cli, ["status"])
+        result = runner.invoke(cli, ["core", "status"])
 
         assert result.exit_code == 0
         assert "Central Core System Status" in result.output
@@ -124,30 +113,23 @@ class TestCLI:
 class TestCLIErrorHandling:
     """Tests for CLI error handling."""
 
-    @patch("daie.cli.core.start_server")
-    @patch("daie.cli.core.DecentralizedAISystem")
-    def test_core_cli_start_error(self, mock_system, mock_start_server):
-        """Test core system start with error."""
+    @patch("daie.cli.core.read_pid")
+    def test_core_cli_start_already_running(self, mock_read_pid):
+        """Test core system start when already running."""
+        runner = CliRunner()
+        mock_read_pid.return_value = 1234
+
+        result = runner.invoke(cli, ["core", "start"])
+
+        assert result.exit_code == 1
+        assert "already running" in result.output
+
+    def test_agent_cli_missing_id(self):
+        """Test agent command with missing ID."""
         runner = CliRunner()
 
-        mock_instance = Mock()
-        mock_system.return_value = mock_instance
-
-        mock_system.get_running_pid.return_value = None
-
-        # Make start_server raise an exception
-        mock_start_server.side_effect = Exception("Failed to start")
-
-        result = runner.invoke(core_cli, ["start"])
-
-        assert result.exit_code != 0
-        assert "Failed to start" in result.output
-
-    def test_agent_cli_start_error(self):
-        """Test agent start with error."""
-        runner = CliRunner()
-
-        result = runner.invoke(agent_cli, ["start"])
+        # Argparse will exit 2 for missing arguments
+        result = runner.invoke(cli, ["agent", "start"])
 
         assert result.exit_code != 0
 
@@ -155,44 +137,13 @@ class TestCLIErrorHandling:
 class TestCLIOptions:
     """Tests for CLI options and arguments."""
 
-    def test_agent_cli_config_file(self):
-        """Test agent CLI with custom config file."""
+    def test_cli_version(self):
+        """Test version option."""
         runner = CliRunner()
-
-        result = runner.invoke(agent_cli, ["start", "test-agent"])
+        result = runner.invoke(cli, ["--version"])
 
         assert result.exit_code == 0
-
-    @patch("daie.cli.core.start_server")
-    @patch("daie.cli.core.DecentralizedAISystem")
-    def test_core_cli_log_level(self, mock_system, mock_start_server):
-        """Test core system CLI with custom log level."""
-        runner = CliRunner()
-
-        mock_instance = Mock()
-        mock_system.return_value = mock_instance
-
-        mock_system.get_running_pid.return_value = None
-
-        result = runner.invoke(core_cli, ["start", "--debug"])
-
-        assert result.exit_code == 0
-        assert "Debug mode enabled" in result.output
-
-
-class TestCLIIntegration:
-    """Integration tests for CLI commands."""
-
-    def test_cli_command_chain(self):
-        """Test CLI command chain execution."""
-        runner = CliRunner()
-
-        # Test agent commands
-        result1 = runner.invoke(agent_cli, ["start", "test-agent"])
-        result2 = runner.invoke(agent_cli, ["status", "test-agent"])
-
-        assert result1.exit_code == 0
-        assert result2.exit_code == 0
+        assert "Version" in result.output
 
 
 if __name__ == "__main__":

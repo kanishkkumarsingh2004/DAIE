@@ -1,33 +1,20 @@
 """
 Agent management commands
+Replaces typer and rich dependencies
 """
 
-import typer
-from rich.box import ROUNDED
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
+import argparse
+import time
+from typing import List, Optional
 
 from daie.agents.config import AgentConfig, AgentRole
 from daie.config import ConfigManager
-
-agent_app = typer.Typer(name="agent", help="Agent management commands", add_completion=True)
-
-console = Console()
+from daie.utils.console import Console, print_error, print_info, print_success, print_header
 
 
-@agent_app.command(name="list")
-def list_agents():
+def list_agents(args: argparse.Namespace):
     """List all registered agents"""
-    console.print(
-        Panel(
-            "[bold green]List of Agents[/bold green]",
-            title="[blue]🤖 Agent Management[/blue]",
-            border_style="blue",
-            box=ROUNDED,
-        )
-    )
+    print_header("🤖 Agent Management - List of Agents")
 
     try:
         # Load agents from JSON config
@@ -35,82 +22,54 @@ def list_agents():
         agents = config_mgr.load_agents_config()
 
         if not agents:
-            console.print("[yellow]No agents structured yet. Use 'daie agent create' to add one.[/yellow]")
+            print_info("No agents structured yet. Use 'daie agent create' to add one.")
             return
 
-        table = Table(show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED)
-        table.add_column("Name", style="magenta")
-        table.add_column("Role", style="yellow")
-        table.add_column("Provider", style="cyan")
-        table.add_column("Model/Capabilities", style="green")
+        print_info(f"Total configured agents: {len(agents)}")
+        print("-" * 80)
+        print(f"{'Name':<20} | {'Role':<20} | {'Provider':<10} | {'Model/Capabilities'}")
+        print("-" * 80)
 
         for agent in agents:
             caps = ", ".join(agent.capabilities) if agent.capabilities else "None"
-            table.add_row(
-                agent.name,
-                agent.role.value,
-                agent.llm_provider,
-                f"{agent.llm_model} | {caps}",
-            )
+            print(f"{agent.name:<20} | {agent.role.value:<20} | {agent.llm_provider:<10} | {agent.llm_model} | {caps}")
 
-        console.print(table)
-        console.print(f"\nTotal configured agents: [bold green]{len(agents)}[/bold green]")
+        print("-" * 80)
 
     except Exception as e:
-        console.print(f"[red]Error listing agents: {e}[/red]")
-        raise typer.Exit(code=1)
+        print_error(f"Error listing agents: {e}")
+        exit(1)
 
 
-@agent_app.command(name="create")
-def create_agent(
-    name: str = typer.Option(None, "--name", "-n", help="Agent display name"),
-    role: str = typer.Option(None, "--role", "-r", help="Agent role type"),
-    capabilities: str = typer.Option(None, "--capabilities", "-c", help="Comma-separated list of capabilities"),
-    interactive: bool = typer.Option(True, "--interactive/--no-interactive", help="Use interactive Q/A wizard"),
-):
+def create_agent(args: argparse.Namespace):
     """Create or configure a new agent"""
-    console.print(
-        Panel(
-            "[bold green]Agent Configuration Wizard[/bold green]",
-            title="[blue]✨ Agent Setup[/blue]",
-            border_style="blue",
-            box=ROUNDED,
-        )
-    )
+    print_header("✨ Agent Setup - Configuration Wizard")
+
+    name = args.name
+    role = args.role
+    capabilities = args.capabilities
+    interactive = args.interactive
 
     if interactive or not name:
-        from rich.prompt import Confirm, Prompt
-
-        name = Prompt.ask("[bold blue]Agent Name[/bold blue]", default=name or "NewAgent")
+        name = input("Agent Name [NewAgent]: ") or name or "NewAgent"
 
         valid_roles = [r.value for r in AgentRole]
-        role = Prompt.ask(
-            f"[bold blue]Role[/bold blue] ({', '.join(valid_roles)})",
-            default=role or AgentRole.GENERAL_PURPOSE.value,
-            choices=valid_roles,
-        )
+        print(f"Valid Roles: {', '.join(valid_roles)}")
+        role = input(f"Role [{AgentRole.GENERAL_PURPOSE.value}]: ") or role or AgentRole.GENERAL_PURPOSE.value
 
-        goal = Prompt.ask("[bold blue]Agent Goal[/bold blue]", default="Perform specific tasks effectively")
-        system_prompt = Prompt.ask("[bold blue]System Prompt[/bold blue]", default="You are a helpful AI assistant.")
+        goal = input("Agent Goal [Perform specific tasks effectively]: ") or "Perform specific tasks effectively"
+        system_prompt = input("System Prompt [You are a helpful AI assistant.]: ") or "You are a helpful AI assistant."
 
-        provider = Prompt.ask("[bold blue]LLM Provider[/bold blue] (ollama, openai, anthropic)", default="ollama")
-        model = Prompt.ask("[bold blue]LLM Model[/bold blue]", default="llama3.2:latest")
+        provider = input("LLM Provider [ollama]: ") or "ollama"
+        model = input("LLM Model [llama3.2:latest]: ") or "llama3.2:latest"
 
         if not capabilities:
-            caps_input = Prompt.ask("[bold blue]Capabilities (comma-separated)[/bold blue]", default="")
-            capabilities = caps_input if caps_input else None
+            capabilities = input("Capabilities (comma-separated): ") or ""
 
-        network_url = Prompt.ask(
-            "[bold blue]P2P Network URL[/bold blue] (e.g. https://my-agent.dev, enter for none)", default=""
-        )
-        network_url = network_url if network_url.strip() else None
+        network_url = input("P2P Network URL (enter for none): ") or None
+        auth_token = input("P2P Auth Token (enter for none): ") or None
 
-        auth_token = Prompt.ask("[bold blue]P2P Auth Token[/bold blue] (enter for none)", default="")
-        auth_token = auth_token if auth_token.strip() else None
-
-        allow_file_transfers = Confirm.ask(
-            "[bold blue]Allow incoming file transfers over P2P?[/bold blue]", default=False
-        )
+        allow_file_transfers = input("Allow incoming file transfers over P2P? (y/n) [n]: ").lower() == "y"
     else:
         goal = "Perform general tasks"
         system_prompt = "You are a helpful AI assistant."
@@ -137,138 +96,65 @@ def create_agent(
     )
 
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-        ) as progress:
-            progress.add_task(description="Saving agent configuration...", total=None)
-            import time
+        print_info("Saving agent configuration...")
+        time.sleep(0.5)
 
-            time.sleep(0.5)
+        success = config_mgr.upsert_agent_config(agent_config)
 
-            success = config_mgr.upsert_agent_config(agent_config)
+        if not success:
+            raise Exception("Failed to save to agents.json")
 
-            if not success:
-                raise Exception("Failed to save to agents.json")
-
-        console.print(
-            Panel(
-                f"[bold green]Agent '{name}' configured successfully![/bold green]\n"
-                f"Configuration saved to: [bold]{config_mgr.agents_file}[/bold]\n"
-                "To list agents, use: [bold]daie agent list[/bold]",
-                title="[green]✅ Setup Complete[/green]",
-                border_style="green",
-                box=ROUNDED,
-            )
-        )
+        print_success(f"Agent '{name}' configured successfully!")
+        print_info(f"Configuration saved to: {config_mgr.agents_file}")
     except Exception as e:
-        console.print(f"[red]Error configuring agent: {e}[/red]")
-        raise typer.Exit(code=1)
+        print_error(f"Error configuring agent: {e}")
+        exit(1)
 
 
-@agent_app.command(name="start")
-def start_agent(
-    agent_id: str = typer.Argument(..., help="Agent ID to start"),
-):
+def start_agent(args: argparse.Namespace):
     """Start an agent"""
-    console.print(
-        Panel(
-            f"[bold green]Starting Agent:[/bold green] {agent_id}",
-            title="[blue]🚀 Agent Startup[/blue]",
-            border_style="blue",
-            box=ROUNDED,
-        )
-    )
+    print_header(f"🚀 Agent Startup - Starting Agent: {args.agent_id}")
 
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-        ) as progress:
-            task = progress.add_task(description="Connecting to communication system...", total=None)
-            import time
+        print_info("Connecting to communication system...")
+        time.sleep(0.3)
+        print_info("Initializing agent memory...")
+        time.sleep(0.3)
+        print_info("Registering with central core...")
+        time.sleep(0.3)
 
-            time.sleep(0.3)
-            progress.update(task, description="Initializing agent memory...")
-            time.sleep(0.3)
-            progress.update(task, description="Registering with central core...")
-            time.sleep(0.3)
-
-        console.print(
-            Panel(
-                "[bold green]Agent started successfully![/bold green]",
-                title="[green]✅ Startup Complete[/green]",
-                border_style="green",
-                box=ROUNDED,
-            )
-        )
+        print_success("Agent started successfully!")
     except Exception as e:
-        console.print(f"[red]Error starting agent: {e}[/red]")
-        raise typer.Exit(code=1)
+        print_error(f"Error starting agent: {e}")
+        exit(1)
 
 
-@agent_app.command(name="stop")
-def stop_agent(
-    agent_id: str = typer.Argument(..., help="Agent ID to stop"),
-):
+def stop_agent(args: argparse.Namespace):
     """Stop an agent"""
-    console.print(
-        Panel(
-            f"[bold yellow]Stopping Agent:[/bold yellow] {agent_id}",
-            title="[yellow]⏹️  Agent Shutdown[/yellow]",
-            border_style="yellow",
-            box=ROUNDED,
-        )
-    )
+    print_header(f"⏹️ Agent Shutdown - Stopping Agent: {args.agent_id}")
 
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-        ) as progress:
-            task = progress.add_task(description="Deregistering from central core...", total=None)
-            import time
+        print_info("Deregistering from central core...")
+        time.sleep(0.3)
+        print_info("Saving agent memory...")
+        time.sleep(0.3)
+        print_info("Closing connections...")
+        time.sleep(0.3)
 
-            time.sleep(0.3)
-            progress.update(task, description="Saving agent memory...")
-            time.sleep(0.3)
-            progress.update(task, description="Closing connections...")
-            time.sleep(0.3)
-
-        console.print(
-            Panel(
-                "[bold green]Agent stopped successfully![/bold green]",
-                title="[green]✅ Shutdown Complete[/green]",
-                border_style="green",
-                box=ROUNDED,
-            )
-        )
+        print_success("Agent stopped successfully!")
     except Exception as e:
-        console.print(f"[red]Error stopping agent: {e}[/red]")
-        raise typer.Exit(code=1)
+        print_error(f"Error stopping agent: {e}")
+        exit(1)
 
 
-@agent_app.command(name="status")
-def agent_status(
-    agent_id: str = typer.Argument(..., help="Agent ID to check status"),
-):
+def agent_status(args: argparse.Namespace):
     """Get agent status and information"""
-    console.print(
-        Panel(
-            f"[bold blue]Agent Status:[/bold blue] {agent_id}",
-            title="[cyan]📊 Agent Information[/cyan]",
-            border_style="cyan",
-            box=ROUNDED,
-        )
-    )
+    print_header(f"📊 Agent Information - Agent Status: {args.agent_id}")
 
     try:
-        # Sample status data - in production, fetch from actual system
+        # Sample status data
         status_data = {
-            "ID": agent_id[:8] + "...",
+            "ID": args.agent_id[:8] + "...",
             "Name": "Example Agent",
             "Role": "general-purpose",
             "Status": "Running",
@@ -278,16 +164,46 @@ def agent_status(
             "Active Tasks": "3",
         }
 
-        # Display status in a table
-        table = Table(show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED)
-        table.add_column("Property", style="magenta")
-        table.add_column("Value", style="cyan")
-
+        print("-" * 40)
         for key, value in status_data.items():
-            table.add_row(key, str(value))
-
-        console.print(table)
+            print(f"{key:<15}: {value}")
+        print("-" * 40)
 
     except Exception as e:
-        console.print(f"[red]Error getting agent status: {e}[/red]")
-        raise typer.Exit(code=1)
+        print_error(f"Error getting agent status: {e}")
+        exit(1)
+
+
+def register_agent_commands(subparsers):
+    """Register agent subcommands with the main parser"""
+    agent_parser = subparsers.add_parser("agent", help="Agent management commands")
+    agent_subparsers = agent_parser.add_subparsers(dest="agent_command")
+
+    # List
+    list_parser = agent_subparsers.add_parser("list", help="List all registered agents")
+    list_parser.set_defaults(func=list_agents)
+
+    # Create
+    create_parser = agent_subparsers.add_parser("create", help="Create or configure a new agent")
+    create_parser.add_argument("--name", "-n", help="Agent display name")
+    create_parser.add_argument("--role", "-r", help="Agent role type")
+    create_parser.add_argument("--capabilities", "-c", help="Comma-separated list of capabilities")
+    create_parser.add_argument(
+        "--no-interactive", dest="interactive", action="store_false", help="Don't use interactive wizard"
+    )
+    create_parser.set_defaults(interactive=True, func=create_agent)
+
+    # Start
+    start_parser = agent_subparsers.add_parser("start", help="Start an agent")
+    start_parser.add_argument("agent_id", help="Agent ID to start")
+    start_parser.set_defaults(func=start_agent)
+
+    # Stop
+    stop_parser = agent_subparsers.add_parser("stop", help="Stop an agent")
+    stop_parser.add_argument("agent_id", help="Agent ID to stop")
+    stop_parser.set_defaults(func=stop_agent)
+
+    # Status
+    status_parser = agent_subparsers.add_parser("status", help="Get agent status and information")
+    status_parser.add_argument("agent_id", help="Agent ID to check status")
+    status_parser.set_defaults(func=agent_status)

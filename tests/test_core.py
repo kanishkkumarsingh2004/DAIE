@@ -120,7 +120,7 @@ class TestDecentralizedAISystem:
         assert system.agents == {}
         assert system.is_running is False
 
-    @patch("daie.core.system.Agent")
+    @patch("daie.agents.Agent")
     def test_system_add_agent(self, mock_agent, mock_logger):
         """Test adding agents to system."""
         system = DecentralizedAISystem()
@@ -134,7 +134,7 @@ class TestDecentralizedAISystem:
         assert len(system.agents) == 1
         assert "agent1" in system.agents
 
-    @patch("daie.core.system.Agent")
+    @patch("daie.agents.Agent")
     def test_system_get_agent(self, mock_agent, mock_logger):
         """Test getting agent from system."""
         system = DecentralizedAISystem()
@@ -149,7 +149,7 @@ class TestDecentralizedAISystem:
         assert agent is not None
         assert agent.id == "agent1"
 
-    @patch("daie.core.system.Agent")
+    @patch("daie.agents.Agent")
     def test_system_list_agents(self, mock_agent, mock_logger):
         """Test listing agents in system."""
         system = DecentralizedAISystem()
@@ -168,7 +168,7 @@ class TestDecentralizedAISystem:
     @pytest.mark.asyncio
     @patch("daie.core.system.CommunicationManager")
     @patch("daie.core.system.MemoryManager")
-    @patch("daie.core.system.Agent")
+    @patch("daie.agents.Agent")
     async def test_system_start_stop(self, mock_agent, mock_memory_manager, mock_comm_manager, mock_logger):
         """Test system start and stop operations."""
         # Setup AsyncMocks for instances

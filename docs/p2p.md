@@ -288,7 +288,7 @@ async def main():
         print("\nShutting down...")
     finally:
         await agent2.stop()
-        comm.stop()
+        await comm.stop()
 
 asyncio.run(main())
 ```
@@ -435,7 +435,7 @@ async def main():
         print("\nShutting down...")
     finally:
         await agent2.stop()
-        comm.stop()
+        await comm.stop()
 
 asyncio.run(main())
 ```
@@ -545,7 +545,7 @@ async def main():
         print("\nShutting down...")
     finally:
         await agent2.stop()
-        comm.stop()
+        await comm.stop()
 
 asyncio.run(main())
 ```

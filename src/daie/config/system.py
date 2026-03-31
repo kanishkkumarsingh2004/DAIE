@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from dotenv import load_dotenv
+from daie.utils.env import load_dotenv
 
 
 class LogLevel(Enum):
@@ -160,6 +160,38 @@ class SystemConfig:
     enable_tracing: bool = False
     """Whether to enable distributed tracing"""
 
+    otlp_endpoint: Optional[str] = None
+    """OTLP exporter endpoint (e.g., http://localhost:4317)"""
+
+    # Resilience configuration
+    enable_circuit_breakers: bool = True
+    """Whether to enable circuit breakers for remote communication"""
+
+    circuit_failure_threshold: int = 5
+    """Number of failures before opening a circuit"""
+
+    circuit_recovery_timeout: int = 30
+    """Seconds to wait before trying an open circuit again"""
+
+    enable_retries: bool = True
+    """Whether to enable automatic retries for failed operations"""
+
+    max_retries: int = 3
+    """Maximum number of retries for failed operations"""
+
+    # Safety Guardrails
+    max_tokens_per_task: int = 4000
+    """Maximum total LLM tokens allowed per individual task"""
+
+    max_tool_calls_per_task: int = 10
+    """Maximum number of tool calls allowed per individual task"""
+
+    rate_limit_per_peer: int = 100
+    """Messages per window allowed from a specific peer"""
+
+    rate_limit_window: int = 60
+    """Window size in seconds for rate limiting"""
+
     @classmethod
     def from_env(cls) -> "SystemConfig":
         """
@@ -301,6 +333,57 @@ class SystemConfig:
 
         if os.getenv("ENABLE_TRACING"):
             config.enable_tracing = os.getenv("ENABLE_TRACING").lower() == "true"
+
+        if os.getenv("OTLP_ENDPOINT"):
+            config.otlp_endpoint = os.getenv("OTLP_ENDPOINT")
+
+        if os.getenv("ENABLE_CIRCUIT_BREAKERS"):
+            config.enable_circuit_breakers = os.getenv("ENABLE_CIRCUIT_BREAKERS").lower() == "true"
+
+        if os.getenv("CIRCUIT_FAILURE_THRESHOLD"):
+            try:
+                config.circuit_failure_threshold = int(os.getenv("CIRCUIT_FAILURE_THRESHOLD"))
+            except ValueError:
+                pass
+
+        if os.getenv("CIRCUIT_RECOVERY_TIMEOUT"):
+            try:
+                config.circuit_recovery_timeout = int(os.getenv("CIRCUIT_RECOVERY_TIMEOUT"))
+            except ValueError:
+                pass
+
+        if os.getenv("ENABLE_RETRIES"):
+            config.enable_retries = os.getenv("ENABLE_RETRIES").lower() == "true"
+
+        if os.getenv("MAX_RETRIES"):
+            try:
+                config.max_retries = int(os.getenv("MAX_RETRIES"))
+            except ValueError:
+                pass
+
+        if os.getenv("MAX_TOKENS_PER_TASK"):
+            try:
+                config.max_tokens_per_task = int(os.getenv("MAX_TOKENS_PER_TASK"))
+            except ValueError:
+                pass
+
+        if os.getenv("MAX_TOOL_CALLS_PER_TASK"):
+            try:
+                config.max_tool_calls_per_task = int(os.getenv("MAX_TOOL_CALLS_PER_TASK"))
+            except ValueError:
+                pass
+
+        if os.getenv("RATE_LIMIT_PER_PEER"):
+            try:
+                config.rate_limit_per_peer = int(os.getenv("RATE_LIMIT_PER_PEER"))
+            except ValueError:
+                pass
+
+        if os.getenv("RATE_LIMIT_WINDOW"):
+            try:
+                config.rate_limit_window = int(os.getenv("RATE_LIMIT_WINDOW"))
+            except ValueError:
+                pass
 
         if os.getenv("RAG_DOCUMENT_PATH"):
             config.rag_document_path = os.getenv("RAG_DOCUMENT_PATH")

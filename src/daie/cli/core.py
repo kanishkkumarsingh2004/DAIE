@@ -1,21 +1,18 @@
 """
 Central core system commands
+Replaces typer and rich dependencies
 """
 
+import argparse
 import os
 import signal
 import time
 from pathlib import Path
 
-import typer
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Confirm
-
 from daie.config import SystemConfig
 from daie.core.server import start_server
 from daie.core.system import DecentralizedAISystem
+from daie.utils.console import print_error, print_info, print_success, print_header
 
 # Optional daemon support
 try:
@@ -25,10 +22,6 @@ try:
     DAEMON_AVAILABLE = True
 except ImportError:
     DAEMON_AVAILABLE = False
-
-core_app = typer.Typer(name="core", help="Central core system commands", add_completion=True)
-
-console = Console()
 
 
 def get_pid_file():
@@ -45,14 +38,11 @@ def read_pid():
         try:
             with open(pid_file, "r") as f:
                 pid = int(f.read().strip())
-            # Check if process is actually running (cross-platform)
+            # Check if process is actually running
             try:
-                pass
-
-                os.kill(pid, 0)  # Signal 0 checks if process exists
+                os.kill(pid, 0)
                 return pid
             except (OSError, ProcessLookupError):
-                # PID file exists but process doesn't, clean it up
                 pid_file.unlink()
         except Exception:
             pass
@@ -73,357 +63,202 @@ def remove_pid_file():
         pid_file.unlink()
 
 
-@core_app.command(name="start")
-def start_core(
-    background: bool = typer.Option(False, "--background", "-b", help="Run in background (daemon mode)"),
-    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
-    port: int = typer.Option(3333, "--port", "-p", help="Server port"),
-):
+def start_core(args: argparse.Namespace):
     """Start the central core system"""
     # Check if system is already running
     pid = read_pid()
     if pid:
-        console.print(
-            Panel(
-                f"[bold red]Error:[/bold red] Central core system is already running (PID: {pid})",
-                title="[red]❌ System Error[/red]",
-                border_style="red",
-            )
-        )
-        raise typer.Exit(code=1)
+        print_error(f"Central core system is already running (PID: {pid})")
+        exit(1)
 
-    console.print(
-        Panel(
-            "[bold green]Starting Central Core System[/bold green]",
-            title="[green]🚀 System Startup[/green]",
-            border_style="green",
-        )
-    )
+    print_header("🚀 System Startup - Starting Central Core System")
 
-    if background:
-        console.print("[bold blue]Running in daemon mode (will persist after terminal closes)[/bold blue]")
+    if args.background:
+        print_info("Running in daemon mode (will persist after terminal closes)")
 
-    if debug:
-        console.print("[bold yellow]Debug mode enabled[/bold yellow]")
+    if args.debug:
+        print_info("Debug mode enabled")
 
     try:
-        if background:
-            # Check if daemon is available
+        if args.background:
             if not DAEMON_AVAILABLE:
-                console.print(
-                    Panel(
-                        "[bold red]Error:[/bold red] Daemon mode requires 'python-daemon' package.\n"
-                        "Install it with: [bold]pip install python-daemon[/bold]",
-                        title="[red]❌ Missing Dependency[/red]",
-                        border_style="red",
-                    )
-                )
-                raise typer.Exit(code=1)
+                print_error("Daemon mode requires 'python-daemon' package. Install it with: pip install python-daemon")
+                exit(1)
 
-            # Run as daemon using python-daemon
             pid_file = get_pid_file()
+            print_info("Initializing system components...")
 
-            # Show progress while initializing
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                transient=True,
-            ) as progress:
-                progress.add_task(description="Initializing system components...", total=None)
-                with daemon.DaemonContext(
-                    working_directory=Path.cwd(),
-                    pidfile=PIDLockFile(str(pid_file)),
-                    stdout=open("/dev/null", "w"),
-                    stderr=open("/dev/null", "w"),
-                    detach_process=True,
-                ):
-                    # Create and start system with web server
-                    config = SystemConfig()
-                    DecentralizedAISystem(config=config)
-                    start_server("0.0.0.0", port, debug)
+            with daemon.DaemonContext(
+                working_directory=Path.cwd(),
+                pidfile=PIDLockFile(str(pid_file)),
+                stdout=open("/dev/null", "w"),
+                stderr=open("/dev/null", "w"),
+                detach_process=True,
+            ):
+                config = SystemConfig()
+                DecentralizedAISystem(config=config)
+                start_server("0.0.0.0", args.port, args.debug)
 
-            # Wait for PID file to be created
+            # Wait for PID file verification
             max_wait = 5
             wait_time = 0
             while wait_time < max_wait:
                 pid = read_pid()
-                if pid:
-                    break
+                if pid: break
                 time.sleep(0.5)
                 wait_time += 0.5
 
             if pid:
-                console.print(
-                    Panel(
-                        f"[bold green]Central core system started successfully![/bold green]\n"
-                        f"[bold blue]PID:[/bold blue] {pid}\n"
-                        f"[bold blue]API server running at:[/bold blue] http://localhost:{port}\n"
-                        f"[bold blue]API documentation:[/bold blue] http://localhost:{port}/docs",
-                        title="[green]✅ Startup Complete[/green]",
-                        border_style="green",
-                    )
-                )
+                print_success(f"Central core system started successfully! PID: {pid}")
+                print_info(f"API server running at: http://localhost:{args.port}")
             else:
-                console.print(
-                    Panel(
-                        "[bold yellow]Warning:[/bold yellow] Could not verify system startup",
-                        title="[yellow]⚠️  Warning[/yellow]",
-                        border_style="yellow",
-                    )
-                )
+                print_info("Warning: Could not verify system startup")
         else:
-            # Run in foreground
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                transient=True,
-            ) as progress:
-                progress.add_task(description="Initializing system components...", total=None)
-                config = SystemConfig()
-                DecentralizedAISystem(config=config)
-
-            console.print(
-                Panel(
-                    f"[bold green]Central core system started successfully![/bold green]\n"
-                    f"[bold blue]API server running at:[/bold blue] http://localhost:{port}\n"
-                    f"[bold blue]API documentation:[/bold blue] http://localhost:{port}/docs\n"
-                    f"[bold yellow]Press Ctrl+C to stop the server[/bold yellow]",
-                    title="[green]✅ Startup Complete[/green]",
-                    border_style="green",
-                )
-            )
-            start_server("0.0.0.0", port, debug)
+            print_info("Initializing system components...")
+            config = SystemConfig()
+            DecentralizedAISystem(config=config)
+            print_success(f"Central core system started successfully! API: http://localhost:{args.port}")
+            print_info("Press Ctrl+C to stop the server")
+            start_server("0.0.0.0", args.port, args.debug)
 
     except KeyboardInterrupt:
-        console.print(
-            Panel(
-                "[bold yellow]System startup interrupted[/bold yellow]",
-                title="[yellow]⚠️  Interrupted[/yellow]",
-                border_style="yellow",
-            )
-        )
-        raise typer.Exit(code=0)
+        print_info("System startup interrupted")
+        exit(0)
     except Exception as e:
-        console.print(
-            Panel(
-                f"[bold red]Error:[/bold red] Failed to start central core system: {e}",
-                title="[red]❌ Startup Failed[/red]",
-                border_style="red",
-            )
-        )
-        raise typer.Exit(code=1)
+        print_error(f"Failed to start central core system: {e}")
+        exit(1)
 
 
-@core_app.command(name="stop")
-def stop_core(
-    force: bool = typer.Option(False, "--force", "-f", help="Force stop"),
-):
+def stop_core(args: argparse.Namespace):
     """Stop the central core system"""
     pid = read_pid()
     if not pid:
-        console.print(
-            Panel(
-                "[bold yellow]Warning:[/bold yellow] Central core system is not running",
-                title="[yellow]⚠️  Warning[/yellow]",
-                border_style="yellow",
-            )
-        )
-        raise typer.Exit(code=0)
+        print_info("Warning: Central core system is not running")
+        exit(0)
 
-    console.print(
-        Panel(
-            "[bold yellow]Stopping Central Core System[/bold yellow]",
-            title="[yellow]⏹️  System Shutdown[/yellow]",
-            border_style="yellow",
-        )
-    )
+    print_header("⏹️ System Shutdown - Stopping Central Core System")
 
-    if force:
-        console.print("[bold red]Force stopping...[/bold red]")
+    if args.force:
+        print_info("Force stopping...")
 
     try:
-        # Try graceful shutdown first (cross-platform)
         import platform
         import subprocess
 
         if platform.system() == "Windows":
-            # Windows: Use taskkill for graceful shutdown
             subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True, timeout=5)
         else:
-            # Unix: Use SIGTERM
             os.kill(pid, signal.SIGTERM)
 
-        console.print("[bold blue]Initiating shutdown...[/bold blue]")
-
-        # Wait for process to terminate (cross-platform)
-        import time
+        print_info("Initiating shutdown...")
 
         max_wait = 10
         wait_time = 0
         while wait_time < max_wait:
             try:
-                os.kill(pid, 0)  # Check if process exists
+                os.kill(pid, 0)
             except (OSError, ProcessLookupError):
                 break
             time.sleep(0.5)
             wait_time += 0.5
 
         try:
-            os.kill(pid, 0)  # Check if process still exists
-            if force:
-                console.print("[bold red]Process did not terminate, force killing...[/bold red]")
+            os.kill(pid, 0)
+            if args.force:
+                print_info("Process did not terminate, force killing...")
                 if platform.system() == "Windows":
-                    # Windows: Use taskkill /F for force kill
                     subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
                 else:
-                    # Unix: Use SIGKILL
                     os.kill(pid, signal.SIGKILL)
                 time.sleep(1)
-                try:
-                    os.kill(pid, 0)
-                    # Process still exists after force kill
-                    console.print(
-                        Panel(
-                            "[bold red]Error:[/bold red] Failed to stop central core system",
-                            title="[red]❌ Shutdown Failed[/red]",
-                            border_style="red",
-                        )
-                    )
-                    raise typer.Exit(code=1)
-                except (OSError, ProcessLookupError):
-                    pass
         except (OSError, ProcessLookupError):
             pass
 
         remove_pid_file()
-        console.print(
-            Panel(
-                "[bold green]Central core system stopped successfully[/bold green]",
-                title="[green]✅ Shutdown Complete[/green]",
-                border_style="green",
-            )
-        )
+        print_success("Central core system stopped successfully")
 
     except Exception as e:
-        console.print(
-            Panel(
-                f"[bold red]Error:[/bold red] {e}",
-                title="[red]❌ Shutdown Error[/red]",
-                border_style="red",
-            )
-        )
-        # Clean up PID file if process doesn't exist
-        try:
-            os.kill(pid, 0)
-        except (OSError, ProcessLookupError):
-            remove_pid_file()
-        raise typer.Exit(code=1)
+        print_error(f"Error stopping system: {e}")
+        try: os.kill(pid, 0)
+        except (OSError, ProcessLookupError): remove_pid_file()
+        exit(1)
 
 
-@core_app.command(name="status")
-def core_status():
+def core_status(args: argparse.Namespace):
     """Check the status of the central core system"""
     pid = read_pid()
-
     if pid:
-        console.print(
-            Panel(
-                f"[bold green]Central core system is running[/bold green]\n"
-                f"[bold blue]PID:[/bold blue] {pid}\n"
-                f"[bold blue]Port:[/bold blue] 3333\n"
-                f"[bold blue]API:[/bold blue] http://localhost:3333\n"
-                f"[bold blue]Docs:[/bold blue] http://localhost:3333/docs",
-                title="[green]🟢 Central Core System Status[/green]",
-                border_style="green",
-            )
-        )
-        raise typer.Exit(code=0)
+        print_header("🟢 Central Core System Status")
+        print_success(f"System is running (PID: {pid})")
+        print_info("API: http://localhost:3333")
     else:
-        console.print(
-            Panel(
-                "[bold yellow]Central core system is not running[/bold yellow]",
-                title="[yellow]🔴 Central Core System Status[/yellow]",
-                border_style="yellow",
-            )
-        )
-        raise typer.Exit(code=0)  # Changed to 0 for test compatibility
+        print_header("🔴 Central Core System Status")
+        print_info("System is not running")
 
 
-@core_app.command(name="restart")
-def restart_core(
-    force: bool = typer.Option(False, "--force", "-f", help="Force stop if needed"),
-    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
-    port: int = typer.Option(3333, "--port", "-p", help="Server port"),
-):
+def restart_core(args: argparse.Namespace):
     """Restart the central core system"""
-    console.print(
-        Panel(
-            "[bold blue]Restarting Central Core System[/bold blue]",
-            title="[blue]🔄 System Restart[/blue]",
-            border_style="blue",
-        )
-    )
-
-    # Stop if running
+    print_header("🔄 System Restart - Restarting Central Core System")
     pid = read_pid()
     if pid:
-        console.print("[bold yellow]Stopping current instance...[/bold yellow]")
-        try:
-            stop_core(force)
-        except Exception as e:
-            console.print(
-                Panel(
-                    f"[bold red]Error stopping system:[/bold red] {e}",
-                    title="[red]❌ Stop Error[/red]",
-                    border_style="red",
-                )
-            )
-            raise typer.Exit(code=1)
+        print_info("Stopping current instance...")
+        stop_core(args)
 
-    # Start again
-    console.print("[bold green]Starting new instance...[/bold green]")
-    start_core(background=True, debug=debug, port=port)
+    print_info("Starting new instance...")
+    start_core(args)
 
 
-@core_app.command(name="init")
-def init_core():
+def init_core(args: argparse.Namespace):
     """Initialize the system configuration"""
-    console.print(
-        Panel(
-            "[bold blue]Initializing Decentralized AI Ecosystem[/bold blue]",
-            title="[blue]⚙️  System Initialization[/blue]",
-            border_style="blue",
-        )
-    )
+    print_header("⚙️ System Initialization - Initializing Decentralized AI Ecosystem")
 
     config_dir = Path.home() / ".daie"
     config_file = config_dir / "config.yaml"
 
     if config_dir.exists() and config_file.exists():
-        if not Confirm.ask("Configuration already exists. Do you want to reinitialize?"):
-            console.print("[bold yellow]Initialization cancelled[/bold yellow]")
-            raise typer.Exit(code=0)
+        choice = input("Configuration already exists. Do you want to reinitialize? (y/n) [n]: ").lower()
+        if choice != "y":
+            print_info("Initialization cancelled")
+            return
 
     try:
         config_dir.mkdir(exist_ok=True)
-
-        # Create default configuration
         SystemConfig()
-
-        console.print(
-            Panel(
-                "[bold green]System initialization completed successfully[/bold green]\n"
-                f"[bold blue]Configuration directory:[/bold blue] {config_dir}",
-                title="[green]✅ Initialization Complete[/green]",
-                border_style="green",
-            )
-        )
+        print_success("System initialization completed successfully")
+        print_info(f"Configuration directory: {config_dir}")
     except Exception as e:
-        console.print(
-            Panel(
-                f"[bold red]Error:[/bold red] Failed to initialize system: {e}",
-                title="[red]❌ Initialization Failed[/red]",
-                border_style="red",
-            )
-        )
-        raise typer.Exit(code=1)
+        print_error(f"Failed to initialize system: {e}")
+        exit(1)
+
+
+def register_core_commands(subparsers):
+    """Register core subcommands with the main parser"""
+    core_parser = subparsers.add_parser("core", help="Central core system commands")
+    core_subparsers = core_parser.add_subparsers(dest="core_command")
+
+    # Start
+    start_parser = core_subparsers.add_parser("start", help="Start the central core system")
+    start_parser.add_argument("--background", "-b", action="store_true", help="Run in background")
+    start_parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
+    start_parser.add_argument("--port", "-p", type=int, default=3333, help="Server port")
+    start_parser.set_defaults(func=start_core)
+
+    # Stop
+    stop_parser = core_subparsers.add_parser("stop", help="Stop the central core system")
+    stop_parser.add_argument("--force", "-f", action="store_true", help="Force stop")
+    stop_parser.set_defaults(func=stop_core)
+
+    # Status
+    status_parser = core_subparsers.add_parser("status", help="Check status")
+    status_parser.set_defaults(func=core_status)
+
+    # Restart
+    restart_parser = core_subparsers.add_parser("restart", help="Restart system")
+    restart_parser.add_argument("--force", "-f", action="store_true", help="Force stop if needed")
+    restart_parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode")
+    restart_parser.add_argument("--port", "-p", type=int, default=3333, help="Server port")
+    restart_parser.set_defaults(func=restart_core, background=True)
+
+    # Init
+    init_parser = core_subparsers.add_parser("init", help="Initialize configuration")
+    init_parser.set_defaults(func=init_core)

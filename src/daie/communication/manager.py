@@ -12,6 +12,9 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from daie.agents.message import AgentMessage
 from daie.config import SystemConfig
+from daie.core.resilience import CircuitBreaker, RetryPolicy
+from daie.core.tracing import (TraceContextManager, inject_trace_context,
+                               trace_span)
 from daie.registry.manager import NodeRegistry
 from daie.utils.encryption import (decrypt_data, encrypt_data,
                                    generate_encryption_key)
@@ -100,6 +103,9 @@ class CommunicationManager:
         self._rate_limit_window = getattr(config, "rate_limit_window", 60)  # seconds
         self._rate_limit_max_messages = getattr(config, "rate_limit_max_messages", 100)
         self._message_counts: Dict[str, List[float]] = defaultdict(list)  # agent_id -> list of timestamps
+
+        # Resilience: Circuit Breakers for remote nodes
+        self._circuit_breakers: Dict[str, CircuitBreaker] = {}  # peer_url -> CircuitBreaker
 
         self._background_tasks = set()
 
@@ -249,6 +255,7 @@ class CommunicationManager:
         """
         return len([p for p in self._peers.values() if p.is_connected])
 
+    @trace_span("comm_send_message")
     async def send_message(self, message: AgentMessage) -> bool:
         """
         Send a message to another agent with optimized performance
@@ -278,6 +285,9 @@ class CommunicationManager:
 
             # Audit log for message send
             self._audit_log("MESSAGE_SEND", message)
+
+            # Inject trace context into message metadata for propagation
+            message.metadata = inject_trace_context(message.metadata)
 
             # Handle broadcast messages
             if message.receiver_id == "*":
@@ -411,13 +421,19 @@ class CommunicationManager:
             return True
 
         current_time = time.time()
-        window_start = current_time - self._rate_limit_window
+        
+        # Use config values or system defaults - check both possible keys for compatibility
+        window = getattr(self.config, "rate_limit_window", 60)
+        max_msgs = getattr(self.config, "rate_limit_max_messages", 
+                          getattr(self.config, "rate_limit_per_peer", 100))
+        
+        window_start = current_time - window
 
         # Clean old timestamps
         self._message_counts[agent_id] = [ts for ts in self._message_counts[agent_id] if ts > window_start]
 
         # Check if within limit
-        if len(self._message_counts[agent_id]) >= self._rate_limit_max_messages:
+        if len(self._message_counts[agent_id]) >= max_msgs:
             return False
 
         # Add current timestamp
@@ -518,10 +534,31 @@ class CommunicationManager:
 
                 logger.warning(f"No route found to receiver agent {message.receiver_id}")
 
+    @trace_span("comm_send_remote_message")
     async def _send_remote_message(self, message: AgentMessage, network_url: str):
-        try:
-            import websockets
+        """Send message over the network with circuit breaker and retry support"""
+        # Get or create circuit breaker for this endpoint
+        if network_url not in self._circuit_breakers:
+            self._circuit_breakers[network_url] = CircuitBreaker(
+                name=f"remote_{network_url}",
+                failure_threshold=getattr(self.config, "circuit_failure_threshold", 5),
+                recovery_timeout=getattr(self.config, "circuit_recovery_timeout", 30)
+            )
+        
+        cb = self._circuit_breakers[network_url]
+        
+        # Setup retry policy
+        retry_policy = None
+        if getattr(self.config, "enable_retries", True):
+            retry_policy = RetryPolicy(
+                max_retries=getattr(self.config, "max_retries", 3),
+                base_delay=1.0,
+                jitter=True
+            )
 
+        async def _do_send():
+            import websockets
+            
             sender_agent = self._agents.get(message.sender_id)
             token = getattr(sender_agent.config, "auth_token", "") if sender_agent else ""
 
@@ -529,7 +566,7 @@ class CommunicationManager:
             ws_url = network_url.replace("http://", "ws://").replace("https://", "wss://")
             endpoint = f"{ws_url.rstrip('/')}/ws/a2a/message"
 
-            async with websockets.connect(endpoint) as websocket:
+            async with websockets.connect(endpoint, open_timeout=5) as websocket:
                 msg_dict = {
                     "sender_id": message.sender_id,
                     "receiver_id": message.receiver_id,
@@ -545,13 +582,18 @@ class CommunicationManager:
                 response_data = json.loads(response)
 
                 if "error" in response_data:
-                    logger.error(f"Failed to send remote message to {endpoint}: {response_data['error']}")
-                    self._audit_log("MESSAGE_SEND_REMOTE_ERROR", message, response_data["error"])
-                else:
-                    logger.debug(f"Remote message delivered to {endpoint}")
-                    self._audit_log("MESSAGE_SEND_REMOTE_SUCCESS", message)
+                    raise RuntimeError(f"Peer error: {response_data['error']}")
+                
+                logger.debug(f"Remote message delivered to {endpoint}")
+                self._audit_log("MESSAGE_SEND_REMOTE_SUCCESS", message)
+
+        try:
+            if retry_policy:
+                await cb.call(retry_policy.execute, _do_send)
+            else:
+                await cb.call(_do_send)
         except Exception as e:
-            logger.error(f"Error sending remote message to {network_url}: {e}")
+            logger.error(f"Failed to send remote message to {network_url}: {e}")
             self._audit_log("MESSAGE_SEND_REMOTE_ERROR", message, str(e))
 
     async def broadcast_message(self, message: AgentMessage) -> int:
@@ -617,12 +659,13 @@ class CommunicationManager:
             # Audit log for message receive
             self._audit_log("MESSAGE_RECEIVE", message)
 
-            agent = self._agents[agent_id]
-            import inspect
+            with TraceContextManager(message.metadata):
+                agent = self._agents[agent_id]
+                import inspect
 
-            result = agent._handle_message(message)
-            if inspect.iscoroutine(result) or inspect.isawaitable(result):
-                self._track_task(asyncio.create_task(result))
+                result = agent._handle_message(message)
+                if inspect.iscoroutine(result) or inspect.isawaitable(result):
+                    self._track_task(asyncio.create_task(result))
         except Exception as e:
             logger.error(f"Error handling message for agent {agent_id}: {e}")
             self._audit_log("MESSAGE_RECEIVE_ERROR", message, str(e))

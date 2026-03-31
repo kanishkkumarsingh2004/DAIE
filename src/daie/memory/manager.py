@@ -9,53 +9,14 @@ binary files, and JSON files.
 import logging
 import os
 import time
-import uuid
 from typing import Any, Dict, List, Optional
 
 from daie.config import SystemConfig
 from daie.memory.storage import (MemoryItem, StorageBackend,
                                  VectorDatabaseStorage, create_storage_backend)
+from daie.utils.encryption import uuid7
 
 logger = logging.getLogger(__name__)
-
-
-def uuid7() -> uuid.UUID:
-    """Generate a UUID v7 (time-ordered UUID)
-
-    UUID v7 format:
-    - 48 bits: timestamp in milliseconds
-    - 4 bits: version (0111 for v7)
-    - 12 bits: random
-    - 2 bits: variant (10)
-    - 62 bits: random
-
-    Returns:
-        UUID v7 instance
-    """
-    try:
-        # Get current timestamp in milliseconds
-        timestamp_ms = int(time.time() * 1000)
-
-        # Generate random bytes using os.urandom for cryptographic randomness
-        random_bytes = os.urandom(10)
-
-        # Convert timestamp to 6 bytes (48 bits)
-        timestamp_bytes = timestamp_ms.to_bytes(6, byteorder="big")
-
-        # Combine with random bytes
-        uuid_bytes = bytearray(timestamp_bytes + random_bytes)
-
-        # Set version bits (bits 4-7 of byte 6 to 0111)
-        uuid_bytes[6] = (uuid_bytes[6] & 0x0F) | 0x70  # Version 7
-
-        # Set variant bits (bits 6-7 of byte 8 to 10)
-        uuid_bytes[8] = (uuid_bytes[8] & 0x3F) | 0x80  # Variant 10
-
-        return uuid.UUID(bytes=bytes(uuid_bytes))
-    except Exception as e:
-        logger.error(f"Failed to generate UUID v7: {e}")
-        # Fallback to UUID v4 if v7 generation fails
-        return uuid.uuid4()
 
 
 class MemoryManager:
@@ -274,7 +235,7 @@ class MemoryManager:
             self.initialize_agent_memory(agent_id)
 
         memory_item = MemoryItem(
-            id=str(uuid7()),
+            id=uuid7(),
             content=content,
             memory_type=memory_type,
             timestamp=time.time(),

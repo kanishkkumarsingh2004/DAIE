@@ -15,7 +15,7 @@ pip install "daie[docs]"     # sphinx, sphinx-rtd-theme, nbsphinx
 
 **Requires Python 3.10+**
 
-**Core dependencies:** cryptography, python-dotenv, pydantic, pydantic-settings, pyyaml, requests, rich, typer, selenium, webdriver-manager, uvicorn, nats-py, numpy, opencv-python, pyaudio
+**Core dependencies:** `pyyaml`, `selenium`, `webdriver-manager`, `uvicorn`, `websockets`, `nats-py`, `pyaudio`, `zeroconf`, `kademlia`, `numpy`, `pydantic`, `pydantic-settings`
 
 ---
 

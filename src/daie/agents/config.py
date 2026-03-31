@@ -199,7 +199,13 @@ class AgentConfig:
     rag_strict_context: bool = False
     """When True, the agent will ONLY answer from the loaded documents and refuse to respond to anything outside the document context. Requires enable_rag=True."""
 
-    # Logging settings
+    # Guardrails
+    max_tokens_per_task: Optional[int] = None
+    """Maximum total LLM tokens allowed per individual task for this agent. Overrides system default."""
+
+    max_tool_calls_per_task: Optional[int] = None
+    """Maximum number of tool calls allowed per individual task for this agent. Overrides system default."""
+
     enable_logging: bool = True
     """Whether to enable detailed logging"""
 

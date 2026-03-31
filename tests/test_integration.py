@@ -39,7 +39,7 @@ from daie.core.system import DecentralizedAISystem
 
 class TestSystemIntegration:
 
-    @patch("daie.core.system.Agent")
+    @patch("daie.agents.Agent")
     def test_system_with_multiple_agents(self, mock_agent, mock_logger):
         """Test system with multiple agents."""
         system = DecentralizedAISystem()
@@ -119,8 +119,8 @@ class TestSystemIntegration:
 class TestAgentSystemIntegration:
     """Integration tests for agent-system interactions."""
 
-    @patch("daie.agents.agent.CommunicationManager")
-    @patch("daie.agents.agent.MemoryManager")
+    @patch("daie.communication.manager.CommunicationManager")
+    @patch("daie.memory.manager.MemoryManager")
     @pytest.mark.asyncio
     async def test_agent_lifecycle(self, mock_memory, mock_comm, mock_logger):
         """Test complete agent lifecycle."""
@@ -164,7 +164,7 @@ class TestAgentSystemIntegration:
 class TestMemoryIntegration:
     """Integration tests for memory system."""
 
-    @patch("daie.agents.agent.MemoryManager")
+    @patch("daie.memory.manager.MemoryManager")
     @pytest.mark.asyncio
     async def test_memory_across_sessions(self, mock_memory, mock_logger):
         """Test memory persistence across sessions."""

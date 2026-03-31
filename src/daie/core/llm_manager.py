@@ -3,11 +3,12 @@ LLM (Large Language Model) management module
 """
 
 import logging
+from daie.core.tracing import trace_span
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-import requests
+from daie.utils import http_client as requests
 
 logger = logging.getLogger(__name__)
 
@@ -205,13 +206,15 @@ class LLMManager:
                 self.base_url = config.base_url or "http://localhost:11434"
                 # Reuse session for better performance
                 self._session = None
+                from daie.utils import http_client
+                self._session = http_client.Session()
+                self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
             def _get_session(self):
-                """Get or create requests session"""
-                if self._session is None:
-                    self._session = requests.Session()
+                """Get the session for API calls"""
                 return self._session
 
+            @trace_span("llm_invoke")
             def invoke(
                 self, prompt: str, stream: Optional[bool] = None, images: Optional[List[str]] = None, **kwargs
             ) -> str:
@@ -262,6 +265,14 @@ class LLMManager:
                     # Parse response
                     if response.status_code == 200:
                         data = response.json()
+                        
+                        # Update usage stats
+                        self.last_usage = {
+                            "prompt_tokens": data.get("prompt_eval_count", 0),
+                            "completion_tokens": data.get("eval_count", 0),
+                            "total_tokens": data.get("prompt_eval_count", 0) + data.get("eval_count", 0)
+                        }
+
                         if "message" in data and "content" in data["message"]:
                             return data["message"]["content"]
 
@@ -274,7 +285,7 @@ class LLMManager:
                         return f"Error: Failed to communicate with Ollama (Status: {response.status_code})"
 
                 except Exception as e:
-                    import requests
+                    from daie.utils import http_client as requests
 
                     if isinstance(e, requests.exceptions.ConnectionError):
                         logger.error("Ollama connection error: Could not connect to server")
@@ -340,7 +351,7 @@ class LLMManager:
                     return full_response
 
                 except Exception as e:
-                    import requests
+                    from daie.utils import http_client as requests
 
                     if isinstance(e, requests.exceptions.ConnectionError):
                         logger.error("Ollama connection error: Could not connect to server")
@@ -367,7 +378,9 @@ class LLMManager:
 
             def __init__(self, config: LLMConfig):
                 self.config = config
+                self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
+            @trace_span("llm_invoke")
             def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """
                 Invoke the LLM with a prompt
@@ -389,7 +402,7 @@ class LLMManager:
             def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
                 """Non-streaming invocation"""
                 try:
-                    import requests
+                    from daie.utils import http_client as requests
 
                     url = f"{self.config.base_url or 'https://api.openai.com'}/v1/chat/completions"
                     headers = {
@@ -408,6 +421,15 @@ class LLMManager:
                     response.raise_for_status()
 
                     data = response.json()
+                    
+                    # Update usage stats
+                    usage = data.get("usage", {})
+                    self.last_usage = {
+                        "prompt_tokens": usage.get("prompt_tokens", 0),
+                        "completion_tokens": usage.get("completion_tokens", 0),
+                        "total_tokens": usage.get("total_tokens", 0)
+                    }
+
                     return data["choices"][0]["message"]["content"]
 
                 except Exception as e:
@@ -420,7 +442,7 @@ class LLMManager:
                     import json
                     import sys
 
-                    import requests
+                    from daie.utils import http_client as requests
 
                     url = f"{self.config.base_url or 'https://api.openai.com'}/v1/chat/completions"
                     headers = {
@@ -496,7 +518,7 @@ class LLMManager:
             def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
                 """Non-streaming invocation"""
                 try:
-                    import requests
+                    from daie.utils import http_client as requests
 
                     url = f"{self.config.base_url or 'https://api.anthropic.com'}/v1/messages"
                     headers = {
@@ -515,6 +537,15 @@ class LLMManager:
                     response.raise_for_status()
 
                     data = response.json()
+                    
+                    # Update usage stats
+                    usage = data.get("usage", {})
+                    self.last_usage = {
+                        "prompt_tokens": usage.get("input_tokens", 0),
+                        "completion_tokens": usage.get("output_tokens", 0),
+                        "total_tokens": usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+                    }
+
                     return data["content"][0]["text"]
 
                 except Exception as e:
@@ -527,7 +558,7 @@ class LLMManager:
                     import json
                     import sys
 
-                    import requests
+                    from daie.utils import http_client as requests
 
                     url = f"{self.config.base_url or 'https://api.anthropic.com'}/v1/messages"
                     headers = {
@@ -667,7 +698,7 @@ class LLMManager:
             def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
                 """Non-streaming invocation"""
                 try:
-                    import requests
+                    from daie.utils import http_client as requests
 
                     # Azure OpenAI API endpoint format:
                     # https://{your-resource-name}.openai.azure.com/openai/deployments/{deployment-name}/chat/completions?api-version={api-version}
@@ -699,7 +730,7 @@ class LLMManager:
                     import json
                     import sys
 
-                    import requests
+                    from daie.utils import http_client as requests
 
                     # Azure OpenAI API endpoint format:
                     # https://{your-resource-name}.openai.azure.com/openai/deployments/{deployment-name}/chat/completions?api-version={api-version}
@@ -779,7 +810,7 @@ class LLMManager:
                 try:
                     import json
 
-                    import requests
+                    from daie.utils import http_client as requests
 
                     url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
                     headers = {
@@ -818,7 +849,7 @@ class LLMManager:
                     import json
                     import sys
 
-                    import requests
+                    from daie.utils import http_client as requests
 
                     url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
                     headers = {

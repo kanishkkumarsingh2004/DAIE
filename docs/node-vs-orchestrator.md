@@ -456,7 +456,7 @@ await comm.start()
 # Node 1: Research Lab (with Orchestrator)
 # ──────────────────────────────────────────────
 research_node = Node(node_id="research-lab", name="Research Lab")
-research_node.start()
+await research_node.start()
 
 # Create research team
 professor = Agent(config=AgentConfig(
@@ -563,7 +563,7 @@ await research_orchestrator.start()
 # Node 2: Analysis Center
 # ──────────────────────────────────────────────
 analysis_node = Node(node_id="analysis-center", name="Analysis Center")
-await analysis_node.start()
+await await research_node.start()
 
 data_scientist = Agent(config=AgentConfig(
     name="DataScientist",
@@ -1925,9 +1925,9 @@ print(f"NLP Lab GPUs: {nlp_node.get_resource('gpu_count')}")
 # Cleanup
 await ml_orchestrator.stop()
 await nlp_orchestrator.stop()
-await ml_node.stop()
-await nlp_node.stop()
-await comm.stop()
+    finally:
+        await agent2.stop()
+        await comm.stop()
 ```
 
 **Learning Outcomes:**

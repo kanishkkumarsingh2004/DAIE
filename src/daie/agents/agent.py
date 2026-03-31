@@ -13,16 +13,9 @@ from daie.agents.message import AgentMessage
 from daie.rag import RAGEngine
 from daie.tools import ToolRegistry
 from daie.utils import generate_id
+from daie.core.tracing import trace_span
 
 logger = logging.getLogger(__name__)
-
-try:
-    from daie.communication import CommunicationManager
-    from daie.memory import MemoryManager
-except ImportError:
-    CommunicationManager = None  # type: ignore
-    MemoryManager = None  # type: ignore
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Prompt templates
@@ -85,7 +78,7 @@ class Agent:
 
     def __init__(
         self,
-        name: Optional[str] = None,
+        name: Optional[Union[str, AgentConfig]] = None,
         role: Optional[AgentRole] = None,
         goal: Optional[str] = None,
         backstory: Optional[str] = None,
@@ -93,7 +86,9 @@ class Agent:
         config: Optional[AgentConfig] = None,
         tools: Optional[List[Any]] = None,
     ):
-        if config is not None:
+        if isinstance(name, AgentConfig):
+            self.config = name
+        elif config is not None:
             self.config = config
         else:
             self.config = AgentConfig(
@@ -116,6 +111,10 @@ class Agent:
         self._llm = None
         self.rag_engine: Optional[RAGEngine] = None
         self._pending_responses: Dict[str, asyncio.Future] = {}
+
+        # Task-level usage tracking
+        self._current_task_tokens = 0
+        self._current_task_tool_calls = 0
 
         if tools:
             for t in tools:
@@ -294,8 +293,22 @@ class Agent:
 
     # ── tool execution ────────────────────────────────────────────────────────
 
+    @trace_span("agent_run_tool")
     async def _run_tool(self, tool_name: str, params: Dict[str, Any]) -> str:
         """Execute a tool and return a string representation of the result."""
+        
+        # --- Tool usage guardrails ---
+        max_calls = getattr(self.config, "max_tool_calls_per_task", None)
+        if max_calls is None:
+            from daie.config import SystemConfig
+            max_calls = SystemConfig().max_tool_calls_per_task
+            
+        if self._current_task_tool_calls >= max_calls:
+            logger.warning(f"Agent '{self.name}' reached max_tool_calls_per_task: {max_calls}")
+            return f"Error: Tool call limit reached ({max_calls})."
+            
+        self._current_task_tool_calls += 1
+        # -----------------------------
         tool = self.get_tool(tool_name)
         if tool is None:
             return f"Error: tool '{tool_name}' not found. Available: {list(self.tools.keys())}"
@@ -356,8 +369,19 @@ class Agent:
     async def execute_task(self, task_input: Union[str, Dict[str, Any]]) -> Any:
         """
         Execute a task using a ReAct-style loop.
+        """
 
-        The LLM reasons → picks a tool → sees the result → reasons again,
+        @trace_span("agent_execute_task")
+        async def _execute():
+            return await self._execute_task_internal(task_input)
+            
+        return await _execute()
+
+    async def _execute_task_internal(self, task_input: Union[str, Dict[str, Any]]) -> Any:
+        """
+        Execute a task using a ReAct-style loop.
+
+        The LLM reasons -> picks a tool -> sees the result -> reasons again,
         until it produces a final answer or the iteration limit is reached.
 
         Args:
@@ -369,6 +393,10 @@ class Agent:
         """
         if not self._is_running:
             await self.start()
+
+        # Reset task-level tracking
+        self._current_task_tokens = 0
+        self._current_task_tool_calls = 0
 
         # ── direct tool call (dict input) ──────────────────────────────────
         if isinstance(task_input, dict):
@@ -406,6 +434,23 @@ class Agent:
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
             ).strip()
+            
+            # --- Usage Tracking & Guardrails ---
+            if hasattr(self.llm, "last_usage"):
+                usage = self.llm.last_usage
+                self._current_task_tokens += usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
+            
+            # Use configured or system-default max tokens
+            max_tokens = getattr(self.config, "max_tokens_per_task", None)
+            if max_tokens is None:
+                from daie.config import SystemConfig
+                max_tokens = SystemConfig().max_tokens_per_task
+                
+            if self._current_task_tokens > max_tokens:
+                logger.warning(f"Agent '{self.name}' [ID: {self.id}] exceeded max_tokens_per_task: {self._current_task_tokens} > {max_tokens}")
+                return f"Error: Task aborted. Token limit exceeded ({self._current_task_tokens} tokens)."
+            # ------------------------------------
+
             logger.debug(f"[iter {iteration}] LLM raw: {raw[:300]}")
 
             parsed = self._parse_llm_json(raw)
@@ -578,6 +623,7 @@ class Agent:
             return False
 
     async def send_task(self, task: Dict[str, Any], receiver_id: str) -> bool:
+        from daie.core.tracing import inject_trace_context
         message = AgentMessage(
             sender_id=self.id,
             receiver_id=receiver_id,
@@ -585,6 +631,8 @@ class Agent:
             message_type="task",
             metadata={"task": task},
         )
+        # Inject trace context into outgoing message
+        message.metadata = inject_trace_context(message.metadata)
         return await self.send_message(message)
 
     # ── message / task queue internals ────────────────────────────────────────
@@ -604,24 +652,28 @@ class Agent:
         This method processes messages in a non-blocking way, allowing the agent
         to continue running tasks while handling incoming messages.
         """
-        try:
-            # Check for correlation_id to resolve pending requests
-            correlation_id = message.metadata.get("correlation_id")
-            if correlation_id and correlation_id in self._pending_responses:
-                future = self._pending_responses.pop(correlation_id)
-                if not future.done():
-                    future.set_result(message.content)
-                return
+        from daie.core.tracing import TraceContextManager
+        
+        # Extract trace context from incoming message
+        with TraceContextManager(message.metadata):
+            try:
+                # Check for correlation_id to resolve pending requests
+                correlation_id = message.metadata.get("correlation_id")
+                if correlation_id and correlation_id in self._pending_responses:
+                    future = self._pending_responses.pop(correlation_id)
+                    if not future.done():
+                        future.set_result(message.content)
+                    return
 
-            # Process message asynchronously without blocking
-            if self._message_handler:
-                # Use create_task to avoid blocking
-                asyncio.create_task(self._message_handler(message))
-            else:
-                # Use create_task to avoid blocking
-                asyncio.create_task(self._default_message_handler(message))
-        except Exception as exc:
-            logger.error(f"Error handling message: {exc}")
+                # Process message asynchronously without blocking
+                if self._message_handler:
+                    # Use create_task to avoid blocking
+                    asyncio.create_task(self._message_handler(message))
+                else:
+                    # Use create_task to avoid blocking
+                    asyncio.create_task(self._default_message_handler(message))
+            except Exception as exc:
+                logger.error(f"Error handling message: {exc}")
 
     async def _default_message_handler(self, message: AgentMessage):
         if message.message_type == "task":

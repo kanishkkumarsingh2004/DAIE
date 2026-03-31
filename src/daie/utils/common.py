@@ -6,17 +6,17 @@ import re
 import time
 from typing import Any
 
-from daie.memory.manager import uuid7
+from daie.utils.encryption import uuid7
 
 
 def generate_id() -> str:
     """
-    Generate a unique ID using UUID v4
+    Generate a unique ID using UUID v7
 
     Returns:
         Unique ID string
     """
-    return str(uuid7())
+    return uuid7()
 
 
 def validate_email(email: str) -> bool:

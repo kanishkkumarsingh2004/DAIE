@@ -1,22 +1,21 @@
 """
 Hybrid Orchestrator Node module for combining Node and Orchestrator architectures.
-
-This module provides a simple, batteries-included approach to building Hybrid
-systems that combine the infrastructure management of Node with the workflow
-coordination of Orchestrator.
 """
 
-import logging
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
 
-from daie.agents.agent import Agent
-from daie.agents.orchestrator import Orchestrator
-from daie.agents.router import AgentRouter
+import logging
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
 from daie.communication.manager import CommunicationManager
 from daie.core.node import Node
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from daie.agents.agent import Agent
+    from daie.agents.orchestrator import Orchestrator
+    from daie.agents.router import AgentRouter
 
+logger = logging.getLogger(__name__)
 
 class HybridOrchestratorNode:
     """
@@ -161,6 +160,8 @@ class HybridOrchestratorNode:
         self.node.add_agent(agent.id)
 
         # Create orchestrator with the main agent
+        from daie.agents.orchestrator import Orchestrator
+
         self.orchestrator = Orchestrator(
             main_agent=agent,
             sub_agents=[],  # Sub-agents added separately
@@ -265,6 +266,8 @@ class HybridOrchestratorNode:
 
         # Create intelligent router if enabled
         if self.enable_router and self.all_agents:
+            from daie.agents.router import AgentRouter
+
             self.router = AgentRouter.from_agents(self.all_agents)
             logger.info(f"Intelligent router created with {len(self.all_agents)} agents")
 

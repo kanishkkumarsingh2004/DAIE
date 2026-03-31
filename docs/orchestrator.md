@@ -235,9 +235,7 @@ orchestrator = Orchestrator(
 
 # Execute research task
 await orchestrator.start()
-result = await orchestrator.execute_task(
-    "Research the latest developments in quantum computing and analyze their potential impact"
-)
+response = await orchestrator.execute_task("Research decentralized consensus")
 await orchestrator.stop()
 ```
 

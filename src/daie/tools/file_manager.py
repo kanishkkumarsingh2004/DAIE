@@ -2,12 +2,11 @@
 File and folder management tool using CED (Create-Edit-Delete) operations
 """
 
-import os
 import logging
-from typing import Dict, Any, List, Optional
 from pathlib import Path
+from typing import Any, Dict
 
-from daie.tools.tool import Tool, ToolMetadata, ToolParameter, ToolCategory
+from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 
 logger = logging.getLogger(__name__)
 
@@ -177,10 +176,7 @@ class FileManagerTool(Tool):
         except Exception as e:
             logger.error(f"File operation failed: {e}")
             # For delete operations on nonexistent paths, return error without raising
-            if (
-                action in ["delete_file", "delete_directory"]
-                and "does not exist" in str(e).lower()
-            ):
+            if action in ["delete_file", "delete_directory"] and "does not exist" in str(e).lower():
                 return {"success": False, "error": str(e)}
             # For all other operations, raise the exception
             raise
@@ -205,9 +201,7 @@ class FileManagerTool(Tool):
         except Exception as e:
             return {"success": False, "error": f"Failed to create file: {e}"}
 
-    def _create_directory(
-        self, path_obj: Path, params: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _create_directory(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new directory"""
         try:
             path_obj.mkdir(parents=True, exist_ok=True)
@@ -304,9 +298,7 @@ class FileManagerTool(Tool):
         except Exception as e:
             raise Exception(f"Failed to delete file: {e}")
 
-    def _delete_directory(
-        self, path_obj: Path, params: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _delete_directory(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
         """Delete directory"""
         if not path_obj.exists():
             return {
@@ -364,9 +356,7 @@ class FileManagerTool(Tool):
                 }
 
                 if recursive and item.is_dir():
-                    item_info["children"] = self._list_contents(item, params)[
-                        "contents"
-                    ]
+                    item_info["children"] = self._list_contents(item, params)["contents"]
 
                 contents.append(item_info)
 

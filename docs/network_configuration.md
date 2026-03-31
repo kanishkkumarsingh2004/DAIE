@@ -165,6 +165,13 @@ comm.setup_bidirectional_connection(
     url_a="http://localhost:8000",
     url_b="http://localhost:8002"
 )
+
+# ... do work ...
+
+await agent_a.stop()
+await agent_b.stop()
+await agent_c.stop()
+await comm.stop()
 ```
 
 ## Network Topology Visualization
@@ -173,19 +180,19 @@ After registration, the network topology looks like:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Network Topology                          │
+│                    Network Topology                         │
 ├─────────────────────────────────────────────────────────────┤
-│                                                              │
+│                                                             │
 │  NodeAlfa (http://localhost:8000)                           │
 │    ├─► NodeBravo (http://localhost:8001)                    │
 │    └─► NodeCharlie (http://localhost:8002)                  │
-│                                                              │
+│                                                             │
 │  NodeBravo (http://localhost:8001)                          │
 │    └─► NodeAlfa (http://localhost:8000)                     │
-│                                                              │
+│                                                             │
 │  NodeCharlie (http://localhost:8002)                        │
 │    └─► NodeAlfa (http://localhost:8000)                     │
-│                                                              │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 

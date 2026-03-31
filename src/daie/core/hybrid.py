@@ -6,12 +6,10 @@ systems that combine the infrastructure management of Node with the workflow
 coordination of Orchestrator.
 """
 
-import asyncio
 import logging
-from typing import Optional, List, Dict, Any, Union
+from typing import Any, Dict, List, Optional
 
 from daie.agents.agent import Agent
-from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.orchestrator import Orchestrator
 from daie.agents.router import AgentRouter
 from daie.communication.manager import CommunicationManager
@@ -23,11 +21,11 @@ logger = logging.getLogger(__name__)
 class HybridOrchestratorNode:
     """
     A hybrid system that combines Node and Orchestrator architectures.
-    
+
     This class provides a simple, batteries-included approach to building
     enterprise-scale multi-agent systems with both infrastructure management
     (Node) and workflow coordination (Orchestrator).
-    
+
     Key Features:
         - Automatic Node creation and management
         - Automatic Orchestrator setup with configurable context
@@ -36,16 +34,16 @@ class HybridOrchestratorNode:
         - Resource management per node
         - Cross-node communication support
         - Simple API for task execution
-    
+
     Example:
         ```python
         from daie import Agent, AgentConfig, set_llm
         from daie.agents import AgentRole
         from daie.core.hybrid import HybridOrchestratorNode
-        
+
         # Configure LLM
         set_llm(ollama_llm="llama3.2:1b", stream=True)
-        
+
         # Create hybrid system
         hybrid = HybridOrchestratorNode(
             node_id="research-lab",
@@ -54,7 +52,7 @@ class HybridOrchestratorNode:
             main_role="Professor",
             sub_role="Researcher"
         )
-        
+
         # Add main agent (orchestrator)
         professor = Agent(config=AgentConfig(
             name="Professor",
@@ -62,7 +60,7 @@ class HybridOrchestratorNode:
             system_prompt="You coordinate research projects."
         ))
         hybrid.set_main_agent(professor)
-        
+
         # Add sub-agents
         researcher = Agent(config=AgentConfig(
             name="Researcher",
@@ -76,13 +74,13 @@ class HybridOrchestratorNode:
         ))
         hybrid.add_sub_agent(researcher)
         hybrid.add_sub_agent(analyst)
-        
+
         # Start the hybrid system
         await hybrid.start()
-        
+
         # Execute tasks
         result = await hybrid.execute_task("Research AI trends")
-        
+
         # Cleanup
         await hybrid.stop()
         ```
@@ -118,31 +116,31 @@ class HybridOrchestratorNode:
         self.main_role = main_role
         self.sub_role = sub_role
         self.enable_router = enable_router
-        
+
         # Initialize core components
         self.node = Node(node_id=node_id, name=node_name)
         self.comm_manager = comm_manager or CommunicationManager()
-        
+
         # Agent management
         self.main_agent: Optional[Agent] = None
         self.sub_agents: List[Agent] = []
         self.all_agents: List[Agent] = []
-        
+
         # Orchestrator (created when main agent is set)
         self.orchestrator: Optional[Orchestrator] = None
-        
+
         # Router (created when started if enable_router is True)
         self.router: Optional[AgentRouter] = None
-        
+
         # State tracking
         self._is_running = False
         self._is_initialized = False
-        
+
         # Set initial resources if provided
         if resources:
             for name, value in resources.items():
                 self.node.set_resource(name, value)
-        
+
         logger.info(f"HybridOrchestratorNode '{node_name}' (ID: {node_id}) created")
 
     def set_main_agent(self, agent: Agent) -> "HybridOrchestratorNode":
@@ -157,11 +155,11 @@ class HybridOrchestratorNode:
         """
         if self._is_running:
             raise RuntimeError("Cannot set main agent while system is running")
-        
+
         self.main_agent = agent
         self.all_agents.append(agent)
         self.node.add_agent(agent.id)
-        
+
         # Create orchestrator with the main agent
         self.orchestrator = Orchestrator(
             main_agent=agent,
@@ -169,9 +167,9 @@ class HybridOrchestratorNode:
             context_name=self.context_name,
             main_role=self.main_role,
             sub_role=self.sub_role,
-            comm_manager=self.comm_manager
+            comm_manager=self.comm_manager,
         )
-        
+
         logger.info(f"Main agent '{agent.name}' set for hybrid node '{self.node_name}'")
         return self
 
@@ -187,18 +185,18 @@ class HybridOrchestratorNode:
         """
         if self._is_running:
             raise RuntimeError("Cannot add sub-agent while system is running")
-        
+
         if not self.main_agent:
             raise RuntimeError("Must set main agent before adding sub-agents")
-        
+
         self.sub_agents.append(agent)
         self.all_agents.append(agent)
         self.node.add_agent(agent.id)
-        
+
         # Update orchestrator's sub-agents
         if self.orchestrator:
             self.orchestrator.sub_agents = self.sub_agents
-        
+
         logger.info(f"Sub-agent '{agent.name}' added to hybrid node '{self.node_name}'")
         return self
 
@@ -234,45 +232,45 @@ class HybridOrchestratorNode:
     async def start(self) -> None:
         """
         Start the hybrid system.
-        
+
         This initializes the communication manager, starts all agents,
         creates the orchestrator, and optionally sets up the intelligent router.
         """
         if self._is_running:
             logger.warning(f"Hybrid node '{self.node_name}' is already running")
             return
-        
+
         if not self.main_agent:
             raise RuntimeError("Must set main agent before starting")
-        
+
         if not self.sub_agents:
             logger.warning(f"No sub-agents added to hybrid node '{self.node_name}'")
-        
+
         logger.info(f"Starting hybrid node '{self.node_name}'...")
-        
+
         # Start communication manager if not already running
         if not self.comm_manager._is_running:
             await self.comm_manager.start()
-        
+
         # Start the node
         self.node.start()
-        
+
         # Start all agents
         for agent in self.all_agents:
             await agent.start(communication_manager=self.comm_manager)
-        
+
         # Start the orchestrator
         if self.orchestrator:
             await self.orchestrator.start()
-        
+
         # Create intelligent router if enabled
         if self.enable_router and self.all_agents:
             self.router = AgentRouter.from_agents(self.all_agents)
             logger.info(f"Intelligent router created with {len(self.all_agents)} agents")
-        
+
         self._is_running = True
         self._is_initialized = True
-        
+
         logger.info(f"Hybrid node '{self.node_name}' started successfully")
         logger.info(f"  - Node ID: {self.node_id}")
         logger.info(f"  - Agents: {len(self.all_agents)} ({len(self.sub_agents)} sub-agents)")
@@ -291,10 +289,10 @@ class HybridOrchestratorNode:
         """
         if not self._is_running:
             await self.start()
-        
+
         if not self.orchestrator:
             raise RuntimeError("Orchestrator not initialized")
-        
+
         logger.info(f"Executing task on hybrid node '{self.node_name}': {task}")
         return await self.orchestrator.execute_task(task)
 
@@ -310,24 +308,24 @@ class HybridOrchestratorNode:
         """
         if not self._is_running:
             await self.start()
-        
+
         if not self.router:
             raise RuntimeError("Router not enabled. Set enable_router=True to use routing.")
-        
+
         # Route to the best agent
         agent_type = await self.router.route(message)
-        
+
         # Find the agent by type
         agent = None
         for a in self.all_agents:
             if a.name.lower() == agent_type.lower():
                 agent = a
                 break
-        
+
         if not agent:
             # Fallback to main agent
             agent = self.main_agent
-        
+
         logger.info(f"Message routed to agent '{agent.name}'")
         return await agent.send_message(message)
 
@@ -343,20 +341,20 @@ class HybridOrchestratorNode:
         """
         if not self._is_running:
             await self.start()
-        
+
         logger.info(f"Executing collaborative task on hybrid node '{self.node_name}': {task}")
-        
+
         results = []
         for agent in self.all_agents:
             prompt = f"As a {agent.name}, contribute your expertise to this task: {task}"
             response = await agent.send_message(prompt)
             results.append(f"**{agent.name}:**\n{response}")
-        
-        combined = "\n\n" + "="*50 + "\n"
+
+        combined = "\n\n" + "=" * 50 + "\n"
         combined += "COLLABORATIVE RESPONSE\n"
-        combined += "="*50 + "\n\n"
+        combined += "=" * 50 + "\n\n"
         combined += "\n\n---\n\n".join(results)
-        
+
         return combined
 
     def get_status(self) -> Dict[str, Any]:
@@ -384,32 +382,32 @@ class HybridOrchestratorNode:
     async def stop(self) -> None:
         """
         Stop the hybrid system gracefully.
-        
+
         This stops all agents, the orchestrator, the node, and the communication manager.
         """
         if not self._is_running:
             logger.warning(f"Hybrid node '{self.node_name}' is not running")
             return
-        
+
         logger.info(f"Stopping hybrid node '{self.node_name}'...")
-        
+
         # Stop orchestrator
         if self.orchestrator:
             await self.orchestrator.stop()
-        
+
         # Stop all agents
         for agent in self.all_agents:
             await agent.stop()
-        
+
         # Stop the node
         self.node.stop()
-        
+
         # Stop communication manager
         if self.comm_manager._is_running:
-            self.comm_manager.stop()
-        
+            await self.comm_manager.stop()
+
         self._is_running = False
-        
+
         logger.info(f"Hybrid node '{self.node_name}' stopped successfully")
 
     def __str__(self) -> str:
@@ -425,48 +423,48 @@ class HybridOrchestratorNode:
 class MultiNodeHybridSystem:
     """
     A system that manages multiple HybridOrchestratorNode instances.
-    
+
     This class provides a simple way to create and manage multiple hybrid nodes
     that can communicate with each other via P2P networking.
-    
+
     Example:
         ```python
         from daie import Agent, AgentConfig, set_llm
         from daie.agents import AgentRole
         from daie.core.hybrid import MultiNodeHybridSystem
-        
+
         # Configure LLM
         set_llm(ollama_llm="llama3.2:1b", stream=True)
-        
+
         # Create multi-node system
         system = MultiNodeHybridSystem()
-        
+
         # Add research lab node
         research_node = system.create_node(
             node_id="research-lab",
             node_name="Research Lab",
             context_name="Research Lab"
         )
-        
+
         # Add content creation node
         content_node = system.create_node(
             node_id="content-creation",
             node_name="Content Creation",
             context_name="Content Creation"
         )
-        
+
         # Configure agents for each node...
         # (set main agent and sub-agents for each node)
-        
+
         # Connect nodes
         system.connect_nodes("research-lab", "content-creation")
-        
+
         # Start all nodes
         await system.start_all()
-        
+
         # Execute tasks on specific nodes
         result = await system.execute_task("research-lab", "Research AI trends")
-        
+
         # Cleanup
         await system.stop_all()
         ```
@@ -482,7 +480,7 @@ class MultiNodeHybridSystem:
         self.comm_manager = comm_manager or CommunicationManager()
         self.nodes: Dict[str, HybridOrchestratorNode] = {}
         self._is_running = False
-        
+
         logger.info("MultiNodeHybridSystem created")
 
     def create_node(
@@ -512,7 +510,7 @@ class MultiNodeHybridSystem:
         """
         if node_id in self.nodes:
             raise ValueError(f"Node with ID '{node_id}' already exists")
-        
+
         node = HybridOrchestratorNode(
             node_id=node_id,
             node_name=node_name,
@@ -523,7 +521,7 @@ class MultiNodeHybridSystem:
             comm_manager=self.comm_manager,
             resources=resources,
         )
-        
+
         self.nodes[node_id] = node
         logger.info(f"Node '{node_name}' (ID: {node_id}) created in multi-node system")
         return node
@@ -558,10 +556,10 @@ class MultiNodeHybridSystem:
         """
         node1 = self.get_node(node_id1)
         node2 = self.get_node(node_id2)
-        
+
         node1.connect_to_node(node_id2)
         node2.connect_to_node(node_id1)
-        
+
         logger.info(f"Nodes '{node_id1}' and '{node_id2}' connected")
         return self
 
@@ -572,17 +570,17 @@ class MultiNodeHybridSystem:
         if self._is_running:
             logger.warning("Multi-node system is already running")
             return
-        
+
         logger.info(f"Starting multi-node system with {len(self.nodes)} nodes...")
-        
+
         # Start communication manager if not already running
         if not self.comm_manager._is_running:
             await self.comm_manager.start()
-        
+
         # Start all nodes
         for node_id, node in self.nodes.items():
             await node.start()
-        
+
         self._is_running = True
         logger.info("Multi-node system started successfully")
 
@@ -599,7 +597,7 @@ class MultiNodeHybridSystem:
         """
         if not self._is_running:
             await self.start_all()
-        
+
         node = self.get_node(node_id)
         return await node.execute_task(task)
 
@@ -615,9 +613,9 @@ class MultiNodeHybridSystem:
         """
         if not self._is_running:
             await self.start_all()
-        
+
         logger.info(f"Broadcasting task to all {len(self.nodes)} nodes: {task}")
-        
+
         results = {}
         for node_id, node in self.nodes.items():
             try:
@@ -626,7 +624,7 @@ class MultiNodeHybridSystem:
             except Exception as e:
                 logger.error(f"Error executing task on node '{node_id}': {e}")
                 results[node_id] = f"Error: {e}"
-        
+
         return results
 
     def get_system_status(self) -> Dict[str, Any]:
@@ -639,10 +637,7 @@ class MultiNodeHybridSystem:
         return {
             "total_nodes": len(self.nodes),
             "is_running": self._is_running,
-            "nodes": {
-                node_id: node.get_status()
-                for node_id, node in self.nodes.items()
-            },
+            "nodes": {node_id: node.get_status() for node_id, node in self.nodes.items()},
         }
 
     async def stop_all(self) -> None:
@@ -652,17 +647,17 @@ class MultiNodeHybridSystem:
         if not self._is_running:
             logger.warning("Multi-node system is not running")
             return
-        
+
         logger.info("Stopping multi-node system...")
-        
+
         # Stop all nodes
         for node_id, node in self.nodes.items():
             await node.stop()
-        
+
         # Stop communication manager
         if self.comm_manager._is_running:
-            self.comm_manager.stop()
-        
+            await self.comm_manager.stop()
+
         self._is_running = False
         logger.info("Multi-node system stopped successfully")
 

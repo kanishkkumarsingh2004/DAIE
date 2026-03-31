@@ -26,9 +26,9 @@ This test file validates the Selenium Chrome automation tool in the Decentralize
 These tests ensure that agents can automate Chrome browser interactions, enabling them to scrape web content, interact with web applications, and integrate with external web services through browser automation.
 """
 
-import pytest
 import os
-import asyncio
+
+import pytest
 
 from daie.tools import SeleniumChromeTool
 
@@ -75,9 +75,7 @@ class TestSeleniumChromeTool:
 
         # Test default screenshot path
         params1 = {"action": "screenshot"}
-        param_def = next(
-            p for p in tool.metadata.parameters if p.name == "screenshot_path"
-        )
+        param_def = next(p for p in tool.metadata.parameters if p.name == "screenshot_path")
         assert param_def.default == "screenshot.png"
 
         # Test custom screenshot path
@@ -134,18 +132,14 @@ class TestSeleniumChromeToolCapabilities:
     def test_selector_types(self):
         """Test supported selector types"""
         tool = SeleniumChromeTool()
-        selector_param = next(
-            p for p in tool.metadata.parameters if p.name == "selector_type"
-        )
+        selector_param = next(p for p in tool.metadata.parameters if p.name == "selector_type")
         assert "css" in selector_param.choices
         assert "xpath" in selector_param.choices
 
     def test_navigation_actions(self):
         """Test navigation actions support"""
         tool = SeleniumChromeTool()
-        navigate_param = next(
-            p for p in tool.metadata.parameters if p.name == "navigate_action"
-        )
+        navigate_param = next(p for p in tool.metadata.parameters if p.name == "navigate_action")
         assert "back" in navigate_param.choices
         assert "forward" in navigate_param.choices
         assert "refresh" in navigate_param.choices
@@ -153,9 +147,7 @@ class TestSeleniumChromeToolCapabilities:
     def test_screenshot_configuration(self):
         """Test screenshot configuration options"""
         tool = SeleniumChromeTool()
-        screenshot_param = next(
-            p for p in tool.metadata.parameters if p.name == "screenshot_path"
-        )
+        screenshot_param = next(p for p in tool.metadata.parameters if p.name == "screenshot_path")
         assert screenshot_param.default == "screenshot.png"
 
 

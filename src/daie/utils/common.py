@@ -5,7 +5,9 @@ Common utility functions
 import re
 import time
 from typing import Any
+
 from daie.memory.manager import uuid7
+
 
 def generate_id() -> str:
     """
@@ -154,8 +156,8 @@ def measure_time(func):
         Decorated function
     """
     import functools
-    import time
     import logging
+    import time
 
     local_logger = logging.getLogger(__name__)
 

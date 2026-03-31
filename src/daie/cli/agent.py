@@ -3,20 +3,16 @@ Agent management commands
 """
 
 import typer
-from rich import print
+from rich.box import ROUNDED
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.box import ROUNDED
+from rich.table import Table
 
-from daie.core.system import DecentralizedAISystem
-from daie.config import SystemConfig, ConfigManager
 from daie.agents.config import AgentConfig, AgentRole
+from daie.config import ConfigManager
 
-agent_app = typer.Typer(
-    name="agent", help="Agent management commands", add_completion=True
-)
+agent_app = typer.Typer(name="agent", help="Agent management commands", add_completion=True)
 
 console = Console()
 
@@ -42,9 +38,7 @@ def list_agents():
             console.print("[yellow]No agents structured yet. Use 'daie agent create' to add one.[/yellow]")
             return
 
-        table = Table(
-            show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
-        )
+        table = Table(show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED)
         table.add_column("Name", style="magenta")
         table.add_column("Role", style="yellow")
         table.add_column("Provider", style="cyan")
@@ -62,7 +56,6 @@ def list_agents():
         console.print(table)
         console.print(f"\nTotal configured agents: [bold green]{len(agents)}[/bold green]")
 
-    
     except Exception as e:
         console.print(f"[red]Error listing agents: {e}[/red]")
         raise typer.Exit(code=1)
@@ -86,33 +79,38 @@ def create_agent(
     )
 
     if interactive or not name:
-        from rich.prompt import Prompt, Confirm
+        from rich.prompt import Confirm, Prompt
+
         name = Prompt.ask("[bold blue]Agent Name[/bold blue]", default=name or "NewAgent")
-        
+
         valid_roles = [r.value for r in AgentRole]
         role = Prompt.ask(
-            f"[bold blue]Role[/bold blue] ({', '.join(valid_roles)})", 
+            f"[bold blue]Role[/bold blue] ({', '.join(valid_roles)})",
             default=role or AgentRole.GENERAL_PURPOSE.value,
-            choices=valid_roles
+            choices=valid_roles,
         )
-        
+
         goal = Prompt.ask("[bold blue]Agent Goal[/bold blue]", default="Perform specific tasks effectively")
         system_prompt = Prompt.ask("[bold blue]System Prompt[/bold blue]", default="You are a helpful AI assistant.")
-        
+
         provider = Prompt.ask("[bold blue]LLM Provider[/bold blue] (ollama, openai, anthropic)", default="ollama")
         model = Prompt.ask("[bold blue]LLM Model[/bold blue]", default="llama3.2:latest")
-        
+
         if not capabilities:
             caps_input = Prompt.ask("[bold blue]Capabilities (comma-separated)[/bold blue]", default="")
             capabilities = caps_input if caps_input else None
-            
-        network_url = Prompt.ask("[bold blue]P2P Network URL[/bold blue] (e.g. https://my-agent.dev, enter for none)", default="")
+
+        network_url = Prompt.ask(
+            "[bold blue]P2P Network URL[/bold blue] (e.g. https://my-agent.dev, enter for none)", default=""
+        )
         network_url = network_url if network_url.strip() else None
-        
+
         auth_token = Prompt.ask("[bold blue]P2P Auth Token[/bold blue] (enter for none)", default="")
         auth_token = auth_token if auth_token.strip() else None
-        
-        allow_file_transfers = Confirm.ask("[bold blue]Allow incoming file transfers over P2P?[/bold blue]", default=False)
+
+        allow_file_transfers = Confirm.ask(
+            "[bold blue]Allow incoming file transfers over P2P?[/bold blue]", default=False
+        )
     else:
         goal = "Perform general tasks"
         system_prompt = "You are a helpful AI assistant."
@@ -123,7 +121,7 @@ def create_agent(
         allow_file_transfers = False
 
     caps_list = [c.strip() for c in capabilities.split(",")] if capabilities else []
-    
+
     config_mgr = ConfigManager()
     agent_config = AgentConfig(
         name=name,
@@ -144,12 +142,13 @@ def create_agent(
             TextColumn("[progress.description]{task.description}"),
             transient=True,
         ) as progress:
-            task = progress.add_task(description="Saving agent configuration...", total=None)
+            progress.add_task(description="Saving agent configuration...", total=None)
             import time
+
             time.sleep(0.5)
-            
+
             success = config_mgr.upsert_agent_config(agent_config)
-            
+
             if not success:
                 raise Exception("Failed to save to agents.json")
 
@@ -188,10 +187,9 @@ def start_agent(
             TextColumn("[progress.description]{task.description}"),
             transient=True,
         ) as progress:
-            task = progress.add_task(
-                description="Connecting to communication system...", total=None
-            )
+            task = progress.add_task(description="Connecting to communication system...", total=None)
             import time
+
             time.sleep(0.3)
             progress.update(task, description="Initializing agent memory...")
             time.sleep(0.3)
@@ -231,10 +229,9 @@ def stop_agent(
             TextColumn("[progress.description]{task.description}"),
             transient=True,
         ) as progress:
-            task = progress.add_task(
-                description="Deregistering from central core...", total=None
-            )
+            task = progress.add_task(description="Deregistering from central core...", total=None)
             import time
+
             time.sleep(0.3)
             progress.update(task, description="Saving agent memory...")
             time.sleep(0.3)
@@ -282,9 +279,7 @@ def agent_status(
         }
 
         # Display status in a table
-        table = Table(
-            show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
-        )
+        table = Table(show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED)
         table.add_column("Property", style="magenta")
         table.add_column("Value", style="cyan")
 
@@ -292,7 +287,7 @@ def agent_status(
             table.add_row(key, str(value))
 
         console.print(table)
-    
+
     except Exception as e:
         console.print(f"[red]Error getting agent status: {e}[/red]")
         raise typer.Exit(code=1)

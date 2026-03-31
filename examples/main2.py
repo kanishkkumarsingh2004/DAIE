@@ -6,23 +6,13 @@ This example creates an agent that has access to all prebuilt tools (API calls, 
 browser automation) and supports audio input/output functionality.
 """
 
-import logging
 import asyncio
+import logging
 import sys
-from daie.tools import tool
+
 from daie.agents import Agent
 from daie.agents.config import AgentConfig, AgentRole
-from daie.tools import (
-    APICallTool,
-    HTTPGetTool,
-    HTTPPostTool,
-    APIToolkit,
-    SeleniumChromeTool,
-    SeleniumToolkit,
-    FileManagerTool,
-    FileManagerToolkit,
-)
-from daie.utils.audio import AudioManager
+from daie.tools import tool
 
 model_name = "wizard-vicuna-uncensored:latest"
 
@@ -31,24 +21,23 @@ model_name = "wizard-vicuna-uncensored:latest"
     name="greeting",
     description="Generate a friendly greeting message. Can handle greetings with or without names.",
     category="general",
-    version="1.0.0"
+    version="1.0.0",
 )
 def greeting_tool() -> str:
-        return "Hello! Nice to meet you!"
-        
+    return "Hello! Nice to meet you!"
+
+
 config = AgentConfig(
-     name="ALEX",
-     role=AgentRole.GENERAL_PURPOSE,
-     system_prompt="you are ALEX a friendly ai agent",
-     capabilities=["greeting"],
-     llm_model=model_name
-)   
+    name="ALEX",
+    role=AgentRole.GENERAL_PURPOSE,
+    system_prompt="you are ALEX a friendly ai agent",
+    capabilities=["greeting"],
+    llm_model=model_name,
+)
 
 
 agent = Agent(config=config)
 agent.add_tool(greeting_tool)
-
-
 
 
 async def listen_for_user_input(agent: Agent, logger: logging.Logger):
@@ -98,10 +87,8 @@ async def listen_for_user_input(agent: Agent, logger: logging.Logger):
             logger.error(f"Error in input processing: {e}")
 
 
-
 async def main():
     await listen_for_user_input(agent, logging.getLogger("main"))
-
 
 
 if __name__ == "__main__":

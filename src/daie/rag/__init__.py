@@ -11,7 +11,8 @@ Example:
     >>> context = engine.build_context("What is DAIE?")
 """
 
-from daie.rag.rag_engine import RAGEngine
 from daie.rag.document_loader import Document, load_directory
+from daie.rag.rag_engine import RAGEngine
+from daie.rag.vector_rag_engine import VectorRAGEngine
 
-__all__ = ["RAGEngine", "Document", "load_directory"]
+__all__ = ["RAGEngine", "VectorRAGEngine", "Document", "load_directory"]

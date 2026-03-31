@@ -3,21 +3,15 @@ Main CLI entry point for decentralized AI library
 """
 
 import typer
-from rich import print
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.text import Text
-from rich.prompt import Prompt
-from rich.columns import Columns
 from rich.box import ROUNDED, SIMPLE
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from daie.cli.agent import agent_app
 from daie.cli.core import core_app
 
-cli = typer.Typer(
-    name="daie", help="Decentralized AI Ecosystem CLI", add_completion=True
-)
+cli = typer.Typer(name="daie", help="Decentralized AI Ecosystem CLI", add_completion=True)
 
 cli.add_typer(agent_app, name="agent", help="Agent management commands")
 cli.add_typer(core_app, name="core", help="Central core system commands")
@@ -28,9 +22,7 @@ console = Console()
 @cli.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    version: bool = typer.Option(
-        False, "--version", "-v", help="Show version information"
-    ),
+    version: bool = typer.Option(False, "--version", "-v", help="Show version information"),
 ):
     """Decentralized AI Ecosystem CLI"""
     if ctx.invoked_subcommand is None:
@@ -83,9 +75,7 @@ def show_help(ctx: typer.Context):
     console.print()
 
     # Create commands table with premium styling
-    table = Table(
-        show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED
-    )
+    table = Table(show_header=True, header_style="bold blue", border_style="cyan", box=ROUNDED)
     table.add_column("Command", style="cyan")
     table.add_column("Description", style="magenta")
 
@@ -150,6 +140,4 @@ def show_help(ctx: typer.Context):
     )
 
     console.print()
-    console.print(
-        "Use [bold]daie [command] --help[/bold] for more information about a specific command"
-    )
+    console.print("Use [bold]daie [command] --help[/bold] for more information about a specific command")

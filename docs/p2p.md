@@ -34,6 +34,8 @@ from daie.communication import CommunicationManager
 
 comm = CommunicationManager()
 await comm.start()
+# ... use comm ...
+await comm.stop()
 ```
 
 **Key Features:**
@@ -52,9 +54,10 @@ The [`NodeRegistry`](../src/daie/registry/manager.py:15) manages agent discovery
 from daie.registry import NodeRegistry
 
 registry = NodeRegistry()
+await registry.start()  # Required to start discovery services
 
 # Register an agent
-registry.register_node(
+await registry.register_node(
     agent_id="agent-1",
     capabilities={"role": "specialist", "tools": ["web_search"]},
     network_url="http://localhost:8000"
@@ -62,6 +65,9 @@ registry.register_node(
 
 # Discover agents
 agents = registry.discover_agents(capability_query="specialist")
+
+# Stop the registry
+await registry.stop()
 ```
 
 ## Use Cases
@@ -225,7 +231,7 @@ async def main():
         print("\nShutting down...")
     finally:
         await agent1.stop()
-        comm.stop()
+        await comm.stop()
 
 asyncio.run(main())
 ```
@@ -368,7 +374,7 @@ async def main():
         print("\nShutting down...")
     finally:
         await agent1.stop()
-        comm.stop()
+        await comm.stop()
 
 asyncio.run(main())
 ```
@@ -484,7 +490,7 @@ async def main():
         print("\nShutting down...")
     finally:
         await agent1.stop()
-        comm.stop()
+        await comm.stop()
 
 asyncio.run(main())
 ```

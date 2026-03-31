@@ -3,7 +3,7 @@ Node management module
 """
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class Node:
         """Get number of connected peer nodes"""
         return len(self._connections)
 
-    def start(self) -> None:
+    async def start(self) -> None:
         """Start the node"""
         if self._is_active:
             logger.warning(f"Node {self.name} is already active")
@@ -67,7 +67,7 @@ class Node:
         self._is_active = True
         logger.info(f"Node {self.name} started")
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Stop the node"""
         if not self._is_active:
             logger.warning(f"Node {self.name} is already stopped")

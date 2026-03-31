@@ -5,6 +5,7 @@
 set_llm(ollama_llm="llama3.2:1b", stream=True)
 
 import asyncio
+
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
 from daie.tools import SeleniumChromeTool
@@ -28,19 +29,21 @@ async def main():
     # ──────────────────────────────────────────────
     # 1. Create an agent with Selenium tool
     # ──────────────────────────────────────────────
-    agent = Agent(config=AgentConfig(
-        name="BrowserBot",
-        role=AgentRole.GENERAL_PURPOSE,
-        system_prompt=(
-            "You are a web automation expert. You can browse websites, "
-            "extract data, fill forms, and take screenshots using the "
-            "Selenium Chrome browser tool."
-            "\n\nIMPORTANT: When using the selenium_chrome tool, you MUST provide the 'action' parameter."
-            "\nAvailable actions: open_url, find_element, click, type, get_text, screenshot, execute_script, navigate, get_cookies, set_cookie, new_tab, close_tab"
-            "\nExample: {\"action\": \"open_url\", \"url\": \"https://example.com\"}"
-            "\nExample: {\"action\": \"find_element\", \"element_selector\": \"h1\", \"selector_type\": \"css\"}"
-        ),
-    ))
+    agent = Agent(
+        config=AgentConfig(
+            name="BrowserBot",
+            role=AgentRole.GENERAL_PURPOSE,
+            system_prompt=(
+                "You are a web automation expert. You can browse websites, "
+                "extract data, fill forms, and take screenshots using the "
+                "Selenium Chrome browser tool."
+                "\n\nIMPORTANT: When using the selenium_chrome tool, you MUST provide the 'action' parameter."
+                "\nAvailable actions: open_url, find_element, click, type, get_text, screenshot, execute_script, navigate, get_cookies, set_cookie, new_tab, close_tab"
+                '\nExample: {"action": "open_url", "url": "https://example.com"}'
+                '\nExample: {"action": "find_element", "element_selector": "h1", "selector_type": "css"}'
+            ),
+        )
+    )
 
     # Add Selenium tool to the agent
     selenium_tool = SeleniumChromeTool()
@@ -53,9 +56,7 @@ async def main():
     # ──────────────────────────────────────────────
     print("\n[1] Basic Web Scraping - Getting page title and URL")
 
-    result = await agent.execute_task(
-        "Open https://example.com and tell me the page title and current URL"
-    )
+    result = await agent.execute_task("Open https://example.com and tell me the page title and current URL")
     print(f"    Result: {result}")
 
     # ──────────────────────────────────────────────
@@ -64,8 +65,7 @@ async def main():
     print("\n[2] Element Interaction - Finding and reading elements")
 
     result = await agent.execute_task(
-        "Go to https://example.com and find the main heading element. "
-        "Tell me what text it contains."
+        "Go to https://example.com and find the main heading element. " "Tell me what text it contains."
     )
     print(f"    Result: {result}")
 
@@ -75,8 +75,7 @@ async def main():
     print("\n[3] Screenshot Capture - Taking a screenshot of the page")
 
     result = await agent.execute_task(
-        "Navigate to https://example.com and take a screenshot. "
-        "Save it as 'example_screenshot.png'"
+        "Navigate to https://example.com and take a screenshot. " "Save it as 'example_screenshot.png'"
     )
     print(f"    Result: {result}")
 
@@ -86,8 +85,7 @@ async def main():
     print("\n[4] JavaScript Execution - Running custom JavaScript")
 
     result = await agent.execute_task(
-        "Go to https://example.com and execute JavaScript to get the "
-        "page title. Return the result."
+        "Go to https://example.com and execute JavaScript to get the " "page title. Return the result."
     )
     print(f"    Result: {result}")
 
@@ -148,8 +146,7 @@ async def main():
     print("\n[9] Data Extraction - Scraping structured data")
 
     result = await agent.execute_task(
-        "Go to https://httpbin.org/html and extract all the text content "
-        "from the page. Return the main content."
+        "Go to https://httpbin.org/html and extract all the text content " "from the page. Return the main content."
     )
     print(f"    Result: {result}")
 
@@ -178,11 +175,13 @@ async def direct_tool_example():
     # Open a URL
     print("\n[1] Opening URL...")
     try:
-        result = await tool._execute({
-            "action": "open_url",
-            "url": "https://example.com",
-            "headless": True,  # Set to False if you get Chrome driver errors
-        })
+        result = await tool._execute(
+            {
+                "action": "open_url",
+                "url": "https://example.com",
+                "headless": True,  # Set to False if you get Chrome driver errors
+            }
+        )
         print(f"    Page title: {result.get('page_title')}")
         print(f"    Current URL: {result.get('current_url')}")
     except Exception as e:
@@ -193,10 +192,12 @@ async def direct_tool_example():
     # Get page source
     print("\n[2] Getting page source...")
     try:
-        result = await tool._execute({
-            "action": "get_page_source",
-        })
-        page_source = result.get('page_source', '')
+        result = await tool._execute(
+            {
+                "action": "get_page_source",
+            }
+        )
+        page_source = result.get("page_source", "")
         print(f"    Page source length: {len(page_source)} characters")
     except Exception as e:
         print(f"    Error: {e}")
@@ -204,11 +205,13 @@ async def direct_tool_example():
     # Find element
     print("\n[3] Finding element...")
     try:
-        result = await tool._execute({
-            "action": "find_element",
-            "element_selector": "h1",
-            "selector_type": "css",
-        })
+        result = await tool._execute(
+            {
+                "action": "find_element",
+                "element_selector": "h1",
+                "selector_type": "css",
+            }
+        )
         print(f"    Element text: {result.get('element_text')}")
     except Exception as e:
         print(f"    Error: {e}")
@@ -216,10 +219,12 @@ async def direct_tool_example():
     # Take screenshot
     print("\n[4] Taking screenshot...")
     try:
-        result = await tool._execute({
-            "action": "screenshot",
-            "screenshot_path": "direct_screenshot.png",
-        })
+        result = await tool._execute(
+            {
+                "action": "screenshot",
+                "screenshot_path": "direct_screenshot.png",
+            }
+        )
         print(f"    Screenshot saved: {result.get('screenshot_path')}")
     except Exception as e:
         print(f"    Error: {e}")
@@ -227,10 +232,12 @@ async def direct_tool_example():
     # Execute JavaScript
     print("\n[5] Executing JavaScript...")
     try:
-        result = await tool._execute({
-            "action": "execute_script",
-            "script": "return document.title;",
-        })
+        result = await tool._execute(
+            {
+                "action": "execute_script",
+                "script": "return document.title;",
+            }
+        )
         print(f"    JavaScript result: {result.get('script_result')}")
     except Exception as e:
         print(f"    Error: {e}")
@@ -238,9 +245,11 @@ async def direct_tool_example():
     # Get cookies
     print("\n[6] Getting cookies...")
     try:
-        result = await tool._execute({
-            "action": "get_cookies",
-        })
+        result = await tool._execute(
+            {
+                "action": "get_cookies",
+            }
+        )
         print(f"    Cookies: {result.get('cookies')}")
     except Exception as e:
         print(f"    Error: {e}")

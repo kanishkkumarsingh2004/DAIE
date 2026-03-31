@@ -12,16 +12,16 @@ Covers:
 """
 
 import json
-import sys
-import pytest
 from io import StringIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
-from daie.agents.agent import Agent, _TOOL_SYSTEM, _NO_TOOL_SYSTEM
+import pytest
+
+from daie.agents.agent import Agent
 from daie.agents.config import AgentConfig, AgentRole
-from daie.tools.tool import Tool, ToolMetadata, ToolParameter, ToolCategory, tool
 from daie.tools.file_manager import FileManagerTool
-
+from daie.tools.tool import (Tool, ToolCategory, ToolMetadata, ToolParameter,
+                             tool)
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -43,9 +43,7 @@ class EchoTool(Tool):
                 name="echo",
                 description="Echo the input text back",
                 category=ToolCategory.GENERAL,
-                parameters=[
-                    ToolParameter(name="text", type="string", description="Text to echo", required=True)
-                ],
+                parameters=[ToolParameter(name="text", type="string", description="Text to echo", required=True)],
             )
         )
 
@@ -83,12 +81,14 @@ class TestToolsBlock:
         class LongDescTool(Tool):
             def __init__(self):
                 super().__init__(ToolMetadata(name="long", description="x" * 200, category=ToolCategory.GENERAL))
-            async def _execute(self, p): return {}
+
+            async def _execute(self, p):
+                return {}
 
         agent = make_agent(tools=[LongDescTool()])
         block = agent._tools_block()
         # description line should not exceed 120 chars for the desc portion
-        desc_line = [l for l in block.splitlines() if "long" in l][0]
+        desc_line = [line for line in block.splitlines() if "long" in line][0]
         assert len(desc_line) <= 130  # name + ": " + 120 chars
 
     def test_required_params_shown(self):
@@ -194,6 +194,7 @@ class TestRunTool:
         class BrokenTool(Tool):
             def __init__(self):
                 super().__init__(ToolMetadata(name="broken", description="always fails", category=ToolCategory.GENERAL))
+
             async def _execute(self, p):
                 raise RuntimeError("boom")
 
@@ -230,10 +231,12 @@ class TestExecuteTaskReact:
     async def test_one_tool_call_then_answer(self):
         """LLM calls echo tool once, then gives final answer."""
         agent = make_agent(tools=[EchoTool()])
-        agent._llm = MockLLM([
-            '{"thought":"echo it","tool":"echo","params":{"text":"ping"}}',
-            '{"thought":"got result","answer":"pong"}',
-        ])
+        agent._llm = MockLLM(
+            [
+                '{"thought":"echo it","tool":"echo","params":{"text":"ping"}}',
+                '{"thought":"got result","answer":"pong"}',
+            ]
+        )
         agent._is_running = True
 
         result = await agent.execute_task("Echo ping")
@@ -244,10 +247,12 @@ class TestExecuteTaskReact:
     async def test_tool_result_in_second_prompt(self):
         """Tool result should appear in the history passed to the second LLM call."""
         agent = make_agent(tools=[EchoTool()])
-        agent._llm = MockLLM([
-            '{"thought":"echo","tool":"echo","params":{"text":"hello"}}',
-            '{"answer":"done"}',
-        ])
+        agent._llm = MockLLM(
+            [
+                '{"thought":"echo","tool":"echo","params":{"text":"hello"}}',
+                '{"answer":"done"}',
+            ]
+        )
         agent._is_running = True
 
         await agent.execute_task("Echo hello")
@@ -260,11 +265,18 @@ class TestExecuteTaskReact:
         """Full ReAct loop creates a real file via FileManagerTool."""
         target = str(tmp_path / "react_output.txt")
         agent = make_agent(tools=[FileManagerTool()])
-        agent._llm = MockLLM([
-            json.dumps({"thought": "create file", "tool": "file_manager",
-                        "params": {"action": "create_file", "path": target, "content": "hello"}}),
-            '{"answer":"File created"}',
-        ])
+        agent._llm = MockLLM(
+            [
+                json.dumps(
+                    {
+                        "thought": "create file",
+                        "tool": "file_manager",
+                        "params": {"action": "create_file", "path": target, "content": "hello"},
+                    }
+                ),
+                '{"answer":"File created"}',
+            ]
+        )
         agent._is_running = True
 
         result = await agent.execute_task(f"Create a file at {target}")
@@ -275,10 +287,12 @@ class TestExecuteTaskReact:
     async def test_unknown_tool_continues_loop(self):
         """If LLM calls a non-existent tool, loop continues and LLM gets error feedback."""
         agent = make_agent()
-        agent._llm = MockLLM([
-            '{"thought":"try","tool":"ghost","params":{}}',
-            '{"answer":"recovered"}',
-        ])
+        agent._llm = MockLLM(
+            [
+                '{"thought":"try","tool":"ghost","params":{}}',
+                '{"answer":"recovered"}',
+            ]
+        )
         agent._is_running = True
 
         result = await agent.execute_task("Do something")
@@ -424,15 +438,18 @@ class TestToolDecoratorIntegration:
     @pytest.mark.asyncio
     async def test_tool_decorator_in_agent_react(self):
         """@tool function works end-to-end through the ReAct loop."""
+
         @tool(name="shout", description="Shout text in uppercase")
         async def shout(text: str) -> str:
             return text.upper()
 
         agent = make_agent(tools=[shout])
-        agent._llm = MockLLM([
-            '{"thought":"shout it","tool":"shout","params":{"text":"hello"}}',
-            '{"answer":"HELLO"}',
-        ])
+        agent._llm = MockLLM(
+            [
+                '{"thought":"shout it","tool":"shout","params":{"text":"hello"}}',
+                '{"answer":"HELLO"}',
+            ]
+        )
         agent._is_running = True
 
         result = await agent.execute_task("Shout hello")

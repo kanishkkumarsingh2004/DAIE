@@ -3,10 +3,14 @@ API call tool using requests library
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict
+
 import requests
-from daie.tools.tool import Tool, ToolMetadata, ToolParameter, ToolCategory
+
+from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
+
 logger = logging.getLogger(__name__)
+
 
 class APICallTool(Tool):
     """
@@ -148,9 +152,7 @@ class APICallTool(Tool):
             except Exception:
                 result["text"] = response.text[:1000]  # Limit text size
 
-            logger.debug(
-                f"API call completed: {response.status_code} {response.reason}"
-            )
+            logger.debug(f"API call completed: {response.status_code} {response.reason}")
 
             return result
 
@@ -258,9 +260,7 @@ class HTTPGetTool(Tool):
             except Exception:
                 result["text"] = response.text
 
-            logger.debug(
-                f"GET request completed: {response.status_code} {response.reason}"
-            )
+            logger.debug(f"GET request completed: {response.status_code} {response.reason}")
 
             return result
 
@@ -384,9 +384,7 @@ class HTTPPostTool(Tool):
             except Exception:
                 result["text"] = response.text
 
-            logger.debug(
-                f"POST request completed: {response.status_code} {response.reason}"
-            )
+            logger.debug(f"POST request completed: {response.status_code} {response.reason}")
 
             return result
 

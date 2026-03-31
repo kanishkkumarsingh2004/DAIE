@@ -4,8 +4,8 @@ Test script to demonstrate audio and camera configuration
 """
 
 import asyncio
-from daie.agents import AgentConfig
-from daie.agents import Agent
+
+from daie.agents import Agent, AgentConfig
 from daie.tools import ToolRegistry
 from daie.utils import AudioManager, CameraManager
 

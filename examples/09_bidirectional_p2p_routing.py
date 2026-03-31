@@ -20,7 +20,7 @@ Network Configuration:
 Network Topology:
   Agent A (NodeAlfa) ←→ Agent B (NodeBravo)
   Agent A (NodeAlfa) ←→ Agent C (NodeCharlie)
-  
+
   - A can send directly to B and C
   - B can send directly to A
   - C can send directly to A
@@ -29,11 +29,11 @@ Network Topology:
 """
 
 import asyncio
-import os
+
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
-from daie.communication import CommunicationManager
 from daie.agents.message import AgentMessage
+from daie.communication import CommunicationManager
 
 # LLM not required for networking demo, but we need the config set
 set_llm(ollama_llm="wizard-vicuna-uncensored:7b")
@@ -75,9 +75,7 @@ async def main():
         role=AgentRole.GENERAL_PURPOSE,
         system_prompt="You are NodeBravo, a worker agent connected to NodeAlfa.",
         network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
-        network_connections={
-            agent_a.id: "http://localhost:8000"  # B knows A's URL (can directly reach A)
-        },
+        network_connections={agent_a.id: "http://localhost:8000"},  # B knows A's URL (can directly reach A)
     )
     agent_b = Agent(config=config_b)
     await agent_b.start(communication_manager=comm)
@@ -92,9 +90,7 @@ async def main():
         role=AgentRole.GENERAL_PURPOSE,
         system_prompt="You are NodeCharlie, a worker agent connected to NodeAlfa.",
         network_url="http://localhost:8002",  # This agent is hosted on localhost:8002
-        network_connections={
-            agent_a.id: "http://localhost:8000"  # C knows A's URL (can directly reach A)
-        },
+        network_connections={agent_a.id: "http://localhost:8000"},  # C knows A's URL (can directly reach A)
     )
     agent_c = Agent(config=config_c)
     await agent_c.start(communication_manager=comm)
@@ -104,14 +100,10 @@ async def main():
     # ──────────────────────────────────────────────
     # A needs to know both B and C
     comm.setup_bidirectional_connection(
-        agent_a.id, agent_b.id,
-        url_a="http://localhost:8000",
-        url_b="http://localhost:8001"
+        agent_a.id, agent_b.id, url_a="http://localhost:8000", url_b="http://localhost:8001"
     )
     comm.setup_bidirectional_connection(
-        agent_a.id, agent_c.id,
-        url_a="http://localhost:8000",
-        url_b="http://localhost:8002"
+        agent_a.id, agent_c.id, url_a="http://localhost:8000", url_b="http://localhost:8002"
     )
 
     print(f"\n  NodeAlfa   ID: {agent_a.id}")
@@ -124,7 +116,7 @@ async def main():
     print("[1] Network Topology:")
     topology = comm.get_network_topology()
     print(f"    Nodes: {len(topology['nodes'])}")
-    for node_id, node_info in topology['nodes'].items():
+    for node_id, node_info in topology["nodes"].items():
         agent_name = "Unknown"
         if node_id == agent_a.id:
             agent_name = "NodeAlfa"
@@ -132,8 +124,8 @@ async def main():
             agent_name = "NodeBravo"
         elif node_id == agent_c.id:
             agent_name = "NodeCharlie"
-        
-        connections = node_info.get('connections', {})
+
+        connections = node_info.get("connections", {})
         print(f"    - {agent_name} ({node_id[:8]}...): {len(connections)} connections")
         for peer_id, peer_url in connections.items():
             peer_name = "Unknown"
@@ -181,7 +173,7 @@ async def main():
     # ──────────────────────────────────────────────
     print("\n[4] Routed Messaging: NodeBravo → NodeCharlie (via NodeAlfa)")
     print("    Note: B has no direct connection to C, so message routes through A")
-    
+
     # Check route
     route = comm.find_route(agent_b.id, agent_c.id)
     if route:
@@ -196,7 +188,7 @@ async def main():
             else:
                 route_names.append(node_id[:8])
         print(f"    Route found: {' → '.join(route_names)}")
-    
+
     msg_b_to_c = AgentMessage(
         sender_id=agent_b.id,
         receiver_id=agent_c.id,
@@ -213,7 +205,7 @@ async def main():
     # ──────────────────────────────────────────────
     print("\n[5] Routed Messaging: NodeCharlie → NodeBravo (via NodeAlfa)")
     print("    Note: C has no direct connection to B, so message routes through A")
-    
+
     msg_c_to_b = AgentMessage(
         sender_id=agent_c.id,
         receiver_id=agent_b.id,
@@ -230,12 +222,12 @@ async def main():
     # ──────────────────────────────────────────────
     print("\n[6] Network Awareness Check:")
     print("    All agents should know about the network topology...")
-    
+
     # Check what each agent knows
     peers_a = comm.get_connected_peers(agent_a.id)
     peers_b = comm.get_connected_peers(agent_b.id)
     peers_c = comm.get_connected_peers(agent_c.id)
-    
+
     print(f"    NodeAlfa knows {len(peers_a)} peers: {list(peers_a.keys())}")
     print(f"    NodeBravo knows {len(peers_b)} peers: {list(peers_b.keys())}")
     print(f"    NodeCharlie knows {len(peers_c)} peers: {list(peers_c.keys())}")
@@ -245,7 +237,7 @@ async def main():
     # ──────────────────────────────────────────────
     print("\n[7] Async Non-blocking Demo:")
     print("    Sending multiple messages concurrently...")
-    
+
     # Send multiple messages concurrently
     tasks = []
     for i in range(3):
@@ -256,7 +248,7 @@ async def main():
             message_type="text",
         )
         tasks.append(comm.send_message(msg))
-    
+
     results = await asyncio.gather(*tasks)
     print(f"    All {len(results)} messages sent concurrently: {all(results)}")
 
@@ -278,7 +270,7 @@ async def main():
     await agent_a.stop()
     await agent_b.stop()
     await agent_c.stop()
-    comm.stop()
+    await comm.stop()
 
 
 if __name__ == "__main__":

@@ -23,10 +23,11 @@ This test file validates the tool framework and registry system in the Decentral
 These tests ensure that the tool system provides a robust framework for developing, registering, and using tools, enabling agents to extend their capabilities beyond built-in functionality.
 """
 
+
 import pytest
-from unittest.mock import Mock, patch
-from daie.tools.tool import Tool, ToolMetadata, ToolParameter, ToolCategory
+
 from daie.tools.registry import ToolRegistry
+from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 
 
 class ConcreteTool(Tool):
@@ -48,9 +49,7 @@ class TestTool:
             name="test-tool",
             description="Test tool description",
             category=ToolCategory.GENERAL,
-            parameters=[
-                ToolParameter(name="text", type="string", description="Input text")
-            ],
+            parameters=[ToolParameter(name="text", type="string", description="Input text")],
         )
 
         tool = ConcreteTool(metadata)
@@ -68,11 +67,7 @@ class TestTool:
             name="test-tool",
             description="Test tool description",
             category=ToolCategory.GENERAL,
-            parameters=[
-                ToolParameter(
-                    name="text", type="string", description="Input text", required=True
-                )
-            ],
+            parameters=[ToolParameter(name="text", type="string", description="Input text", required=True)],
         )
 
         tool = ConcreteTool(metadata)
@@ -92,9 +87,7 @@ class TestTool:
             name="test-tool",
             description="Test tool description",
             category=ToolCategory.GENERAL,
-            parameters=[
-                ToolParameter(name="text", type="string", description="Input text")
-            ],
+            parameters=[ToolParameter(name="text", type="string", description="Input text")],
         )
 
         tool = ConcreteTool(metadata)
@@ -117,9 +110,7 @@ class TestToolRegistry:
         """Test tool registration."""
         registry = ToolRegistry()
 
-        metadata = ToolMetadata(
-            name="test-tool", description="Test tool", category=ToolCategory.GENERAL
-        )
+        metadata = ToolMetadata(name="test-tool", description="Test tool", category=ToolCategory.GENERAL)
 
         tool = ConcreteTool(metadata)
         registry.register(tool)
@@ -131,13 +122,9 @@ class TestToolRegistry:
         """Test registering duplicate tool."""
         registry = ToolRegistry()
 
-        metadata1 = ToolMetadata(
-            name="test-tool", description="Test tool 1", category=ToolCategory.GENERAL
-        )
+        metadata1 = ToolMetadata(name="test-tool", description="Test tool 1", category=ToolCategory.GENERAL)
 
-        metadata2 = ToolMetadata(
-            name="test-tool", description="Test tool 2", category=ToolCategory.GENERAL
-        )
+        metadata2 = ToolMetadata(name="test-tool", description="Test tool 2", category=ToolCategory.GENERAL)
 
         tool1 = ConcreteTool(metadata1)
         tool2 = ConcreteTool(metadata2)
@@ -150,9 +137,7 @@ class TestToolRegistry:
         """Test tool retrieval."""
         registry = ToolRegistry()
 
-        metadata = ToolMetadata(
-            name="test-tool", description="Test tool", category=ToolCategory.GENERAL
-        )
+        metadata = ToolMetadata(name="test-tool", description="Test tool", category=ToolCategory.GENERAL)
 
         tool = ConcreteTool(metadata)
         registry.register(tool)
@@ -170,9 +155,7 @@ class TestToolRegistry:
         """Test tool unregistration."""
         registry = ToolRegistry()
 
-        metadata = ToolMetadata(
-            name="test-tool", description="Test tool", category=ToolCategory.GENERAL
-        )
+        metadata = ToolMetadata(name="test-tool", description="Test tool", category=ToolCategory.GENERAL)
 
         tool = ConcreteTool(metadata)
         registry.register(tool)
@@ -186,13 +169,9 @@ class TestToolRegistry:
         """Test listing available tools."""
         registry = ToolRegistry()
 
-        metadata1 = ToolMetadata(
-            name="tool1", description="Tool 1", category=ToolCategory.GENERAL
-        )
+        metadata1 = ToolMetadata(name="tool1", description="Tool 1", category=ToolCategory.GENERAL)
 
-        metadata2 = ToolMetadata(
-            name="tool2", description="Tool 2", category=ToolCategory.GENERAL
-        )
+        metadata2 = ToolMetadata(name="tool2", description="Tool 2", category=ToolCategory.GENERAL)
 
         tool1 = ConcreteTool(metadata1)
         tool2 = ConcreteTool(metadata2)
@@ -221,11 +200,7 @@ class TestToolIntegration:
             name="tool1",
             description="First tool",
             category=ToolCategory.GENERAL,
-            parameters=[
-                ToolParameter(
-                    name="text", type="string", description="Input text", required=True
-                )
-            ],
+            parameters=[ToolParameter(name="text", type="string", description="Input text", required=True)],
         )
 
         metadata2 = ToolMetadata(
@@ -256,9 +231,7 @@ class TestToolIntegration:
         registry1 = ToolRegistry()
         registry2 = ToolRegistry()
 
-        metadata = ToolMetadata(
-            name="test-tool", description="Test tool", category=ToolCategory.GENERAL
-        )
+        metadata = ToolMetadata(name="test-tool", description="Test tool", category=ToolCategory.GENERAL)
 
         tool = ConcreteTool(metadata)
         registry1.register(tool)

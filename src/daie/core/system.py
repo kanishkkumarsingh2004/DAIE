@@ -4,16 +4,16 @@ Decentralized AI System - Main orchestrator for the AI ecosystem
 
 import asyncio
 import logging
-import signal
-from typing import List, Optional, Dict, Any
 import os
+import signal
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from daie.agents import Agent
-from daie.tools import ToolRegistry
 from daie.communication import CommunicationManager
+from daie.config import ConfigManager, SystemConfig
 from daie.memory import MemoryManager
-from daie.config import SystemConfig, ConfigManager
+from daie.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +80,14 @@ class DecentralizedAISystem:
         """
         config_mgr = ConfigManager()
         agent_configs = config_mgr.load_agents_config()
-        
+
         for agent_cfg in agent_configs:
             agent = Agent(config=agent_cfg)
             # Register it via internal dictionary directly without throwing if it exists,
             # but usually it's a new instance so ID is new.
             self.agents[agent.id] = agent
             logger.info(f"Loaded agent {agent.name} (ID: {agent.id}) from config")
-            
+
         return self
 
     def add_tool(self, tool: Any) -> "DecentralizedAISystem":
@@ -125,7 +125,7 @@ class DecentralizedAISystem:
         """
         return list(self.agents.values())
 
-    def start(self) -> None:
+    async def start(self) -> None:
         """
         Start the decentralized AI system
 
@@ -139,38 +139,40 @@ class DecentralizedAISystem:
         logger.info("Starting Decentralized AI System...")
 
         try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+
+        try:
             # Create PID file
             self._create_pid_file()
 
             # Initialize communication manager
-            self.communication_manager.start()
+            await self.communication_manager.start()
 
             # Initialize memory manager
-            self.memory_manager.start()
+            await self.memory_manager.start()
 
             # Start all agents
             for agent in self.agents.values():
-                agent.start(
-                    self.communication_manager, self.memory_manager, self.tool_registry
-                )
+                await agent.start(self.communication_manager, self.memory_manager, self.tool_registry)
 
             self._is_running = True
             logger.info(f"System started successfully with {len(self.agents)} agents")
 
-            # Run event loop with shutdown handlers
-            self._loop = asyncio.get_running_loop()
             self._shutdown_event = asyncio.Event()
 
-            # Set up signal handlers
-            self._loop.add_signal_handler(signal.SIGINT, self._signal_handler)
-            self._loop.add_signal_handler(signal.SIGTERM, self._signal_handler)
-
-            # Run event loop until shutdown
-            self._loop.run_until_complete(self._run_event_loop())
+            # Set up signal handlers gracefully (to support non-Unix systems implicitly)
+            try:
+                self._loop.add_signal_handler(signal.SIGINT, self._signal_handler)
+                self._loop.add_signal_handler(signal.SIGTERM, self._signal_handler)
+            except NotImplementedError:
+                pass
 
         except Exception as e:
             logger.error(f"Failed to start system: {e}")
-            self.stop()
+            await self.stop()
             raise
 
     async def _run_event_loop(self):
@@ -178,7 +180,7 @@ class DecentralizedAISystem:
         try:
             await self._shutdown_event.wait()
         finally:
-            self.stop()
+            await self.stop()
 
     def _signal_handler(self):
         """Handle shutdown signals"""
@@ -186,7 +188,7 @@ class DecentralizedAISystem:
         if self._shutdown_event and not self._shutdown_event.is_set():
             self._shutdown_event.set()
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """
         Stop the decentralized AI system
 
@@ -201,18 +203,20 @@ class DecentralizedAISystem:
         try:
             # Stop all agents
             for agent in self.agents.values():
-                agent.stop()
+                await agent.stop()
 
             # Stop memory manager
-            self.memory_manager.stop()
+            await self.memory_manager.stop()
 
             # Stop communication manager
-            self.communication_manager.stop()
+            await self.communication_manager.stop()
 
             # Stop event loop
             if self._loop and self._loop.is_running():
                 try:
-                    self._loop.stop()
+                    # Only stop if we are not in run_until_complete
+                    # self._loop.stop()
+                    pass
                 except Exception:
                     pass
 
@@ -225,6 +229,28 @@ class DecentralizedAISystem:
 
         except Exception as e:
             logger.error(f"Error during system shutdown: {e}")
+
+    def run(self) -> None:
+        """
+        Run the system and block until stopped.
+        """
+        if self._is_running:
+            return
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        try:
+            loop.run_until_complete(self.start())
+            loop.run_until_complete(self._run_event_loop())
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received")
+        finally:
+            if loop.is_running():
+                loop.run_until_complete(self.stop())
 
     def _create_pid_file(self):
         """Create PID file to track running process"""

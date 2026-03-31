@@ -386,7 +386,7 @@ async def main():
 
     await agent1.stop()
     await agent2.stop()
-    comm.stop()
+    await comm.stop()
 
 asyncio.run(main())
 ```

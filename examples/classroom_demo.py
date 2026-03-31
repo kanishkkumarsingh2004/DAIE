@@ -4,31 +4,32 @@
 
 import asyncio
 import logging
-import sys
+
 from daie import Agent, AgentConfig, AgentRole, Orchestrator, set_llm
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='classroom.log',
-    filemode='w'
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="classroom.log",
+    filemode="w",
 )
 
 # Also log to console but more concisely
 console = logging.StreamHandler()
 console.setLevel(logging.WARNING)
-logging.getLogger('').addHandler(console)
+logging.getLogger("").addHandler(console)
+
 
 async def main():
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("   AI CLASSROOM INTERACTIVE DEMO (Ollama)")
-    print("="*50)
-    
+    print("=" * 50)
+
     # 0. Ask for streaming
     stream_input = input("Enable real-time streaming (reasoning & answers)? [Y/n]: ").lower()
-    use_streaming = stream_input != 'n'
-    
+    use_streaming = stream_input != "n"
+
     # Configure LLM to use Ollama
     set_llm(ollama_llm="llama3.2:1b", stream=use_streaming)
 
@@ -41,7 +42,7 @@ async def main():
             name="Professor_AI",
             role=AgentRole.COORDINATOR,
             goal="Coordinate students to solve complex problems professionally",
-            system_prompt="You are an expert professor. You break down complex queries into logical sub-tasks for your students."
+            system_prompt="You are an expert professor. You break down complex queries into logical sub-tasks for your students.",
         )
     )
 
@@ -51,7 +52,7 @@ async def main():
             name="Math_Student",
             role=AgentRole.SPECIALIZED,
             goal="Handle numerical, logical, and computational parts of a task",
-            system_prompt="You are a brilliant math student. provide precise calculations and logic."
+            system_prompt="You are a brilliant math student. provide precise calculations and logic.",
         )
     )
 
@@ -60,7 +61,7 @@ async def main():
             name="Research_Student",
             role=AgentRole.SPECIALIZED,
             goal="Provide factual information, research data, and creative writing",
-            system_prompt="You are a diligent research student. Provide detailed explanations and well-structured content."
+            system_prompt="You are a diligent research student. Provide detailed explanations and well-structured content.",
         )
     )
 
@@ -70,7 +71,7 @@ async def main():
         sub_agents=[math_student, research_student],
         context_name="Classroom",
         main_role="Teacher",
-        sub_role="Student"
+        sub_role="Student",
     )
 
     # 4. Start Orchestrator
@@ -85,20 +86,21 @@ async def main():
             if user_input.lower() in ["exit", "quit", "bye"]:
                 print("\n[*] Dismissing class. Goodbye!")
                 break
-            
+
             if not user_input.strip():
                 continue
 
             print("\n\033[92mProfessor_AI is orchestrating the class...\033[0m")
-            
+
             # Execute the task
             result = await classroom.execute_task(user_input)
-            
+
             # Extract answer if it still looks like JSON (precaution for smaller models)
             final_display = result
             if isinstance(result, str) and result.strip().startswith("{"):
                 try:
                     import json
+
                     parsed = json.loads(result)
                     final_display = parsed.get("answer", result)
                 except:
@@ -106,7 +108,7 @@ async def main():
 
             print(f"\n\033[93mFinal Answer from Professor_AI:\033[0m")
             print(f"{final_display}\n")
-            
+
             print("-" * 30 + "\n")
 
         except KeyboardInterrupt:
@@ -118,6 +120,7 @@ async def main():
 
     # 6. Stop Classroom
     await classroom.stop()
+
 
 if __name__ == "__main__":
     try:

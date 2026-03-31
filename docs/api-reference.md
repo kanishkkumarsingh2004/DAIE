@@ -22,8 +22,8 @@ Agent(config: AgentConfig)
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the agent |
-| `stop()` | Stop the agent |
+| `start()` | Start the agent (async) |
+| `stop()` | Stop the agent (async) |
 | `execute_task(task: str)` | Execute a task using the ReAct loop |
 | `send_message(message: str)` | Send a message to the agent |
 | `add_tool(tool)` | Add a tool to the agent |
@@ -154,8 +154,8 @@ Orchestrator(
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the orchestrator |
-| `stop()` | Stop the orchestrator |
+| `start()` | Start the orchestrator (async) |
+| `stop()` | Stop the orchestrator (async) |
 | `execute_task(task: str)` | Execute a task |
 
 ---
@@ -272,11 +272,45 @@ CommunicationManager()
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the manager |
-| `stop()` | Stop the manager |
+| `start()` | Start the manager (async) |
+| `stop()` | Stop the manager (async) |
 | `register_agent(agent)` | Register an agent |
 | `send_message(message)` | Send a message |
 | `broadcast_message(message)` | Broadcast a message |
+
+---
+
+### NodeRegistry
+
+Manages agent discovery via mDNS and DHT.
+
+```python
+from daie.registry import NodeRegistry
+```
+
+#### Constructor
+
+```python
+NodeRegistry(
+    registry_file: str = "node_registry.json",
+    enable_mdns: bool = True,
+    enable_dht: bool = False,
+    dht_port: int = 8468
+)
+```
+
+#### Methods
+
+| Method | Description |
+|--------|-------------|
+| `start()` | Start discovery services (async) |
+| `stop()` | Stop discovery services (async) |
+| `register_node(agent_id, capabilities, network_url)` | Register a node (async) |
+| `deregister_node(agent_id)` | Deregister a node (async) |
+| `get_node(agent_id)` | Get node metadata |
+| `list_nodes()` | List all registered nodes |
+| `discover_agents(capability_query)` | Find agents by capability |
+| `cleanup()` | Synchronous cleanup (for destructors) |
 
 ---
 
@@ -322,8 +356,8 @@ MemoryManager()
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the manager |
-| `stop()` | Stop the manager |
+| `start()` | Start the manager (async) |
+| `stop()` | Stop the manager (async) |
 | `store_memory(agent_id, content, memory_type, tags)` | Store a memory |
 | `retrieve_memories(agent_id, memory_type, tags)` | Retrieve memories |
 | `delete_memory(agent_id, memory_id)` | Delete a memory |

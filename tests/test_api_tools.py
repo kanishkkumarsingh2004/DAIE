@@ -20,8 +20,9 @@ This test file validates the API call tools in the Decentralized AI Ecosystem (D
 These tools enable agents to access external APIs, retrieve data from web services, and integrate with third-party systems, expanding the capabilities of the DAIE beyond its internal computational resources.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from daie.tools import APICallTool, HTTPGetTool, HTTPPostTool
 
@@ -42,9 +43,7 @@ async def test_api_call_tool_get(mock_request):
     mock_request.return_value = mock_response
 
     tool = APICallTool()
-    result = await tool.execute(
-        {"url": "https://api.example.com/data", "method": "GET"}
-    )
+    result = await tool.execute({"url": "https://api.example.com/data", "method": "GET"})
 
     assert result["status_code"] == 200
     assert result["url"] == "https://api.example.com/data"
@@ -69,9 +68,7 @@ async def test_http_get_tool(mock_get):
     mock_get.return_value = mock_response
 
     tool = HTTPGetTool()
-    result = await tool.execute(
-        {"url": "https://api.example.com/items", "params": {"limit": 3}}
-    )
+    result = await tool.execute({"url": "https://api.example.com/items", "params": {"limit": 3}})
 
     assert result["status_code"] == 200
     assert "json" in result

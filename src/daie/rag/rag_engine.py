@@ -9,7 +9,7 @@ import logging
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -145,7 +145,7 @@ class RAGEngine:
         results = []
         for idx in top_indices:
             score = float(similarities[idx])
-            if score > 0.05: # Minimal threshold
+            if score > 0.05:  # Minimal threshold
                 results.append((self._chunks[idx], score))
         return results
 
@@ -202,9 +202,7 @@ class RAGEngine:
 
                 chunk_text = text[start:end].strip()
                 if chunk_text:
-                    chunks.append(
-                        Chunk(text=chunk_text, source=doc.source, chunk_index=chunk_idx)
-                    )
+                    chunks.append(Chunk(text=chunk_text, source=doc.source, chunk_index=chunk_idx))
                     chunk_idx += 1
 
                 start = end - self.chunk_overlap
@@ -223,13 +221,63 @@ class RAGEngine:
         tokens = re.findall(r"[a-z0-9]+", text)
         # Remove very short tokens and common stop words
         stop_words = {
-            "a", "an", "the", "is", "it", "in", "on", "at", "to", "for",
-            "of", "and", "or", "but", "not", "with", "by", "from", "as",
-            "this", "that", "be", "are", "was", "were", "been", "has",
-            "have", "had", "do", "does", "did", "will", "would", "could",
-            "should", "may", "can", "i", "you", "he", "she", "we", "they",
-            "over", "under", "again", "further", "then", "once",
-            "what", "where", "how", "when", "why", "who", "which",
+            "a",
+            "an",
+            "the",
+            "is",
+            "it",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "and",
+            "or",
+            "but",
+            "not",
+            "with",
+            "by",
+            "from",
+            "as",
+            "this",
+            "that",
+            "be",
+            "are",
+            "was",
+            "were",
+            "been",
+            "has",
+            "have",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "can",
+            "i",
+            "you",
+            "he",
+            "she",
+            "we",
+            "they",
+            "over",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "what",
+            "where",
+            "how",
+            "when",
+            "why",
+            "who",
+            "which",
         }
         return [t for t in tokens if len(t) > 1 and t not in stop_words]
 

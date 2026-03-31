@@ -38,7 +38,7 @@ from daie.core.node import Node
 node = Node(node_id="node-1", name="Production Node")
 
 # Start the node
-node.start()
+await node.start()
 
 # Add agents to the node
 node.add_agent("agent-1")
@@ -67,7 +67,7 @@ from daie.core.node import Node
 
 # Create a node
 node = Node(node_id="production-node", name="Production Node")
-node.start()
+await node.start()
 
 # Add multiple agents
 node.add_agent("agent-1")
@@ -96,9 +96,9 @@ node_b = Node(node_id="node-b", name="Node B")
 node_c = Node(node_id="node-c", name="Node C")
 
 # Start nodes
-node_a.start()
-node_b.start()
-node_c.start()
+await node_a.start()
+await node_b.start()
+await node_c.start()
 
 # Connect nodes
 node_a.connect("node-b")
@@ -122,7 +122,7 @@ Store and retrieve resources on a node:
 from daie.core.node import Node
 
 node = Node(node_id="node-1", name="Resource Node")
-node.start()
+await node.start()
 
 # Set resources
 node.set_resource("gpu_count", 4)
@@ -153,7 +153,7 @@ Monitor node status and health:
 from daie.core.node import Node
 
 node = Node(node_id="node-1", name="Monitoring Node")
-node.start()
+await node.start()
 
 # Add agents
 node.add_agent("agent-1")
@@ -187,7 +187,7 @@ Add and remove agents from a node:
 from daie.core.node import Node
 
 node = Node(node_id="node-1", name="Agent Management Node")
-node.start()
+await node.start()
 
 # Add agents
 node.add_agent("agent-1")
@@ -215,7 +215,7 @@ Manage peer node connections:
 from daie.core.node import Node
 
 node = Node(node_id="node-1", name="Connection Node")
-node.start()
+await node.start()
 
 # Connect to peers
 node.connect("node-2")
@@ -258,7 +258,7 @@ await comm.start()
 
 # Create a node
 node = Node(node_id="node-1", name="Production Node")
-node.start()
+await node.start()
 
 # Create agents
 # network_url: The URL where THIS agent is hosted (others use this to reach it)
@@ -284,6 +284,12 @@ node.connect("node-2")
 node.connect("node-3")
 
 # Now agents can communicate via P2P, and the node manages them
+# ... do work ...
+
+await agent1.stop()
+await agent2.stop()
+await comm.stop()
+await node.stop()
 ```
 
 ## API Reference
@@ -312,8 +318,8 @@ Node(node_id: str, name: str = "Unknown Node")
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the node |
-| `stop()` | Stop the node |
+| `start()` | Start the node (async) |
+| `stop()` | Stop the node (async) |
 | `add_agent(agent_id)` | Add an agent to this node |
 | `remove_agent(agent_id)` | Remove an agent from this node |
 | `has_agent(agent_id)` | Check if an agent exists on this node |

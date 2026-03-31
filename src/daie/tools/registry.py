@@ -3,10 +3,10 @@ Tool registry module for managing tools
 """
 
 import logging
-from typing import Dict, List, Optional, Callable, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional
 
-from daie.tools.tool import Tool, ToolMetadata, ToolCategory
+from daie.tools.tool import Tool, ToolMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -134,9 +134,7 @@ class ToolRegistry:
 
         import time
 
-        registration = ToolRegistration(
-            tool=tool, metadata=tool.metadata, registered_at=time.time(), usage_count=0
-        )
+        registration = ToolRegistration(tool=tool, metadata=tool.metadata, registered_at=time.time(), usage_count=0)
 
         self._tools[tool_name] = registration
 
@@ -256,9 +254,7 @@ class ToolRegistry:
             if (
                 keyword in registration.metadata.name.lower()
                 or keyword in registration.metadata.description.lower()
-                or any(
-                    keyword in cap.lower() for cap in registration.metadata.capabilities
-                )
+                or any(keyword in cap.lower() for cap in registration.metadata.capabilities)
             ):
                 matching_tools.append(registration.tool)
 
@@ -301,9 +297,7 @@ class ToolRegistry:
         Returns:
             List of tool instances sorted by usage count
         """
-        sorted_tools = sorted(
-            self._tools.values(), key=lambda x: x.usage_count, reverse=True
-        )
+        sorted_tools = sorted(self._tools.values(), key=lambda x: x.usage_count, reverse=True)
 
         return [registration.tool for registration in sorted_tools[:count]]
 
@@ -342,9 +336,7 @@ class ToolRegistry:
         logger.info("All tools unregistered")
         return self
 
-    def on_event(
-        self, event_type: str, handler: Callable[[Tool], None]
-    ) -> "ToolRegistry":
+    def on_event(self, event_type: str, handler: Callable[[Tool], None]) -> "ToolRegistry":
         """
         Register an event handler for tool events
 
@@ -420,7 +412,6 @@ class ToolRegistry:
             "category_counts": dict(category_counts),
             "total_usage": sum(self._usage_counts.values()),
             "top_used": [
-                {"name": tool.name, "usage": self._usage_counts[tool.name]}
-                for tool in self.get_top_used_tools(10)
+                {"name": tool.name, "usage": self._usage_counts[tool.name]} for tool in self.get_top_used_tools(10)
             ],
         }

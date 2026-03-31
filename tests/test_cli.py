@@ -25,12 +25,14 @@ This test file validates the Command-Line Interface (CLI) for managing the Decen
 These tests ensure that the CLI commands function correctly, providing users with a reliable interface for managing the DAIE system and its components.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from typer.testing import CliRunner
-from daie.cli.main import cli
+
 from daie.cli.agent import agent_app as agent_cli
 from daie.cli.core import core_app as core_cli
+from daie.cli.main import cli
 
 
 class TestCLI:

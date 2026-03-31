@@ -20,11 +20,12 @@ This test file validates the core functionality of the Decentralized AI Ecosyste
 These tests ensure that the core infrastructure of the DAIE functions correctly, providing the foundation for building and running decentralized AI applications that leverage distributed computing resources across a network of nodes.
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch
+
 from daie.core.node import Node
 from daie.core.system import DecentralizedAISystem
-from daie.agents.config import AgentConfig
 
 
 class TestNode:
@@ -38,14 +39,15 @@ class TestNode:
         assert node.name == "Test Node"
         assert node.is_active is False
 
-    def test_node_start_stop(self, mock_logger):
+    @pytest.mark.asyncio
+    async def test_node_start_stop(self, mock_logger):
         """Test node start and stop operations."""
         node = Node(node_id="test-node-1", name="Test Node")
 
-        node.start()
+        await node.start()
         assert node.is_active is True
 
-        node.stop()
+        await node.stop()
         assert node.is_active is False
 
     def test_node_add_remove_agent(self, mock_logger):
@@ -163,25 +165,33 @@ class TestDecentralizedAISystem:
         agents = system.list_agents()
         assert len(agents) == 2
 
+    @pytest.mark.asyncio
     @patch("daie.core.system.CommunicationManager")
     @patch("daie.core.system.MemoryManager")
     @patch("daie.core.system.Agent")
-    def test_system_start_stop(
-        self, mock_agent, mock_memory_manager, mock_comm_manager, mock_logger
-    ):
+    async def test_system_start_stop(self, mock_agent, mock_memory_manager, mock_comm_manager, mock_logger):
         """Test system start and stop operations."""
+        # Setup AsyncMocks for instances
+        mock_comm_instance = mock_comm_manager.return_value
+        mock_comm_instance.start = AsyncMock()
+        mock_comm_instance.stop = AsyncMock()
+        
+        mock_memory_instance = mock_memory_manager.return_value
+        mock_memory_instance.start = AsyncMock()
+        mock_memory_instance.stop = AsyncMock()
+
         system = DecentralizedAISystem()
 
         # Create mock agents
         mock_agent1 = Mock()
         mock_agent1.id = "agent1"
-        mock_agent1.start = Mock()
-        mock_agent1.stop = Mock()
+        mock_agent1.start = AsyncMock()
+        mock_agent1.stop = AsyncMock()
 
         mock_agent2 = Mock()
         mock_agent2.id = "agent2"
-        mock_agent2.start = Mock()
-        mock_agent2.stop = Mock()
+        mock_agent2.start = AsyncMock()
+        mock_agent2.stop = AsyncMock()
 
         system.add_agent(mock_agent1)
         system.add_agent(mock_agent2)
@@ -191,18 +201,22 @@ class TestDecentralizedAISystem:
             patch.object(system, "_create_pid_file"),
             patch.object(system, "_run_event_loop"),
         ):
-            system.start()
+            await system.start()
 
             assert system.is_running is True
             mock_agent1.start.assert_called_once()
             mock_agent2.start.assert_called_once()
+            mock_comm_instance.start.assert_called_once()
+            mock_memory_instance.start.assert_called_once()
 
         # Stop system
         with patch.object(system, "_remove_pid_file"):
-            system.stop()
+            await system.stop()
             assert system.is_running is False
             mock_agent1.stop.assert_called_once()
             mock_agent2.stop.assert_called_once()
+            mock_comm_instance.stop.assert_called_once()
+            mock_memory_instance.stop.assert_called_once()
 
 
 if __name__ == "__main__":

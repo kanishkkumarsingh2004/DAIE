@@ -9,54 +9,48 @@ binary files, and JSON files.
 import logging
 import os
 import time
-import random
 import uuid
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from daie.config import SystemConfig
-from daie.memory.storage import (
-    StorageBackend,
-    MemoryItem,
-    create_storage_backend,
-    VectorDatabaseStorage,
-)
+from daie.memory.storage import (MemoryItem, StorageBackend,
+                                 VectorDatabaseStorage, create_storage_backend)
 
 logger = logging.getLogger(__name__)
 
 
 def uuid7() -> uuid.UUID:
     """Generate a UUID v7 (time-ordered UUID)
-    
+
     UUID v7 format:
     - 48 bits: timestamp in milliseconds
     - 4 bits: version (0111 for v7)
     - 12 bits: random
     - 2 bits: variant (10)
     - 62 bits: random
-    
+
     Returns:
         UUID v7 instance
     """
     try:
         # Get current timestamp in milliseconds
         timestamp_ms = int(time.time() * 1000)
-        
+
         # Generate random bytes using os.urandom for cryptographic randomness
         random_bytes = os.urandom(10)
-        
+
         # Convert timestamp to 6 bytes (48 bits)
-        timestamp_bytes = timestamp_ms.to_bytes(6, byteorder='big')
-        
+        timestamp_bytes = timestamp_ms.to_bytes(6, byteorder="big")
+
         # Combine with random bytes
         uuid_bytes = bytearray(timestamp_bytes + random_bytes)
-        
+
         # Set version bits (bits 4-7 of byte 6 to 0111)
         uuid_bytes[6] = (uuid_bytes[6] & 0x0F) | 0x70  # Version 7
-        
+
         # Set variant bits (bits 6-7 of byte 8 to 10)
         uuid_bytes[8] = (uuid_bytes[8] & 0x3F) | 0x80  # Variant 10
-        
+
         return uuid.UUID(bytes=bytes(uuid_bytes))
     except Exception as e:
         logger.error(f"Failed to generate UUID v7: {e}")
@@ -67,34 +61,34 @@ def uuid7() -> uuid.UUID:
 class MemoryManager:
     """
     Memory manager for handling agent memory
-    
+
     This class manages the memory system for agents, providing persistent
     storage for knowledge, experiences, and context. It supports different
     types of memory including working memory, semantic memory, and episodic
     memory.
-    
+
     Storage backends:
     - "vector": Uses ChromaDB for semantic search capabilities (recommended)
     - "binary": Uses pickle for fast binary serialization
     - "json": Uses JSON files (human-readable, slower)
-    
+
     Example:
     >>> from daie.memory import MemoryManager
     >>> from daie.config import SystemConfig
-    
+
     >>> # Create memory manager with vector database
     >>> config = SystemConfig(memory_storage_type="vector")
     >>> memory_manager = MemoryManager(config=config)
-    
+
     >>> # Initialize agent memory
     >>> memory_manager.initialize_agent_memory("agent1")
-    
+
     >>> # Store memory
     >>> memory_manager.store_memory("agent1", "Test content", "working", tags=["test"])
-    
+
     >>> # Retrieve memories
     >>> memories = memory_manager.retrieve_memories("agent1", "working")
-    
+
     >>> # Semantic search (only with vector backend)
     >>> similar = memory_manager.search_similar("agent1", "test query")
     """
@@ -111,14 +105,14 @@ class MemoryManager:
         self._agent_memories: Dict[str, Dict[str, List[MemoryItem]]] = {}
         self._storage: Optional[StorageBackend] = None
         self._root_path = self.config.memory_root_path
-        
+
         # Ensure root directory exists
         os.makedirs(self._root_path, exist_ok=True)
-        
+
         logger.info(
             "Memory manager initialized with storage type: %s at path: %s",
             self.config.memory_storage_type,
-            self._root_path
+            self._root_path,
         )
 
     @property
@@ -129,7 +123,7 @@ class MemoryManager:
     def start(self) -> None:
         """
         Start memory manager
-        
+
         This method initializes the memory system and connects to storage.
         """
         if self._is_initialized:
@@ -139,16 +133,21 @@ class MemoryManager:
         logger.info("Starting memory manager...")
 
         try:
-            # Initialize storage backend
-            self._storage = create_storage_backend(self.config.memory_storage_type)
-            self._storage.initialize(self._root_path)
+            # Initialize storage backend only if persistent memory is enabled
+            if self.config.persistent_memory:
+                self._storage = create_storage_backend(self.config.memory_storage_type)
+                self._storage.initialize(self._root_path)
 
-            # Load existing agent memories
-            self._load_agent_memories()
+                # Load existing agent memories
+                self._load_agent_memories()
+                logger.info(
+                    "Memory manager started successfully with %s backend (persistent)", self.config.memory_storage_type
+                )
+            else:
+                self._storage = None
+                logger.info("Memory manager started successfully (in-memory only, no persistence)")
 
             self._is_initialized = True
-            logger.info("Memory manager started successfully with %s backend", 
-                       self.config.memory_storage_type)
 
         except Exception as e:
             logger.error(f"Failed to start memory manager: {e}")
@@ -160,9 +159,10 @@ class MemoryManager:
             logger.warning("Memory manager already stopped")
             return
 
-        # Save all agent memories to storage
-        for agent_id in self._agent_memories:
-            self._save_agent_memory(agent_id)
+        # Save all agent memories to storage only if persistent memory is enabled
+        if self.config.persistent_memory:
+            for agent_id in self._agent_memories:
+                self._save_agent_memory(agent_id)
 
         self._is_initialized = False
         logger.info("Memory manager stopped")
@@ -174,10 +174,8 @@ class MemoryManager:
 
         try:
             self._agent_memories[agent_id] = self._storage.load_agent_memory(agent_id)
-            
-            total_items = sum(
-                len(items) for items in self._agent_memories[agent_id].values()
-            )
+
+            total_items = sum(len(items) for items in self._agent_memories[agent_id].values())
             logger.debug(
                 "Loaded memory for agent %s: %d items",
                 agent_id,
@@ -201,10 +199,8 @@ class MemoryManager:
 
         try:
             self._storage.save_agent_memory(agent_id, self._agent_memories[agent_id])
-            
-            total_items = sum(
-                len(items) for items in self._agent_memories[agent_id].values()
-            )
+
+            total_items = sum(len(items) for items in self._agent_memories[agent_id].values())
             logger.debug(
                 "Saved memory for agent %s: %d items",
                 agent_id,
@@ -225,7 +221,7 @@ class MemoryManager:
             agent_ids = self._storage.list_agents()
             for agent_id in agent_ids:
                 self._load_agent_memory(agent_id)
-            
+
             logger.debug("Loaded memories for %d agents", len(self._agent_memories))
         except Exception as e:
             logger.error(f"Failed to load agent memories: {e}")
@@ -297,16 +293,15 @@ class MemoryManager:
         current_count = len(self._agent_memories[agent_id][memory_type])
         if current_count > max_items:
             # Remove oldest items in one operation
-            self._agent_memories[agent_id][memory_type] = self._agent_memories[
-                agent_id
-            ][memory_type][-max_items:]
+            self._agent_memories[agent_id][memory_type] = self._agent_memories[agent_id][memory_type][-max_items:]
 
         # Log only if content is string
         content_preview = str(content)[:50] if content else ""
         logger.debug(f"Memory stored for agent {agent_id}: {content_preview}...")
 
-        # Save to persistent storage
-        self._save_agent_memory(agent_id)
+        # Save to persistent storage only if persistent memory is enabled
+        if self.config.persistent_memory:
+            self._save_agent_memory(agent_id)
 
         return memory_item.id
 
@@ -343,9 +338,7 @@ class MemoryManager:
 
         # Filter by tags if specified
         if tags:
-            all_memories = [
-                item for item in all_memories if any(tag in tags for tag in item.tags)
-            ]
+            all_memories = [item for item in all_memories if any(tag in tags for tag in item.tags)]
 
         # Sort by timestamp (newest first) and apply limit
         all_memories.sort(key=lambda x: x.timestamp, reverse=True)
@@ -360,7 +353,7 @@ class MemoryManager:
     ) -> List[MemoryItem]:
         """
         Search for similar memories using semantic search
-        
+
         This method is only available when using the vector database backend.
         For other backends, it falls back to tag-based retrieval.
 
@@ -380,13 +373,11 @@ class MemoryManager:
         # Use vector search if available
         if isinstance(self._storage, VectorDatabaseStorage):
             try:
-                return self._storage.search_similar(
-                    agent_id, query, memory_type, limit
-                )
+                return self._storage.search_similar(agent_id, query, memory_type, limit)
             except Exception as e:
                 logger.error(f"Vector search failed: {e}")
                 return []
-        
+
         # Fallback: search in memory using simple text matching
         if agent_id not in self._agent_memories:
             return []
@@ -401,10 +392,7 @@ class MemoryManager:
 
         # Simple text matching
         query_lower = query.lower()
-        matching = [
-            item for item in all_memories
-            if query_lower in item.content.lower()
-        ]
+        matching = [item for item in all_memories if query_lower in item.content.lower()]
 
         # Sort by timestamp (newest first)
         matching.sort(key=lambda x: x.timestamp, reverse=True)
@@ -446,9 +434,7 @@ class MemoryManager:
                 return len(self._agent_memories[agent_id][memory_type])
             return 0
         else:
-            return sum(
-                len(memories) for memories in self._agent_memories[agent_id].values()
-            )
+            return sum(len(memories) for memories in self._agent_memories[agent_id].values())
 
     def get_storage_info(self) -> Dict[str, Any]:
         """
@@ -461,9 +447,7 @@ class MemoryManager:
             "storage_type": self.config.memory_storage_type,
             "root_path": self._root_path,
             "is_initialized": self._is_initialized,
+            "persistent_memory": self.config.persistent_memory,
             "agent_count": len(self._agent_memories),
-            "total_memories": sum(
-                self.get_memory_count(agent_id)
-                for agent_id in self._agent_memories
-            ),
+            "total_memories": sum(self.get_memory_count(agent_id) for agent_id in self._agent_memories),
         }

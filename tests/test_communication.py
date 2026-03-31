@@ -26,11 +26,13 @@ This test file validates the communication system in the Decentralized AI Ecosys
 These tests ensure that agents can communicate reliably across the network, forming the communication backbone of the decentralized AI system.
 """
 
-import pytest
 import asyncio
-from unittest.mock import Mock, patch, MagicMock
-from daie.communication.manager import CommunicationManager
+from unittest.mock import MagicMock
+
+import pytest
+
 from daie.agents.message import AgentMessage
+from daie.communication.manager import CommunicationManager
 from daie.config import SystemConfig
 
 
@@ -55,7 +57,7 @@ class TestCommunicationManager:
         await manager.start()
         assert manager.is_connected is True
 
-        manager.stop()
+        await manager.stop()
         # Wait for stop to complete
         await asyncio.sleep(0.1)
         assert manager.is_connected is False
@@ -77,6 +79,7 @@ class TestCommunicationManager:
 
         success = await manager.send_message(message)
         assert success is True
+        await manager.stop()
 
     @pytest.mark.asyncio
     async def test_communication_manager_register_agent(self, mock_logger):
@@ -124,6 +127,7 @@ class TestCommunicationManager:
 
         count = await manager.broadcast_message(message)
         assert count > 0
+        await manager.stop()
 
     @pytest.mark.asyncio
     async def test_communication_manager_peer_management(self, mock_logger):
@@ -187,8 +191,9 @@ class TestCommunicationManager:
         success = await manager.send_message(message)
         assert success is True
 
-        # Verify message was encrypted
-        assert message.metadata.get("encrypted") is True
+        # Verify message was encrypted in the inbox (simulating network transport)
+        assert manager._inbox["agent2"][0].metadata.get("encrypted") is True
+        await manager.stop()
 
     @pytest.mark.asyncio
     async def test_communication_manager_audit_logging(self, mock_logger):
@@ -227,6 +232,7 @@ class TestCommunicationManager:
 
         success = await manager.send_message(message)
         assert success is True
+        await manager.stop()
 
     @pytest.mark.asyncio
     async def test_communication_manager_rate_limiting(self, mock_logger):
@@ -277,6 +283,7 @@ class TestCommunicationManager:
         )
         success = await manager.send_message(message)
         assert success is False
+        await manager.stop()
 
     @pytest.mark.asyncio
     async def test_communication_manager_rate_limiting_disabled(self, mock_logger):
@@ -315,6 +322,7 @@ class TestCommunicationManager:
             )
             success = await manager.send_message(message)
             assert success is True
+        await manager.stop()
 
 
 if __name__ == "__main__":

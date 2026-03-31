@@ -1,7 +1,8 @@
 """Test configuration and shared fixtures for all tests."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from pydantic_settings import BaseSettings
 
 

@@ -2,10 +2,10 @@
 Agent message data structures
 """
 
-from typing import Optional, Dict, Any
-from dataclasses import dataclass, field
-import time
 import json
+import time
+from dataclasses import dataclass, field
+from typing import Any, Dict
 
 
 @dataclass

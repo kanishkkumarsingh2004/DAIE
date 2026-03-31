@@ -5,8 +5,8 @@ Base tool class and tool creation API
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, Callable
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +110,7 @@ class Tool(ABC):
         # Validate the tool metadata
         self._validate_metadata()
         if self._validation_errors:
-            logger.warning(
-                f"Tool {metadata.name} has validation errors: {self._validation_errors}"
-            )
+            logger.warning(f"Tool {metadata.name} has validation errors: {self._validation_errors}")
 
     @property
     def name(self) -> str:
@@ -171,9 +169,7 @@ class Tool(ABC):
             param_names.append(param.name)
 
             if param.required and param.default is not None:
-                logger.warning(
-                    f"Parameter {param.name} is required but has a default value"
-                )
+                logger.warning(f"Parameter {param.name} is required but has a default value")
 
     async def initialize(self) -> bool:
         """
@@ -205,7 +201,6 @@ class Tool(ABC):
 
         Subclasses should implement this method to handle tool-specific initialization.
         """
-        pass
 
     async def shutdown(self) -> bool:
         """
@@ -237,7 +232,6 @@ class Tool(ABC):
 
         Subclasses should implement this method to handle tool-specific shutdown.
         """
-        pass
 
     async def validate_params(self, params: Dict[str, Any]) -> List[str]:
         """
@@ -281,9 +275,7 @@ class Tool(ABC):
         allowed_params = {param.name for param in self.metadata.parameters}
         for param_name in params:
             if param_name not in allowed_params:
-                logger.warning(
-                    f"Unknown parameter '{param_name}' for tool '{self.metadata.name}'"
-                )
+                logger.warning(f"Unknown parameter '{param_name}' for tool '{self.metadata.name}'")
 
         return errors
 
@@ -317,9 +309,7 @@ class Tool(ABC):
                 prepared_params[param.name] = param.default
 
         try:
-            logger.debug(
-                f"Executing tool '{self.metadata.name}' with params: {prepared_params}"
-            )
+            logger.debug(f"Executing tool '{self.metadata.name}' with params: {prepared_params}")
             result = await self._execute(prepared_params)
             logger.debug(f"Tool '{self.metadata.name}' executed successfully")
             return result
@@ -342,7 +332,6 @@ class Tool(ABC):
         Raises:
             Exception: If tool execution fails
         """
-        pass
 
     def get_metadata_dict(self) -> Dict[str, Any]:
         """

@@ -3,9 +3,10 @@ Camera handling module using OpenCV
 """
 
 import logging
-import threading
 import queue
-from typing import Optional, Callable, List
+import threading
+from typing import Callable, List, Optional
+
 from daie.agents.config import AgentConfig
 
 try:
@@ -132,9 +133,7 @@ class CameraManager:
         try:
             self.frame_callback = callback
             self.is_streaming = True
-            self.streaming_thread = threading.Thread(
-                target=self._streaming_thread, daemon=True
-            )
+            self.streaming_thread = threading.Thread(target=self._streaming_thread, daemon=True)
             self.streaming_thread.start()
 
             logger.info("Camera streaming started")
@@ -273,9 +272,7 @@ class CameraManager:
                     break
 
                 if preview_time > 0:
-                    elapsed_time = (
-                        cv2.getTickCount() - start_time
-                    ) / cv2.getTickFrequency()
+                    elapsed_time = (cv2.getTickCount() - start_time) / cv2.getTickFrequency()
                     if elapsed_time >= preview_time:
                         logger.info(f"Preview completed after {preview_time} seconds")
                         break
@@ -345,9 +342,7 @@ def list_camera_devices() -> List[int]:
     return devices
 
 
-def capture_image(
-    file_path: str, device_index: int = 0, width: int = 640, height: int = 480
-) -> bool:
+def capture_image(file_path: str, device_index: int = 0, width: int = 640, height: int = 480) -> bool:
     """
     Capture a single image from camera
 

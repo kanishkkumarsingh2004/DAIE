@@ -2,9 +2,8 @@
 Agent Connect Protocol (ACP) module with I/O Mappers.
 """
 
-from typing import Dict, Any, Callable, Optional
-import json
 import logging
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ class IOMapper:
     def __init__(self, mapping_rules: Dict[str, str] = None):
         """
         Initialize the I/O Mapper with a dictionary of rules.
-        A rule like: {"dest_key": "source_key"} means that the output's 
+        A rule like: {"dest_key": "source_key"} means that the output's
         'source_key' will be mapped to the input's 'dest_key'.
         """
         self.mapping_rules = mapping_rules or {}
@@ -39,7 +38,7 @@ class AgentConnectProtocol:
     Implements the Agent Connect Protocol.
     Mediates interaction between two agents using an I/O Mapper.
     """
-    
+
     def __init__(self, mapper: Optional[IOMapper] = None):
         self.mapper = mapper or IOMapper()
 
@@ -50,14 +49,16 @@ class AgentConnectProtocol:
         if not self.mapper.mapping_rules:
             # If no specific rules, pass through as direct payload
             return output_payload
-        
+
         return self.mapper.apply(output_payload)
 
-    def map_response(self, response_payload: Dict[str, Any], response_mapper: Optional[IOMapper] = None) -> Dict[str, Any]:
+    def map_response(
+        self, response_payload: Dict[str, Any], response_mapper: Optional[IOMapper] = None
+    ) -> Dict[str, Any]:
         """
         Maps a response back to the requesting agent.
         """
         if not response_mapper or not response_mapper.mapping_rules:
             return response_payload
-            
+
         return response_mapper.apply(response_payload)

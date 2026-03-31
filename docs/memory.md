@@ -5,6 +5,7 @@ DAIE provides a memory management system that allows agents to store and retriev
 ## Features
 
 - **Persistent Storage** — Memory is saved to disk and persists across sessions
+- **In-Memory Mode** — Optional in-memory only mode for temporary memory
 - **Multiple Memory Types** — Working memory, semantic memory, and episodic memory
 - **Tag-Based Retrieval** — Retrieve memories by tags for efficient filtering
 - **Agent-Specific Memory** — Each agent has its own isolated memory space
@@ -40,7 +41,7 @@ from daie.memory import MemoryManager
 
 config = SystemConfig(memory_storage_type="vector")
 memory_manager = MemoryManager(config=config)
-memory_manager.start()
+await memory_manager.start()
 ```
 
 ### Binary File (Default)
@@ -60,12 +61,73 @@ from daie.memory import MemoryManager
 
 config = SystemConfig(memory_storage_type="binary")
 memory_manager = MemoryManager(config=config)
-memory_manager.start()
+await memory_manager.start()
+```
+
+---
+
+## Persistent vs In-Memory Mode
+
+DAIE supports two memory modes controlled by the `persistent_memory` configuration parameter:
+
+### Persistent Memory (Default)
+
+When `persistent_memory=True` (default), memory is saved to disk and persists across application restarts. This is the recommended mode for production systems.
+
+```python
+from daie.config import SystemConfig
+from daie.memory import MemoryManager
+
+# Persistent memory (default)
+config = SystemConfig(persistent_memory=True)
+memory_manager = MemoryManager(config=config)
+await memory_manager.start()
+
+# Memory will be saved to disk and restored on restart
+```
+
+### In-Memory Only
+
+When `persistent_memory=False`, memory is stored only in RAM and is lost when the application restarts. This is useful for:
+- Testing and development
+- Temporary sessions
+- Scenarios where disk I/O should be minimized
+
+```python
+from daie.config import SystemConfig
+from daie.memory import MemoryManager
+
+# In-memory only (no persistence)
+config = SystemConfig(persistent_memory=False)
+memory_manager = MemoryManager(config=config)
+await memory_manager.start()
+
+# Memory will be lost when application stops
+```
+
+### Configuration Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `persistent_memory` | bool | `True` | Whether to persist memory across restarts |
+| `memory_storage_type` | str | `"binary"` | Storage backend type ("vector", "binary") |
+| `memory_root_path` | str | `"./agent_memory"` | Root directory for memory storage |
+
+### Environment Variables
+
+You can also configure persistent memory via environment variables:
+
+```bash
+export PERSISTENT_MEMORY=false  # Enable in-memory only mode
+export MEMORY_STORAGE_TYPE=binary
+export MEMORY_ROOT_PATH=./agent_memory
 ```
 
 ---
 
 ## Quick Start
+
+### Persistent Memory (Default)
 
 ```python
 from daie import Agent, AgentConfig, set_llm
@@ -76,7 +138,7 @@ set_llm(ollama_llm="llama3.2:latest")
 
 # Create memory manager with binary storage (default)
 memory_manager = MemoryManager()
-memory_manager.start()
+await memory_manager.start()
 
 # Create agent with memory
 agent = Agent(config=AgentConfig(
@@ -107,6 +169,38 @@ similar = memory_manager.search_similar(
     agent_id=agent.id,
     query="user preferences",
     limit=5
+)
+```
+
+### In-Memory Only
+
+```python
+from daie import Agent, AgentConfig, set_llm
+from daie.memory import MemoryManager
+from daie.config import SystemConfig
+
+set_llm(ollama_llm="llama3.2:latest")
+
+# Create memory manager with in-memory only (no persistence)
+config = SystemConfig(persistent_memory=False)
+memory_manager = MemoryManager(config=config)
+await memory_manager.start()
+
+# Create agent with memory
+agent = Agent(config=AgentConfig(
+    name="MemoryAgent",
+    system_prompt="You are a helpful assistant with memory.",
+))
+
+# Start agent with memory manager
+await agent.start(memory_manager=memory_manager)
+
+# Store a memory (will be lost when application stops)
+memory_manager.store_memory(
+    agent_id=agent.id,
+    content="User prefers concise answers",
+    memory_type="working",
+    tags=["user_preference", "communication_style"]
 )
 ```
 
@@ -170,19 +264,23 @@ memory_manager = MemoryManager()
 config = SystemConfig(memory_storage_type="vector")
 memory_manager = MemoryManager(config=config)
 
+# Or with in-memory only (no persistence)
+config = SystemConfig(persistent_memory=False)
+memory_manager = MemoryManager(config=config)
+
 # Start the memory manager
-memory_manager.start()
+await memory_manager.start()
 
 # Stop the memory manager
-memory_manager.stop()
+await memory_manager.stop()
 ```
 
 ### Methods
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the memory manager and initialize storage |
-| `stop()` | Stop the memory manager and save state |
+| `start()` | Start the memory manager and initialize storage (async) |
+| `stop()` | Stop the memory manager and save state (async) |
 | `initialize_agent_memory(agent_id)` | Initialize memory for a specific agent |
 | `store_memory(agent_id, content, memory_type, tags)` | Store a memory item |
 | `retrieve_memories(agent_id, memory_type, tags)` | Retrieve memories by type and tags |
@@ -276,7 +374,7 @@ from daie.config import SystemConfig
 # Use vector database for best performance
 config = SystemConfig(memory_storage_type="vector")
 memory_manager = MemoryManager(config=config)
-memory_manager.start()
+await memory_manager.start()
 
 agent = Agent(config=AgentConfig(
     name="SmartAgent",
@@ -326,6 +424,8 @@ agent_memory/
 4. **Regular Cleanup** — Clear old working memories to prevent clutter
 5. **Meaningful Content** — Store concise, meaningful content for better retrieval
 6. **Install Dependencies** — Install ChromaDB for vector backend: `pip install chromadb`
+7. **Use Persistent Memory** — Enable `persistent_memory=True` for production systems to preserve memory across restarts
+8. **Use In-Memory Mode for Testing** — Use `persistent_memory=False` for testing and development to avoid disk I/O
 
 ---
 

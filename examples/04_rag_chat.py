@@ -14,6 +14,7 @@ context from the specified directory and inject it into the conversation.
 
 import asyncio
 import os
+
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
 
@@ -57,7 +58,7 @@ async def main():
             "answer, say so honestly."
         ),
         personality="precise, helpful, and thorough",
-        temperature=0.3,       # Lower temperature for factual answers
+        temperature=0.3,  # Lower temperature for factual answers
         max_tokens=1024,
         # --- RAG configuration ---
         rag_document_path=DOCUMENTS_PATH,

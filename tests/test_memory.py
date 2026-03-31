@@ -31,11 +31,13 @@ This test file validates the memory management system in the Decentralized AI Ec
 These tests ensure that agents can effectively manage their memories, enabling them to learn from experiences, recall information, and maintain context across interactions in the decentralized environment.
 """
 
-import pytest
-import tempfile
 import shutil
-from daie.memory.manager import MemoryManager, MemoryItem
+import tempfile
+
+import pytest
+
 from daie.config import SystemConfig
+from daie.memory.manager import MemoryItem, MemoryManager
 
 
 class TestMemoryManager:
@@ -97,18 +99,10 @@ class TestMemoryManager:
         memory_manager.initialize_agent_memory("agent1")
 
         # Store different types of memories
-        memory_manager.store_memory(
-            "agent1", "Working memory 1", "working", tags=["test", "important"]
-        )
-        memory_manager.store_memory(
-            "agent1", "Semantic memory 1", "semantic", tags=["knowledge"]
-        )
-        memory_manager.store_memory(
-            "agent1", "Episodic memory 1", "episodic", tags=["event"]
-        )
-        memory_manager.store_memory(
-            "agent1", "Working memory 2", "working", tags=["test"]
-        )
+        memory_manager.store_memory("agent1", "Working memory 1", "working", tags=["test", "important"])
+        memory_manager.store_memory("agent1", "Semantic memory 1", "semantic", tags=["knowledge"])
+        memory_manager.store_memory("agent1", "Episodic memory 1", "episodic", tags=["event"])
+        memory_manager.store_memory("agent1", "Working memory 2", "working", tags=["test"])
 
         # Test retrieving working memory
         working_memories = memory_manager.retrieve_memories("agent1", "working")
@@ -165,7 +159,7 @@ class TestMemoryManager:
         config1.memory_root_path = temp_dir
         manager1 = MemoryManager(config=config1)
         manager1.start()
-        
+
         manager1.initialize_agent_memory("agent1")
         manager1.store_memory("agent1", "Persistent memory", "working", tags=["test"])
         manager1.stop()
@@ -176,7 +170,7 @@ class TestMemoryManager:
         config2.memory_root_path = temp_dir
         manager2 = MemoryManager(config=config2)
         manager2.start()
-        
+
         memories = manager2.retrieve_memories("agent1")
         assert len(memories) == 1
         assert memories[0].content == "Persistent memory"
@@ -185,16 +179,10 @@ class TestMemoryManager:
     def test_search_similar(self, mock_logger, memory_manager):
         """Test search_similar with binary storage (text matching fallback)."""
         memory_manager.initialize_agent_memory("agent1")
-        
-        memory_manager.store_memory(
-            "agent1", "Python programming language", "semantic", tags=["programming"]
-        )
-        memory_manager.store_memory(
-            "agent1", "Java programming language", "semantic", tags=["programming"]
-        )
-        memory_manager.store_memory(
-            "agent1", "Cooking recipes", "semantic", tags=["cooking"]
-        )
+
+        memory_manager.store_memory("agent1", "Python programming language", "semantic", tags=["programming"])
+        memory_manager.store_memory("agent1", "Java programming language", "semantic", tags=["programming"])
+        memory_manager.store_memory("agent1", "Cooking recipes", "semantic", tags=["cooking"])
 
         # Search for programming-related memories
         results = memory_manager.search_similar("agent1", "programming")

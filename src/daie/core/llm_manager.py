@@ -3,11 +3,10 @@ LLM (Large Language Model) management module
 """
 
 import logging
-import json
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 from enum import Enum
-import subprocess
+from typing import Any, Dict, List, Optional
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -76,9 +75,7 @@ class LLMManager:
         """
         # Pre-create the LLM instance to ensure it's available
         self.get_llm()
-        logger.info(
-            f"LLM initialized: {self.config.llm_type.value}:{self.config.model_name}"
-        )
+        logger.info(f"LLM initialized: {self.config.llm_type.value}:{self.config.model_name}")
         return self
 
     def set_llm(
@@ -144,9 +141,7 @@ class LLMManager:
 
         # Clear cached LLM instance
         self.llm = None
-        logger.info(
-            f"LLM configuration updated: {self.config.llm_type.value}:{self.config.model_name}"
-        )
+        logger.info(f"LLM configuration updated: {self.config.llm_type.value}:{self.config.model_name}")
 
         return self
 
@@ -217,7 +212,9 @@ class LLMManager:
                     self._session = requests.Session()
                 return self._session
 
-            def invoke(self, prompt: str, stream: Optional[bool] = None, images: Optional[List[str]] = None, **kwargs) -> str:
+            def invoke(
+                self, prompt: str, stream: Optional[bool] = None, images: Optional[List[str]] = None, **kwargs
+            ) -> str:
                 """
                 Invoke the LLM with a prompt
 
@@ -239,7 +236,7 @@ class LLMManager:
             def _invoke_non_stream(self, prompt: str, images: Optional[List[str]] = None, **kwargs) -> str:
                 """Non-streaming invocation"""
                 try:
-                    import json
+                    pass
 
                     session = self._get_session()
 
@@ -260,11 +257,7 @@ class LLMManager:
                         payload["options"] = {"num_predict": self.config.max_tokens}
 
                     # Call ollama API
-                    response = session.post(
-                        f"{self.base_url}/api/chat",
-                        json=payload,
-                        timeout=300.0
-                    )
+                    response = session.post(f"{self.base_url}/api/chat", json=payload, timeout=300.0)
 
                     # Parse response
                     if response.status_code == 200:
@@ -272,20 +265,17 @@ class LLMManager:
                         if "message" in data and "content" in data["message"]:
                             return data["message"]["content"]
 
-                        logger.error(
-                            f"Ollama API returned unexpected format: {response.text[:200]}"
-                        )
+                        logger.error(f"Ollama API returned unexpected format: {response.text[:200]}")
                         return "Error: Failed to parse Ollama response format"
 
                     else:
-                        logger.error(
-                            f"Ollama API error: Status code {response.status_code}"
-                        )
+                        logger.error(f"Ollama API error: Status code {response.status_code}")
                         logger.error(f"Error response: {response.text[:200]}")
                         return f"Error: Failed to communicate with Ollama (Status: {response.status_code})"
 
                 except Exception as e:
                     import requests
+
                     if isinstance(e, requests.exceptions.ConnectionError):
                         logger.error("Ollama connection error: Could not connect to server")
                         return "Error: Could not connect to Ollama server. Is it running?"
@@ -321,27 +311,21 @@ class LLMManager:
                         payload["options"] = {"num_predict": self.config.max_tokens}
 
                     # Call ollama API with streaming
-                    response = session.post(
-                        f"{self.base_url}/api/chat",
-                        json=payload,
-                        stream=True,
-                        timeout=300.0
-                    )
-                    
+                    response = session.post(f"{self.base_url}/api/chat", json=payload, stream=True, timeout=300.0)
+
                     if response.status_code != 200:
                         try:
                             err_msg = response.json().get("error", response.text)
-                        except:
+                        except Exception:
                             err_msg = response.text
                         return f"Error: Ollama API returned status {response.status_code} - {err_msg}"
-
 
                     full_response = ""
 
                     # Process streaming responses
                     for line in response.iter_lines():
                         if line:
-                            line = line.decode('utf-8').strip()
+                            line = line.decode("utf-8").strip()
                             try:
                                 data = json.loads(line)
                                 if "message" in data and "content" in data["message"]:
@@ -357,6 +341,7 @@ class LLMManager:
 
                 except Exception as e:
                     import requests
+
                     if isinstance(e, requests.exceptions.ConnectionError):
                         logger.error("Ollama connection error: Could not connect to server")
                         return "Error: Could not connect to Ollama server. Is it running?"
@@ -432,9 +417,10 @@ class LLMManager:
             def _invoke_stream(self, prompt: str, **kwargs) -> str:
                 """Streaming invocation with token-by-token display"""
                 try:
-                    import requests
                     import json
                     import sys
+
+                    import requests
 
                     url = f"{self.config.base_url or 'https://api.openai.com'}/v1/chat/completions"
                     headers = {
@@ -447,7 +433,7 @@ class LLMManager:
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": self.config.temperature,
                         "max_tokens": self.config.max_tokens,
-                        "stream": True
+                        "stream": True,
                     }
 
                     response = requests.post(url, headers=headers, json=payload, stream=True)
@@ -458,14 +444,14 @@ class LLMManager:
                     # Process streaming responses
                     for line in response.iter_lines():
                         if line:
-                            line = line.decode('utf-8').strip()
-                            if line.startswith('data: '):
+                            line = line.decode("utf-8").strip()
+                            if line.startswith("data: "):
                                 try:
                                     data = json.loads(line[6:])
-                                    if 'choices' in data and data['choices']:
-                                        delta = data['choices'][0].get('delta', {})
-                                        if 'content' in delta:
-                                            token = delta['content']
+                                    if "choices" in data and data["choices"]:
+                                        delta = data["choices"][0].get("delta", {})
+                                        if "content" in delta:
+                                            token = delta["content"]
                                             full_response += token
                                             sys.stdout.write(token)
                                             sys.stdout.flush()
@@ -538,9 +524,10 @@ class LLMManager:
             def _invoke_stream(self, prompt: str, **kwargs) -> str:
                 """Streaming invocation with token-by-token display"""
                 try:
-                    import requests
                     import json
                     import sys
+
+                    import requests
 
                     url = f"{self.config.base_url or 'https://api.anthropic.com'}/v1/messages"
                     headers = {
@@ -553,7 +540,7 @@ class LLMManager:
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": self.config.temperature,
                         "max_tokens": self.config.max_tokens,
-                        "stream": True
+                        "stream": True,
                     }
 
                     response = requests.post(url, headers=headers, json=payload, stream=True)
@@ -564,12 +551,12 @@ class LLMManager:
                     # Process streaming responses
                     for line in response.iter_lines():
                         if line:
-                            line = line.decode('utf-8').strip()
-                            if line.startswith('data: '):
+                            line = line.decode("utf-8").strip()
+                            if line.startswith("data: "):
                                 try:
                                     data = json.loads(line[6:])
-                                    if 'delta' in data and 'text' in data['delta']:
-                                        token = data['delta']['text']
+                                    if "delta" in data and "text" in data["delta"]:
+                                        token = data["delta"]["text"]
                                         full_response += token
                                         sys.stdout.write(token)
                                         sys.stdout.flush()
@@ -615,7 +602,7 @@ class LLMManager:
             def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
                 """Non-streaming invocation"""
                 try:
-                    import requests
+                    pass
 
                     # This is a simplified version - Google's API is more complex
                     logger.warning("Google LLM support is experimental")
@@ -632,15 +619,16 @@ class LLMManager:
 
                     # This is a simplified version - Google's API is more complex
                     logger.warning("Google LLM support is experimental")
-                    
+
                     response = f"Google LLM streaming response to: {prompt[:50]}..."
                     # Simulate streaming for demonstration
                     for char in response:
                         sys.stdout.write(char)
                         sys.stdout.flush()
                         import time
+
                         time.sleep(0.05)
-                    
+
                     return response
 
                 except Exception as e:
@@ -708,9 +696,10 @@ class LLMManager:
             def _invoke_stream(self, prompt: str, **kwargs) -> str:
                 """Streaming invocation with token-by-token display"""
                 try:
-                    import requests
                     import json
                     import sys
+
+                    import requests
 
                     # Azure OpenAI API endpoint format:
                     # https://{your-resource-name}.openai.azure.com/openai/deployments/{deployment-name}/chat/completions?api-version={api-version}
@@ -724,7 +713,7 @@ class LLMManager:
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": self.config.temperature,
                         "max_tokens": self.config.max_tokens,
-                        "stream": True
+                        "stream": True,
                     }
 
                     response = requests.post(url, headers=headers, json=payload, stream=True)
@@ -735,14 +724,14 @@ class LLMManager:
                     # Process streaming responses
                     for line in response.iter_lines():
                         if line:
-                            line = line.decode('utf-8').strip()
-                            if line.startswith('data: '):
+                            line = line.decode("utf-8").strip()
+                            if line.startswith("data: "):
                                 try:
                                     data = json.loads(line[6:])
-                                    if 'choices' in data and data['choices']:
-                                        delta = data['choices'][0].get('delta', {})
-                                        if 'content' in delta:
-                                            token = delta['content']
+                                    if "choices" in data and data["choices"]:
+                                        delta = data["choices"][0].get("delta", {})
+                                        if "content" in delta:
+                                            token = delta["content"]
                                             full_response += token
                                             sys.stdout.write(token)
                                             sys.stdout.flush()
@@ -788,8 +777,9 @@ class LLMManager:
             def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
                 """Non-streaming invocation"""
                 try:
-                    import requests
                     import json
+
+                    import requests
 
                     url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
                     headers = {
@@ -812,11 +802,7 @@ class LLMManager:
                             if key not in ["referer", "title"] and key not in payload:
                                 payload[key] = value
 
-                    response = requests.post(
-                        url,
-                        headers=headers,
-                        data=json.dumps(payload)
-                    )
+                    response = requests.post(url, headers=headers, data=json.dumps(payload))
                     response.raise_for_status()
 
                     data = response.json()
@@ -829,9 +815,10 @@ class LLMManager:
             def _invoke_stream(self, prompt: str, **kwargs) -> str:
                 """Streaming invocation with token-by-token display"""
                 try:
-                    import requests
                     import json
                     import sys
+
+                    import requests
 
                     url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
                     headers = {
@@ -846,7 +833,7 @@ class LLMManager:
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": self.config.temperature,
                         "max_tokens": self.config.max_tokens,
-                        "stream": True
+                        "stream": True,
                     }
 
                     # Add additional parameters if present
@@ -855,12 +842,7 @@ class LLMManager:
                             if key not in ["referer", "title"] and key not in payload:
                                 payload[key] = value
 
-                    response = requests.post(
-                        url,
-                        headers=headers,
-                        data=json.dumps(payload),
-                        stream=True
-                    )
+                    response = requests.post(url, headers=headers, data=json.dumps(payload), stream=True)
                     response.raise_for_status()
 
                     full_response = ""
@@ -868,14 +850,14 @@ class LLMManager:
                     # Process streaming responses
                     for line in response.iter_lines():
                         if line:
-                            line = line.decode('utf-8').strip()
-                            if line.startswith('data: '):
+                            line = line.decode("utf-8").strip()
+                            if line.startswith("data: "):
                                 try:
                                     data = json.loads(line[6:])
-                                    if 'choices' in data and data['choices']:
-                                        delta = data['choices'][0].get('delta', {})
-                                        if 'content' in delta:
-                                            token = delta['content']
+                                    if "choices" in data and data["choices"]:
+                                        delta = data["choices"][0].get("delta", {})
+                                        if "content" in delta:
+                                            token = delta["content"]
                                             full_response += token
                                             sys.stdout.write(token)
                                             sys.stdout.flush()

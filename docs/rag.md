@@ -6,6 +6,7 @@ DAIE provides a built-in RAG engine that allows agents to maintain independent k
 
 - **Per-Agent Knowledge Bases** — Each agent can have its own `rag_document_path`
 - **TF-IDF Retrieval** — Uses TF-IDF indexing with cosine similarity (no external ML dependencies)
+- **Vector RAG** — Optional vector-based retrieval using ChromaDB and sentence-transformers for semantic search
 - **Automatic Context Augmentation** — Retrieved context is automatically injected into prompts
 - **Strict Context Mode** — Optionally restrict answers to document content only
 - **Multiple Document Formats** — Supports `.txt`, `.pdf`, `.md` files
@@ -95,9 +96,11 @@ config = AgentConfig(
 agent = Agent(config=config)
 await agent.start()
 
-# Agent will automatically retrieve relevant context before answering
+# Agent will automatically retrieve relevant context using VectorRAGEngine
 result = await agent.execute_task("What is DAIE?")
 ```
+
+**Note:** When `enable_rag=True`, the agent now uses `VectorRAGEngine` by default for semantic search. This requires installing the vector dependencies: `pip install daie[vector]`
 
 ---
 
@@ -128,7 +131,7 @@ config = AgentConfig(
 
 ## RAGEngine
 
-The `RAGEngine` class handles document loading, chunking, indexing, and retrieval:
+The `RAGEngine` class handles document loading, chunking, indexing, and retrieval using TF-IDF (no external dependencies):
 
 ```python
 from daie.rag import RAGEngine
@@ -158,6 +161,79 @@ for chunk, score in results:
 | `document_path` | `str` | — | Path to documents directory |
 | `chunk_size` | `int` | `500` | Max characters per chunk |
 | `chunk_overlap` | `int` | `50` | Overlapping characters between chunks |
+
+---
+
+## VectorRAGEngine
+
+The `VectorRAGEngine` class provides semantic search using vector embeddings and ChromaDB. This requires additional dependencies:
+
+```bash
+pip install daie[vector]  # Installs chromadb and sentence-transformers
+```
+
+### VectorRAGEngine Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `document_path` | `str` | — | Path to documents directory |
+| `chunk_size` | `int` | `500` | Max characters per chunk |
+| `chunk_overlap` | `int` | `50` | Overlapping characters between chunks |
+| `embedding_model` | `str` | `"all-MiniLM-L6-v2"` | Sentence-transformers model name |
+| `collection_name` | `str \| None` | `None` | ChromaDB collection name (auto-generated if None) |
+| `persist_directory` | `str \| None` | `None` | Directory to persist ChromaDB data |
+
+### VectorRAGEngine Methods
+
+| Method | Description |
+|--------|-------------|
+| `load()` | Load documents, chunk them, generate embeddings, and store in ChromaDB. Returns number of chunks. |
+| `retrieve(query, top_k=3)` | Retrieve most relevant chunks using semantic search. Returns list of (Chunk, score) tuples. |
+| `build_context(query, top_k=3)` | Build a context string from retrieved chunks. |
+| `clear()` | Clear all indexed data from ChromaDB. |
+
+### VectorRAGEngine Properties
+
+| Property | Description |
+|----------|-------------|
+| `is_loaded` | Whether the engine has loaded documents |
+| `num_chunks` | Number of chunks in the index |
+
+### Using VectorRAGEngine
+
+```python
+from daie.rag import VectorRAGEngine
+
+# Initialize with documents
+engine = VectorRAGEngine(
+    document_path="data/knowledge/",
+    chunk_size=500,
+    chunk_overlap=50,
+    embedding_model="all-MiniLM-L6-v2",  # Fast and efficient
+)
+
+# Load and index documents
+num_chunks = engine.load()
+print(f"Indexed {num_chunks} chunks")
+
+# Retrieve relevant chunks
+results = engine.retrieve("What is DAIE?", top_k=3)
+for chunk, score in results:
+    print(f"Score: {score:.3f}")
+    print(f"Source: {chunk.source}")
+    print(f"Text: {chunk.text[:100]}...")
+```
+
+### VectorRAGEngine vs RAGEngine
+
+| Feature | RAGEngine | VectorRAGEngine |
+|---------|-----------|------------------|
+| **Dependencies** | numpy only | chromadb, sentence-transformers |
+| **Search Type** | Keyword-based (TF-IDF) | Semantic (vector embeddings) |
+| **Accuracy** | Good for exact matches | Better for semantic similarity |
+| **Speed** | Fast | Slower (embedding generation) |
+| **Storage** | In-memory | ChromaDB (persistent) |
+| **Use Case** | Simple keyword search | Semantic understanding |
 
 ### RAGEngine Methods
 

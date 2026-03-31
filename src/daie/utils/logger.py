@@ -3,11 +3,11 @@ Logger utility functions
 """
 
 import logging
-import sys
 import os
-from typing import Optional
+import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from daie.config import SystemConfig
 
@@ -105,14 +105,10 @@ def setup_system_logger(config: SystemConfig):
         log_dir = ensure_directory_exists(config.log_directory)
         log_file = os.path.join(log_dir, "daie.log")
 
-    return setup_logger(
-        level=config.log_level.value, log_file=log_file, format_str=config.log_format
-    )
+    return setup_logger(level=config.log_level.value, log_file=log_file, format_str=config.log_format)
 
 
-def log_exception(
-    logger: logging.Logger, exception: Exception, message: str = "Exception occurred"
-):
+def log_exception(logger: logging.Logger, exception: Exception, message: str = "Exception occurred"):
     """
     Log an exception with detailed information
 
@@ -123,14 +119,10 @@ def log_exception(
     """
     import traceback
 
-    logger.error(
-        f"{message}: {str(exception)}\n" f"Stack trace:\n{traceback.format_exc()}"
-    )
+    logger.error(f"{message}: {str(exception)}\n" f"Stack trace:\n{traceback.format_exc()}")
 
 
-def log_performance(
-    logger: logging.Logger, operation: str, duration: float, level: int = logging.INFO
-):
+def log_performance(logger: logging.Logger, operation: str, duration: float, level: int = logging.INFO):
     """
     Log performance information
 
@@ -209,9 +201,7 @@ class LogContext:
                 f"Failed: {self.operation} after {duration:.2f} seconds - {exc_val}",
             )
         else:
-            self.logger.log(
-                self.end_level, f"Completed: {self.operation} in {duration:.2f} seconds"
-            )
+            self.logger.log(self.end_level, f"Completed: {self.operation} in {duration:.2f} seconds")
 
 
 class LogTimer:
@@ -228,9 +218,7 @@ class LogTimer:
         ...     pass
     """
 
-    def __init__(
-        self, logger: logging.Logger, operation: str, level: int = logging.INFO
-    ):
+    def __init__(self, logger: logging.Logger, operation: str, level: int = logging.INFO):
         """
         Initialize log timer
 
@@ -266,9 +254,7 @@ class LogMemoryUsage:
         ...     pass
     """
 
-    def __init__(
-        self, logger: logging.Logger, operation: str, level: int = logging.DEBUG
-    ):
+    def __init__(self, logger: logging.Logger, operation: str, level: int = logging.DEBUG):
         """
         Initialize log memory usage
 

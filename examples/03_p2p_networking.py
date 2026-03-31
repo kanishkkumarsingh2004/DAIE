@@ -21,10 +21,11 @@ Note: In a production cross-machine setup, each agent would live on a
 
 import asyncio
 import os
+
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
-from daie.communication import CommunicationManager
 from daie.agents.message import AgentMessage
+from daie.communication import CommunicationManager
 
 # LLM not required for networking demo, but we need the config set
 set_llm(ollama_llm="wizard-vicuna-uncensored:7b")
@@ -108,11 +109,13 @@ async def main():
     file_tool = agent1.get_tool("a2a_send_file")
     if file_tool:
         print(f"    Sending '{payload_path}' from NodeAlfa → NodeBravo...")
-        result = await file_tool._execute({
-            "receiver_id": agent2.id,
-            "file_path": payload_path,
-            "message": "Secure payload inbound!",
-        })
+        result = await file_tool._execute(
+            {
+                "receiver_id": agent2.id,
+                "file_path": payload_path,
+                "message": "Secure payload inbound!",
+            }
+        )
         print(f"    File transfer result: {result}")
     else:
         print("    ⚠ A2A File Transfer tool not available (agent needs allow_file_transfers=True)")
@@ -164,7 +167,7 @@ async def main():
     await agent1.stop()
     await agent2.stop()
     await agent3.stop()
-    comm.stop()
+    await comm.stop()
 
 
 if __name__ == "__main__":

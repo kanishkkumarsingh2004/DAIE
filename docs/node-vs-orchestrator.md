@@ -520,14 +520,207 @@ analysis_node.connect("research-lab")
 # ──────────────────────────────────────────────
 result = await research_orchestrator.execute_task(
     "Research AI trends and analyze their market impact"
+await research_node.start()
+
+# Create research team
+professor = Agent(config=AgentConfig(
+    name="Professor",
+    role=AgentRole.COORDINATOR,
+    system_prompt="You coordinate research projects.",
+))
+researcher = Agent(config=AgentConfig(
+    name="Researcher",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You conduct research and gather information.",
+))
+analyst = Agent(config=AgentConfig(
+    name="Analyst",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You analyze data and identify trends.",
+))
+
+# Start agents
+await professor.start(communication_manager=comm)
+await researcher.start(communication_manager=comm)
+await analyst.start(communication_manager=comm)
+
+# Add agents to node
+research_node.add_agent(professor.id)
+research_node.add_agent(researcher.id)
+research_node.add_agent(analyst.id)
+
+# Create orchestrator on this node
+research_orchestrator = Orchestrator(
+    main_agent=professor,
+    sub_agents=[researcher, analyst],
+    context_name="research_lab",
+    main_role="Professor",
+    sub_role="Researcher"
+)
+await research_orchestrator.start()
+
+# ──────────────────────────────────────────────
+# Node 2: Analysis Center
+# ──────────────────────────────────────────────
+analysis_node = Node(node_id="analysis-center", name="Analysis Center")
+await analysis_node.start()
+
+data_scientist = Agent(config=AgentConfig(
+    name="DataScientist",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You perform advanced data analysis.",
+))
+await data_scientist.start(communication_manager=comm)
+analysis_node.add_agent(data_scientist.id)
+
+# ──────────────────────────────────────────────
+# Connect nodes
+# ──────────────────────────────────────────────
+research_node.connect("analysis-center")
+analysis_node.connect("research-lab")
+
+# ──────────────────────────────────────────────
+# Execute cross-node collaborative task
+# ──────────────────────────────────────────────
+result = await research_orchestrator.execute_task(
+    "Research AI trends and analyze their market impact"
 )
 
 # Cleanup
 await research_orchestrator.stop()
 await data_scientist.stop()
-research_node.stop()
-analysis_node.stop()
-comm.stop()
+await research_node.stop()
+await analysis_node.stop()
+await comm.stop()
+```
+
+---
+
+## Using Node and Orchestrator Together
+
+**Yes!** Node and Orchestrator can be used together for powerful multi-agent systems. This hybrid approach combines the best of both architectures.
+
+### Architecture: Node + Orchestrator (Hybrid)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Node (Production Server)                 │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                    ORCHESTRATOR                     │    │
+│  │  ┌─────────────┐                                    │    │
+│  │  │  Professor  │ (Main Agent)                       │    │
+│  │  └─────────────┘                                    │    │
+│  │         │                                           │    │
+│  │         ├─────────────────┬─────────────────┐       │    │
+│  │         ▼                 ▼                 ▼       │    │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │    │
+│  │  │ Researcher  │  │   Analyst   │  │   Writer    │  │    │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                          │                                  │
+│              CommunicationManager (P2P Layer)               │
+│                          │                                  │
+└──────────────────────────┼──────────────────────────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+   ┌────▼─────┐      ┌─────▼────┐      ┌──────▼───┐
+   │  Node A  │◄────►│  Node B  │◄────►│  Node C  │
+   └──────────┘      └──────────┘      └──────────┘
+```
+
+### Example: Multi-Node Research Network
+
+```python
+from daie import Agent, AgentConfig, Orchestrator, set_llm
+from daie.agents import AgentRole
+from daie.communication import CommunicationManager
+from daie.core.node import Node
+
+# Configure LLM
+set_llm(ollama_llm="llama3.2:1b", stream=True)
+
+# Create communication manager
+comm = CommunicationManager()
+await comm.start()
+
+# ──────────────────────────────────────────────
+# Node 1: Research Lab (with Orchestrator)
+# ──────────────────────────────────────────────
+research_node = Node(node_id="research-lab", name="Research Lab")
+await research_node.start()
+
+# Create research team
+professor = Agent(config=AgentConfig(
+    name="Professor",
+    role=AgentRole.COORDINATOR,
+    system_prompt="You coordinate research projects.",
+))
+researcher = Agent(config=AgentConfig(
+    name="Researcher",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You conduct research and gather information.",
+))
+analyst = Agent(config=AgentConfig(
+    name="Analyst",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You analyze data and identify trends.",
+))
+
+# Start agents
+await professor.start(communication_manager=comm)
+await researcher.start(communication_manager=comm)
+await analyst.start(communication_manager=comm)
+
+# Add agents to node
+research_node.add_agent(professor.id)
+research_node.add_agent(researcher.id)
+research_node.add_agent(analyst.id)
+
+# Create orchestrator on this node
+research_orchestrator = Orchestrator(
+    main_agent=professor,
+    sub_agents=[researcher, analyst],
+    context_name="research_lab",
+    main_role="Professor",
+    sub_role="Researcher"
+)
+await research_orchestrator.start()
+
+# ──────────────────────────────────────────────
+# Node 2: Analysis Center
+# ──────────────────────────────────────────────
+analysis_node = Node(node_id="analysis-center", name="Analysis Center")
+await analysis_node.start()
+
+data_scientist = Agent(config=AgentConfig(
+    name="DataScientist",
+    role=AgentRole.SPECIALIZED,
+    system_prompt="You perform advanced data analysis.",
+))
+await data_scientist.start(communication_manager=comm)
+analysis_node.add_agent(data_scientist.id)
+
+# ──────────────────────────────────────────────
+# Connect nodes
+# ──────────────────────────────────────────────
+research_node.connect("analysis-center")
+analysis_node.connect("research-lab")
+
+# ──────────────────────────────────────────────
+# Execute cross-node collaborative task
+# ──────────────────────────────────────────────
+result = await research_orchestrator.execute_task(
+    "Research AI trends and analyze their market impact"
+)
+
+# Cleanup
+await research_orchestrator.stop()
+await data_scientist.stop()
+await research_node.stop()
+await analysis_node.stop()
+await comm.stop()
 ```
 
 ---
@@ -954,7 +1147,7 @@ set_llm(ollama_llm="llama3.2:1b", stream=True)
 
 # Create a node
 node = Node(node_id="research-lab", name="Research Lab")
-node.start()
+await node.start()
 
 # Create agents
 assistant = Agent(config=AgentConfig(name="Assistant", role=AgentRole.GENERAL_PURPOSE))
@@ -1062,7 +1255,7 @@ await comm.start()
 # Node 1: Research Lab (with Orchestrator)
 # ──────────────────────────────────────────────
 research_node = Node(node_id="research-lab", name="Research Lab")
-research_node.start()
+await research_node.start()
 
 # Create research team
 professor = Agent(config=AgentConfig(
@@ -1103,7 +1296,7 @@ await research_orchestrator.start()
 # Node 2: Content Creation (with Orchestrator)
 # ──────────────────────────────────────────────
 content_node = Node(node_id="content-creation", name="Content Creation")
-content_node.start()
+await content_node.start()
 
 # Create content team
 editor = Agent(config=AgentConfig(
@@ -1168,9 +1361,9 @@ print(f"Total messages routed: {len(history)}")
 # Cleanup
 await research_orchestrator.stop()
 await content_orchestrator.stop()
-research_node.stop()
-content_node.stop()
-comm.stop()
+await research_node.stop()
+await content_node.stop()
+await comm.stop()
 ```
 
 ### Benefits of AgentRouter
@@ -1339,7 +1532,7 @@ set_llm(ollama_llm="llama3.2:1b", stream=True)
 
 # Create personal assistant node
 node = Node(node_id="personal-assistants", name="My AI Assistants")
-node.start()
+await node.start()
 
 # Create specialized assistants
 calendar_agent = Agent(config=AgentConfig(
@@ -1454,7 +1647,7 @@ await comm.start()
 
 # New York Office
 ny_node = Node(node_id="ny-office", name="New York Office")
-ny_node.start()
+await ny_node.start()
 
 ny_editor = Agent(config=AgentConfig(
     name="NY_Editor",
@@ -1484,7 +1677,7 @@ await ny_orchestrator.start()
 
 # London Office
 london_node = Node(node_id="london-office", name="London Office")
-london_node.start()
+await london_node.start()
 
 london_editor = Agent(config=AgentConfig(
     name="London_Editor",
@@ -1524,9 +1717,9 @@ result = await ny_orchestrator.execute_task(
 # Cleanup
 await ny_orchestrator.stop()
 await london_orchestrator.stop()
-ny_node.stop()
-london_node.stop()
-comm.stop()
+await ny_node.stop()
+await london_node.stop()
+await comm.stop()
 ```
 
 **Learning Outcomes:**
@@ -1553,7 +1746,7 @@ await comm.start()
 
 # Support Node
 support_node = Node(node_id="support-center", name="Customer Support Center")
-support_node.start()
+await support_node.start()
 
 # Create support team
 support_manager = Agent(config=AgentConfig(
@@ -1609,8 +1802,8 @@ result = await support_orchestrator.execute_task(
 
 # Cleanup
 await support_orchestrator.stop()
-support_node.stop()
-comm.stop()
+await support_node.stop()
+await comm.stop()
 ```
 
 **Learning Outcomes:**
@@ -1641,7 +1834,7 @@ await comm.start()
 # Lab A: Machine Learning Research
 # ──────────────────────────────────────────────
 ml_node = Node(node_id="ml-lab", name="Machine Learning Lab")
-ml_node.start()
+await ml_node.start()
 ml_node.set_resource("gpu_count", 8)
 ml_node.set_resource("model_cache", {"gpt2": True, "bert": True})
 
@@ -1682,7 +1875,7 @@ await ml_orchestrator.start()
 # Lab B: Natural Language Processing
 # ──────────────────────────────────────────────
 nlp_node = Node(node_id="nlp-lab", name="NLP Lab")
-nlp_node.start()
+await nlp_node.start()
 nlp_node.set_resource("gpu_count", 4)
 nlp_node.set_resource("model_cache", {"llama": True, "bert": True})
 
@@ -1732,9 +1925,9 @@ print(f"NLP Lab GPUs: {nlp_node.get_resource('gpu_count')}")
 # Cleanup
 await ml_orchestrator.stop()
 await nlp_orchestrator.stop()
-ml_node.stop()
-nlp_node.stop()
-comm.stop()
+await ml_node.stop()
+await nlp_node.stop()
+await comm.stop()
 ```
 
 **Learning Outcomes:**
@@ -1764,7 +1957,7 @@ await comm.start()
 # Production Line A: Assembly
 # ──────────────────────────────────────────────
 assembly_node = Node(node_id="assembly-line", name="Assembly Line")
-assembly_node.start()
+await assembly_node.start()
 assembly_node.set_resource("robot_count", 10)
 assembly_node.set_resource("conveyor_speed", "fast")
 
@@ -1805,7 +1998,7 @@ await assembly_orchestrator.start()
 # Production Line B: Packaging
 # ──────────────────────────────────────────────
 packaging_node = Node(node_id="packaging-line", name="Packaging Line")
-packaging_node.start()
+await packaging_node.start()
 packaging_node.set_resource("packaging_machines", 5)
 
 packaging_manager = Agent(config=AgentConfig(
@@ -1854,9 +2047,9 @@ print(f"Packaging machines: {packaging_node.get_resource('packaging_machines')}"
 # Cleanup
 await assembly_orchestrator.stop()
 await packaging_orchestrator.stop()
-assembly_node.stop()
-packaging_node.stop()
-comm.stop()
+await assembly_node.stop()
+await packaging_node.stop()
+await comm.stop()
 ```
 
 **Learning Outcomes:**

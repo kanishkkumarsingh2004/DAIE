@@ -2,10 +2,10 @@
 Encryption and security utility functions
 """
 
-import os
-import hashlib
 import base64
-from typing import Optional
+import hashlib
+import os
+
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -104,9 +104,7 @@ def generate_salt(size: int = 16) -> bytes:
     return os.urandom(size)
 
 
-def derive_key(
-    password: str, salt: bytes, key_length: int = 32, iterations: int = 100000
-) -> bytes:
+def derive_key(password: str, salt: bytes, key_length: int = 32, iterations: int = 100000) -> bytes:
     """
     Derive a key from password using PBKDF2
 
@@ -119,9 +117,7 @@ def derive_key(
     Returns:
         Derived key
     """
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(), length=key_length, salt=salt, iterations=iterations
-    )
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=key_length, salt=salt, iterations=iterations)
     return kdf.derive(password.encode("utf-8"))
 
 
@@ -138,9 +134,7 @@ def secure_random_string(length: int = 32) -> str:
     return base64.urlsafe_b64encode(os.urandom(length)).decode("utf-8")[:length]
 
 
-def is_strong_password(
-    password: str, min_length: int = 8, require_special: bool = True
-) -> bool:
+def is_strong_password(password: str, min_length: int = 8, require_special: bool = True) -> bool:
     """
     Check if password is strong
 

@@ -2,33 +2,31 @@
 Central core system commands
 """
 
-import typer
 import os
 import signal
 import time
 from pathlib import Path
-from rich import print
+
+import typer
 from rich.console import Console
-from rich.table import Table
-from rich.prompt import Confirm
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm
 
-from daie.core.system import DecentralizedAISystem
 from daie.config import SystemConfig
 from daie.core.server import start_server
+from daie.core.system import DecentralizedAISystem
 
 # Optional daemon support
 try:
     import daemon
     from daemon.pidfile import PIDLockFile
+
     DAEMON_AVAILABLE = True
 except ImportError:
     DAEMON_AVAILABLE = False
 
-core_app = typer.Typer(
-    name="core", help="Central core system commands", add_completion=True
-)
+core_app = typer.Typer(name="core", help="Central core system commands", add_completion=True)
 
 console = Console()
 
@@ -49,7 +47,8 @@ def read_pid():
                 pid = int(f.read().strip())
             # Check if process is actually running (cross-platform)
             try:
-                import signal
+                pass
+
                 os.kill(pid, 0)  # Signal 0 checks if process exists
                 return pid
             except (OSError, ProcessLookupError):
@@ -76,9 +75,7 @@ def remove_pid_file():
 
 @core_app.command(name="start")
 def start_core(
-    background: bool = typer.Option(
-        False, "--background", "-b", help="Run in background (daemon mode)"
-    ),
+    background: bool = typer.Option(False, "--background", "-b", help="Run in background (daemon mode)"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     port: int = typer.Option(3333, "--port", "-p", help="Server port"),
 ):
@@ -104,9 +101,7 @@ def start_core(
     )
 
     if background:
-        console.print(
-            "[bold blue]Running in daemon mode (will persist after terminal closes)[/bold blue]"
-        )
+        console.print("[bold blue]Running in daemon mode (will persist after terminal closes)[/bold blue]")
 
     if debug:
         console.print("[bold yellow]Debug mode enabled[/bold yellow]")
@@ -134,9 +129,7 @@ def start_core(
                 TextColumn("[progress.description]{task.description}"),
                 transient=True,
             ) as progress:
-                progress.add_task(
-                    description="Initializing system components...", total=None
-                )
+                progress.add_task(description="Initializing system components...", total=None)
                 with daemon.DaemonContext(
                     working_directory=Path.cwd(),
                     pidfile=PIDLockFile(str(pid_file)),
@@ -146,7 +139,7 @@ def start_core(
                 ):
                     # Create and start system with web server
                     config = SystemConfig()
-                    system = DecentralizedAISystem(config=config)
+                    DecentralizedAISystem(config=config)
                     start_server("0.0.0.0", port, debug)
 
             # Wait for PID file to be created
@@ -185,11 +178,9 @@ def start_core(
                 TextColumn("[progress.description]{task.description}"),
                 transient=True,
             ) as progress:
-                progress.add_task(
-                    description="Initializing system components...", total=None
-                )
+                progress.add_task(description="Initializing system components...", total=None)
                 config = SystemConfig()
-                system = DecentralizedAISystem(config=config)
+                DecentralizedAISystem(config=config)
 
             console.print(
                 Panel(
@@ -254,14 +245,10 @@ def stop_core(
         # Try graceful shutdown first (cross-platform)
         import platform
         import subprocess
-        
+
         if platform.system() == "Windows":
             # Windows: Use taskkill for graceful shutdown
-            subprocess.run(
-                ["taskkill", "/PID", str(pid)],
-                capture_output=True,
-                timeout=5
-            )
+            subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True, timeout=5)
         else:
             # Unix: Use SIGTERM
             os.kill(pid, signal.SIGTERM)
@@ -287,11 +274,7 @@ def stop_core(
                 console.print("[bold red]Process did not terminate, force killing...[/bold red]")
                 if platform.system() == "Windows":
                     # Windows: Use taskkill /F for force kill
-                    subprocess.run(
-                        ["taskkill", "/F", "/PID", str(pid)],
-                        capture_output=True,
-                        timeout=5
-                    )
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
                 else:
                     # Unix: Use SIGKILL
                     os.kill(pid, signal.SIGKILL)
@@ -417,9 +400,7 @@ def init_core():
     config_file = config_dir / "config.yaml"
 
     if config_dir.exists() and config_file.exists():
-        if not Confirm.ask(
-            "Configuration already exists. Do you want to reinitialize?"
-        ):
+        if not Confirm.ask("Configuration already exists. Do you want to reinitialize?"):
             console.print("[bold yellow]Initialization cancelled[/bold yellow]")
             raise typer.Exit(code=0)
 
@@ -427,7 +408,7 @@ def init_core():
         config_dir.mkdir(exist_ok=True)
 
         # Create default configuration
-        config = SystemConfig()
+        SystemConfig()
 
         console.print(
             Panel(

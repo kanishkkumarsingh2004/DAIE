@@ -6,28 +6,29 @@ This example creates a chat application using an AI agent connected to OpenRoute
 with streaming capabilities.
 """
 
-import logging
 import asyncio
-import sys
+import logging
 import os
+import sys
+
 from dotenv import load_dotenv
-from daie.tools import tool
+
 from daie.agents import Agent
 from daie.agents.config import AgentConfig, AgentRole
-from daie.core.llm_manager import get_llm_manager, LLMType
-
+from daie.core.llm_manager import LLMType, get_llm_manager
+from daie.tools import tool
 
 # Load environment variables from .env file
 load_dotenv()
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 
 @tool(
     name="greeting",
     description="Generate a friendly greeting message. Can handle greetings with or without names.",
     category="general",
-    version="1.0.0"
+    version="1.0.0",
 )
 def greeting_tool() -> str:
     return "Hello! Nice to meet you! I'm your AI assistant powered by OpenRouter LLM. How can I help you today?"
@@ -57,7 +58,7 @@ config = AgentConfig(
     system_prompt="You are a helpful and friendly AI assistant powered by OpenRouter LLM. You have access to various tools to help users with their tasks. Respond conversationally and provide useful information.",
     capabilities=["greeting"],
     llm_provider="openrouter",
-    llm_model="deepseek/deepseek-r1-0528:free"
+    llm_model="deepseek/deepseek-r1-0528:free",
 )
 
 # Create and configure agent
@@ -73,7 +74,7 @@ async def listen_for_user_input(agent: Agent, logger: logging.Logger):
     print("Type 'quit', 'exit', or 'q' to end the conversation")
     print("Type 'help' to see available commands")
     print("=" * 50)
-    
+
     while True:
         try:
             # Get user input
@@ -118,7 +119,9 @@ async def listen_for_user_input(agent: Agent, logger: logging.Logger):
                 # Conversational response - use streaming if available
                 print(f"\nAssistant:")
                 llm = get_llm_manager().get_llm()
-                response = llm.invoke(result if result else "I'm here to help. What would you like to know?", stream=True)
+                response = llm.invoke(
+                    result if result else "I'm here to help. What would you like to know?", stream=True
+                )
 
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt received")
@@ -140,11 +143,8 @@ async def main():
 
 if __name__ == "__main__":
     # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s: %(message)s"
-    )
-    
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     try:
         exit_code = asyncio.run(main())
         sys.exit(exit_code)
@@ -154,5 +154,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         print(f"\n{traceback.format_exc()}")
         sys.exit(1)

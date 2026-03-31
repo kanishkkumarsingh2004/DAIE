@@ -114,6 +114,20 @@ agent = Agent(config=AgentConfig(
 ))
 ```
 
+### Agent with Persistent Memory
+
+```python
+agent = Agent(config=AgentConfig(
+    name="MemoryAgent",
+    role=AgentRole.GENERAL_PURPOSE,
+    system_prompt="You are a helpful assistant with memory.",
+    persistent_memory=True  # Enable persistent memory (default: False)
+))
+
+await agent.start()
+# Memory will be automatically persisted across restarts
+```
+
 ---
 
 ## AgentConfig
@@ -156,6 +170,14 @@ The `AgentConfig` dataclass defines all parameters for an agent:
 | `task_timeout` | `int` | `60` | Task timeout in seconds |
 | `max_concurrent_tasks` | `int` | `5` | Max concurrent tasks |
 | `response_delay` | `float` | `0.5` | Delay before responding |
+
+### Memory Settings
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `persistent_memory` | `bool` | `False` | Whether to persist memory across restarts |
+| `memory_retention_days` | `int` | `30` | Memory retention period in days |
+| `max_memory_size` | `int` | `1000` | Maximum number of memory items to store |
 
 ### P2P Networking
 

@@ -3,9 +3,9 @@ Selenium tool for automating Chrome browser
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from daie.tools.tool import Tool, ToolMetadata, ToolParameter, ToolCategory
+from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 
 logger = logging.getLogger(__name__)
 
@@ -316,10 +316,10 @@ class SeleniumChromeTool(Tool):
 
     def _find_element(self, selector: str, selector_type: str = "css", timeout: Optional[float] = None):
         """Find an element using CSS selector or XPath."""
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
         from selenium.common.exceptions import TimeoutException
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
 
         try:
             wait = self.wait
@@ -333,9 +333,9 @@ class SeleniumChromeTool(Tool):
 
     def _find_elements(self, selector: str, selector_type: str = "css"):
         """Find multiple elements."""
+        from selenium.common.exceptions import TimeoutException
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
-        from selenium.common.exceptions import TimeoutException
 
         try:
             by = By.CSS_SELECTOR if selector_type == "css" else By.XPATH
@@ -467,12 +467,14 @@ class SeleniumChromeTool(Tool):
             cookie_value = params.get("cookie_value")
             if not cookie_name or not cookie_value:
                 raise Exception("cookie_name and cookie_value are required for set_cookie")
-            self.driver.add_cookie({
-                "name": cookie_name,
-                "value": cookie_value,
-                "domain": params.get("cookie_domain"),
-                "path": params.get("cookie_path", "/"),
-            })
+            self.driver.add_cookie(
+                {
+                    "name": cookie_name,
+                    "value": cookie_value,
+                    "domain": params.get("cookie_domain"),
+                    "path": params.get("cookie_path", "/"),
+                }
+            )
             result["cookie_set"] = True
 
         elif action == "delete_cookie":
@@ -562,6 +564,7 @@ class SeleniumChromeTool(Tool):
 
         elif action == "select_dropdown":
             from selenium.webdriver.support.ui import Select
+
             selector = params.get("element_selector")
             dropdown_value = params.get("dropdown_value")
             if not selector or not dropdown_value:

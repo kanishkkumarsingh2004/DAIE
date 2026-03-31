@@ -12,13 +12,8 @@ Also includes configurations for:
 """
 
 from .chat_loop_config import ChatLoopConfig
+from .hybrid_chat_config import HybridChatConfig
 from .node_chat_config import NodeChatConfig
 from .orchestrator_chat_config import OrchestratorChatConfig
-from .hybrid_chat_config import HybridChatConfig
 
-__all__ = [
-    "ChatLoopConfig",
-    "NodeChatConfig",
-    "OrchestratorChatConfig",
-    "HybridChatConfig"
-]
+__all__ = ["ChatLoopConfig", "NodeChatConfig", "OrchestratorChatConfig", "HybridChatConfig"]

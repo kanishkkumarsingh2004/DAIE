@@ -3,9 +3,10 @@ Serialization and deserialization utility functions
 """
 
 import json
-import yaml
 import pickle
-from typing import Any, Optional
+from typing import Any
+
+import yaml
 
 
 def to_json(obj: Any, indent: int = 2, sort_keys: bool = True) -> str:
@@ -221,9 +222,7 @@ def to_csv(data: list, headers: list = None) -> str:
     from io import StringIO
 
     output = StringIO()
-    writer = (
-        csv.DictWriter(output, fieldnames=headers) if headers else csv.writer(output)
-    )
+    writer = csv.DictWriter(output, fieldnames=headers) if headers else csv.writer(output)
 
     if headers:
         writer.writeheader()

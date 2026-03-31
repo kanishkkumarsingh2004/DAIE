@@ -150,7 +150,7 @@ async def main():
     # A2A file transfer
     file_tool = agent1.get_tool("a2a_send_file")
     if file_tool:
-        await file_tool._execute({
+        await file_tool.execute({
             "receiver_id": agent2.id,
             "file_path": "payload.txt",
             "message": "Secure payload!",
@@ -158,7 +158,7 @@ async def main():
 
     await agent1.stop()
     await agent2.stop()
-    comm.stop()
+    await comm.stop()
 
 asyncio.run(main())
 ```

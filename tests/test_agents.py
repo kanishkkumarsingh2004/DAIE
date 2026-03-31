@@ -23,13 +23,13 @@ This test file validates the agent system in the Decentralized AI Ecosystem (DAI
 These tests ensure that agents can be properly configured, communicate effectively, and execute tasks in the decentralized environment, forming the core of the DAIE's computational capabilities.
 """
 
-import pytest
-import asyncio
 from unittest.mock import Mock, patch
+
+import pytest
+
 from daie.agents.agent import Agent
 from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.message import AgentMessage
-from daie.tools import ToolMetadata, ToolCategory, ToolParameter
 
 
 class ConcreteTool:
@@ -118,7 +118,7 @@ class TestAgent:
     @pytest.mark.asyncio
     async def test_agent_start_stop(self):
         """Test agent start and stop operations."""
-        with patch("daie.agents.agent.logger") as mock_logger:
+        with patch("daie.agents.agent.logger"):
             config = AgentConfig(name="Test Agent")
             agent = Agent(config=config)
 
@@ -145,7 +145,7 @@ class TestAgent:
     @pytest.mark.asyncio
     async def test_agent_send_message(self):
         """Test agent message sending."""
-        with patch("daie.agents.agent.logger") as mock_logger:
+        with patch("daie.agents.agent.logger"):
             config = AgentConfig(name="Test Agent")
             agent = Agent(config=config)
 
@@ -174,7 +174,7 @@ class TestAgent:
     @pytest.mark.asyncio
     async def test_agent_add_remove_tool(self):
         """Test adding and removing tools."""
-        with patch("daie.agents.agent.logger") as mock_logger:
+        with patch("daie.agents.agent.logger"):
             config = AgentConfig(name="Test Agent")
             agent = Agent(config=config)
 
@@ -191,7 +191,7 @@ class TestAgent:
     @pytest.mark.asyncio
     async def test_agent_execute_task(self):
         """Test task execution with tools."""
-        with patch("daie.agents.agent.logger") as mock_logger:
+        with patch("daie.agents.agent.logger"):
             config = AgentConfig(name="Test Agent")
             agent = Agent(config=config)
 
@@ -205,9 +205,7 @@ class TestAgent:
                 tool_registry=Mock(),
             )
 
-            result = await agent.execute_task(
-                {"name": "test-tool", "params": {"text": "test input"}}
-            )
+            result = await agent.execute_task({"name": "test-tool", "params": {"text": "test input"}})
 
             assert isinstance(result, dict)
             assert "result" in result

@@ -1,26 +1,39 @@
 import base64
-import os
 import mimetypes
-from typing import Dict, Any
+import os
+from typing import Any, Dict
 
-from daie.tools.tool import Tool, ToolMetadata, ToolCategory, ToolParameter
+from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
+
 
 class A2ASendFileTool(Tool):
     """
     Tool for transferring files over the P2P A2A Network securely by converting them to base64.
     The receiver must have allow_file_transfers = True in their configuration.
     """
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="a2a_send_file",
             description="Transfer a file to another agent by its ID over the P2P network.",
             category=ToolCategory.CUSTOM,
             parameters=[
-                ToolParameter(name="receiver_id", type="string", description="The target Agent ID to receive the file.", required=True),
-                ToolParameter(name="file_path", type="string", description="The local path of the file to send.", required=True),
-                ToolParameter(name="message", type="string", description="Optional message context regarding the file.", required=False)
-            ]
+                ToolParameter(
+                    name="receiver_id",
+                    type="string",
+                    description="The target Agent ID to receive the file.",
+                    required=True,
+                ),
+                ToolParameter(
+                    name="file_path", type="string", description="The local path of the file to send.", required=True
+                ),
+                ToolParameter(
+                    name="message",
+                    type="string",
+                    description="Optional message context regarding the file.",
+                    required=False,
+                ),
+            ],
         )
         super().__init__(metadata)
         self._agent_ref = None
@@ -60,18 +73,14 @@ class A2ASendFileTool(Tool):
         file_name = os.path.basename(file_path)
 
         from daie.agents.message import AgentMessage
-        
-        # We send it as a "file" type message 
+
+        # We send it as a "file" type message
         msg = AgentMessage(
             sender_id=self._agent_ref.id,
             receiver_id=receiver_id,
             content=message_text,
             message_type="file",
-            metadata={
-                "file_name": file_name,
-                "mime_type": mime_type,
-                "base64_data": base64_encoded
-            }
+            metadata={"file_name": file_name, "mime_type": mime_type, "base64_data": base64_encoded},
         )
 
         success = await self._agent_ref.communication_manager.send_message(msg)

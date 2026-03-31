@@ -3,8 +3,8 @@ Agent configuration module
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Literal
 from enum import Enum
+from typing import Any, Dict, List, Literal, Optional
 
 
 class AgentRole(Enum):
@@ -38,6 +38,9 @@ class AgentConfig:
     """
 
     # Agent identity
+    agent_id: Optional[str] = None
+    """Optional persistent agent ID. If not provided, a random ID will be generated."""
+
     name: str = "DefaultAgent"
     """Agent display name"""
 
@@ -50,9 +53,7 @@ class AgentConfig:
     backstory: str = "Default AI agent"
     """Agent's backstory or origin story"""
 
-    system_prompt: str = (
-        "You are a helpful AI agent that can assist with various tasks."
-    )
+    system_prompt: str = "You are a helpful AI agent that can assist with various tasks."
     """System prompt for the agent's behavior"""
 
     capabilities: List[str] = field(default_factory=list)
@@ -123,13 +124,16 @@ class AgentConfig:
     max_memory_size: int = 1000
     """Maximum number of memory items to store"""
 
+    persistent_memory: bool = False
+    """Whether to persist memory across restarts. If False, memory is in-memory only."""
+
     # Behavior and Personality settings
     gender: Literal["male", "female"] | None = None
     """Agent gender (only 'male' or 'female')"""
 
     personality: Optional[str] = None
     """Agent's personality traits (e.g., 'sarcastic, witty, very direct')"""
-    
+
     behavior: Optional[str] = None
     """Agent's behavioral instructions or quirks (e.g., 'always starts sentences with Hmm')"""
 
@@ -231,12 +235,12 @@ class AgentConfig:
         from dataclasses import fields
 
         data = {}
-        for field in fields(self):
-            value = getattr(self, field.name)
+        for f in fields(self):
+            value = getattr(self, f.name)
             if isinstance(value, AgentRole):
-                data[field.name] = value.value
+                data[f.name] = value.value
             elif isinstance(value, (list, dict, str, int, float, bool)):
-                data[field.name] = value
+                data[f.name] = value
         return data
 
     def validate(self) -> List[str]:
@@ -312,9 +316,7 @@ class AgentConfig:
         if self.camera_resolution:
             parts = self.camera_resolution.split("x")
             if len(parts) != 2:
-                errors.append(
-                    "Camera resolution must be in format 'widthxheight' (e.g., '640x480')"
-                )
+                errors.append("Camera resolution must be in format 'widthxheight' (e.g., '640x480')")
             else:
                 try:
                     width = int(parts[0])
@@ -323,10 +325,11 @@ class AgentConfig:
                         errors.append("Camera resolution dimensions must be positive")
                 except ValueError:
                     errors.append("Camera resolution must contain numeric dimensions")
-                    
+
         # RAG settings validation
         if self.rag_document_path is not None:
             import os
+
             if not os.path.isdir(self.rag_document_path):
                 errors.append("RAG document path must be a valid directory")
             elif not os.path.exists(self.rag_document_path):

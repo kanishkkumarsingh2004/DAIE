@@ -27,12 +27,14 @@ This test file validates the utility functions in the Decentralized AI Ecosystem
 These utility functions form the foundation of the DAIE system, providing essential capabilities for system operations, security, and data management.
 """
 
+
 import pytest
-import json
-from daie.utils.common import generate_id, is_json, deep_merge, retry
-from daie.utils.encryption import encrypt_data, decrypt_data, generate_encryption_key
+
+from daie.utils.common import deep_merge, generate_id, is_json, retry
+from daie.utils.encryption import (decrypt_data, encrypt_data,
+                                   generate_encryption_key)
 from daie.utils.logger import setup_logger
-from daie.utils.serialization import to_json, from_json, Serializer
+from daie.utils.serialization import Serializer, from_json, to_json
 
 
 class TestCommonUtils:

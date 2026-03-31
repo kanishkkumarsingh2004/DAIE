@@ -8,13 +8,8 @@ for multiple storage backends:
 """
 
 from daie.memory.manager import MemoryManager
-from daie.memory.storage import (
-    StorageBackend,
-    MemoryItem,
-    VectorDatabaseStorage,
-    BinaryFileStorage,
-    create_storage_backend,
-)
+from daie.memory.storage import (BinaryFileStorage, MemoryItem, StorageBackend,
+                                 VectorDatabaseStorage, create_storage_backend)
 
 __all__ = [
     "MemoryManager",

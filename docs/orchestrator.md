@@ -138,9 +138,9 @@ Orchestrator(
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the orchestrator and all agents |
-| `execute_task(task)` | Execute a task using the orchestrator |
-| `stop()` | Stop the orchestrator and all agents |
+| `start()` | Start the orchestrator and all agents (async) |
+| `execute_task(task)` | Execute a task using the orchestrator (async) |
+| `stop()` | Stop the orchestrator and all agents (async) |
 
 ---
 
@@ -307,6 +307,11 @@ orchestrator = Orchestrator(
 
 # Agents can now communicate via A2A tools
 await orchestrator.start()
+
+# ... do work ...
+
+await orchestrator.stop()
+await comm.stop()
 ```
 
 ---

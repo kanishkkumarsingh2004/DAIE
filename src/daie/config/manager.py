@@ -6,7 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 
 from daie.agents.config import AgentConfig, AgentRole
 from daie.config.system import SystemConfig
@@ -24,7 +24,7 @@ class ConfigManager:
     def __init__(self, override_dir: Optional[str] = None):
         self._local_dir = Path(os.getcwd()) / "config"
         self._global_dir = Path.home() / ".daie"
-        
+
         if override_dir:
             self.config_dir = Path(override_dir)
         else:
@@ -90,7 +90,7 @@ class ConfigManager:
         try:
             with open(self.agents_file, "r") as f:
                 data = json.load(f)
-            
+
             if not isinstance(data, list):
                 logger.error("agents.json should contain a JSON array of agent objects")
                 return []
@@ -101,7 +101,7 @@ class ConfigManager:
                     agents.append(AgentConfig.from_dict(agent_data))
                 except Exception as ex:
                     logger.error(f"Skipping an agent config due to error: {ex}")
-            
+
             return agents
         except Exception as e:
             logger.error(f"Failed to load agents config from {self.agents_file}: {e}")
@@ -137,7 +137,7 @@ class ConfigManager:
                 agents[i] = agent_config
                 updated = True
                 break
-        
+
         if not updated:
             agents.append(agent_config)
 

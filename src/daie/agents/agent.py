@@ -10,9 +10,9 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.message import AgentMessage
+from daie.rag import RAGEngine
 from daie.tools import ToolRegistry
 from daie.utils import generate_id
-from daie.rag import RAGEngine
 
 logger = logging.getLogger(__name__)
 
@@ -101,11 +101,11 @@ class Agent:
                 role=role or AgentRole.GENERAL_PURPOSE,
                 goal=goal or "Perform general tasks",
                 backstory=backstory or "Default AI agent",
-                system_prompt=system_prompt
-                or "You are a helpful AI agent that can assist with various tasks.",
+                system_prompt=system_prompt or "You are a helpful AI agent that can assist with various tasks.",
             )
 
-        self.id = generate_id()
+        # Use persistent agent_id from config if provided, otherwise generate a new one
+        self.id = self.config.agent_id or generate_id()
         self.tools: Dict[str, Any] = {}
         self.tool_registry = ToolRegistry()
         self._is_running = False
@@ -209,14 +209,13 @@ class Agent:
                 opt_params = [p for p in t.metadata.parameters if not p.required]
                 if req_params:
                     req_str = ", ".join(
-                        f"{p.name}({p.type})" + (f" choices={p.choices}" if p.choices else "")
-                        for p in req_params
+                        f"{p.name}({p.type})" + (f" choices={p.choices}" if p.choices else "") for p in req_params
                     )
                     lines.append(f"  required: {req_str}")
                 if opt_params:
                     opt_str = ", ".join(f"{p.name}({p.type})" for p in opt_params[:5])
                     if len(opt_params) > 5:
-                        opt_str += f" +{len(opt_params)-5} more"
+                        opt_str += f" +{len(opt_params) - 5} more"
                     lines.append(f"  optional: {opt_str}")
         return "\n".join(lines)
 
@@ -228,9 +227,13 @@ class Agent:
             prompt_extras.append(f"Personality: {self.config.personality}")
         if getattr(self.config, "behavior", None):
             prompt_extras.append(f"Behavior: {self.config.behavior}")
-            
+
         extra_str = "\\n".join(prompt_extras)
-        base_sys_prompt = f"{self.config.system_prompt}\\n\\nAgent Persona Traits:\\n{extra_str}" if extra_str else self.config.system_prompt
+        base_sys_prompt = (
+            f"{self.config.system_prompt}\\n\\nAgent Persona Traits:\\n{extra_str}"
+            if extra_str
+            else self.config.system_prompt
+        )
 
         if self.tools:
             return _TOOL_SYSTEM.format(
@@ -262,7 +265,8 @@ class Agent:
 
         # Try the whole string first
         res = try_parse(text)
-        if res: return res
+        if res:
+            return res
 
         # Iteratively try to find and parse the first valid JSON object
         search_from = 0
@@ -270,7 +274,7 @@ class Agent:
             start = text.find("{", search_from)
             if start == -1:
                 break
-            
+
             depth = 0
             for i in range(start, len(text)):
                 ch = text[i]
@@ -283,9 +287,9 @@ class Agent:
                         res = try_parse(candidate)
                         if res:
                             return res
-                        break # Failed this one, look for next {
+                        break  # Failed this one, look for next {
             search_from = start + 1
-            
+
         return None
 
     # ── tool execution ────────────────────────────────────────────────────────
@@ -301,6 +305,7 @@ class Agent:
                 result = await tool.execute(params)
             elif callable(tool):
                 import inspect
+
                 result = await tool(**params) if inspect.iscoroutinefunction(tool) else tool(**params)
             else:
                 return f"Error: tool '{tool_name}' is not executable"
@@ -320,7 +325,7 @@ class Agent:
         """Retrieve context from RAG engine if enabled."""
         if not self.config.enable_rag or self.rag_engine is None:
             return ""
-        
+
         return self.rag_engine.build_context(query)
 
     def _augment_prompt_with_rag(self, prompt: str, query: str) -> str:
@@ -330,7 +335,7 @@ class Agent:
             return prompt
 
         rag_block = f"\n\nAdditional Information:\n{context}\n"
-        
+
         # If strict context is enabled, add enforcing instructions
         if getattr(self.config, "rag_strict_context", False):
             rag_block += (
@@ -343,7 +348,7 @@ class Agent:
             return prompt.replace("User: ", f"{rag_block}\nUser: ")
         elif "Task: " in prompt:
             return prompt.replace("Task: ", f"{rag_block}\nTask: ")
-        
+
         return f"{rag_block}\n{prompt}"
 
     # ── ReAct loop ────────────────────────────────────────────────────────────
@@ -371,7 +376,7 @@ class Agent:
 
         # ── natural-language task ──────────────────────────────────────────
         user_input = task_input
-        
+
         # RAG context retrieval for reasoning loop
         if self.config.enable_rag and self.rag_engine:
             context = self._get_rag_context(user_input)
@@ -386,27 +391,20 @@ class Agent:
         # Tool-use loop (stream=False for reasoning; streaming is for chat)
         for iteration in range(self.MAX_TOOL_ITERATIONS):
             if iteration == 0:
-                full_prompt = (
-                    system_prompt
-                    + "\n\n"
-                    + _TOOL_TURN.format(history="(none)", user_input=user_input)
-                )
+                full_prompt = system_prompt + "\n\n" + _TOOL_TURN.format(history="(none)", user_input=user_input)
             else:
                 full_prompt = (
-                    system_prompt
-                    + "\n\n"
-                    + _TOOL_TURN.format(
-                        history="\n".join(history), user_input=user_input
-                    )
+                    system_prompt + "\n\n" + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
                 )
 
             # Invoke LLM. If streaming is enabled, reasoning is shown too.
             from daie.core.llm_manager import get_llm_config
+
             raw = self.llm.invoke(
-                full_prompt, 
-                stream=self.config.stream or get_llm_config().stream, 
+                full_prompt,
+                stream=self.config.stream or get_llm_config().stream,
                 temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens
+                max_tokens=self.config.max_tokens,
             ).strip()
             logger.debug(f"[iter {iteration}] LLM raw: {raw[:300]}")
 
@@ -435,9 +433,7 @@ class Agent:
 
             tool_result = await self._run_tool(tool_name, params)
             logger.info(f"Tool '{tool_name}' result: {tool_result[:200]}")
-            history.append(
-                _TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result)
-            )
+            history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result))
 
         # Iteration limit reached — ask LLM for a final answer with what we have
         summary_prompt = (
@@ -447,10 +443,7 @@ class Agent:
             + "\nYou have reached the tool call limit. Summarise what you found and give a final answer."
         )
         raw = self.llm.invoke(
-            summary_prompt, 
-            stream=False,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens
+            summary_prompt, stream=False, temperature=self.config.temperature, max_tokens=self.config.max_tokens
         ).strip()
         parsed = self._parse_llm_json(raw)
         return (parsed or {}).get("answer", raw)
@@ -482,8 +475,9 @@ class Agent:
         Streaming is controlled by the global set_llm(stream=True) config.
         """
         if isinstance(message, str):
-            from daie.core.llm_manager import get_llm_config
             import sys
+
+            from daie.core.llm_manager import get_llm_config
 
             prompt_extras = []
             if getattr(self.config, "gender", None):
@@ -492,26 +486,81 @@ class Agent:
                 prompt_extras.append(f"Personality: {self.config.personality}")
             if getattr(self.config, "behavior", None):
                 prompt_extras.append(f"Behavior: {self.config.behavior}")
-                
+
             extra_str = "\n".join(prompt_extras)
             base_sys_prompt = f"You are {self.name}. {self.config.system_prompt}"
-            base_sys_prompt = f"{base_sys_prompt}\n\nAgent Persona Traits:\n{extra_str}" if extra_str else base_sys_prompt
+            base_sys_prompt = (
+                f"{base_sys_prompt}\n\nAgent Persona Traits:\n{extra_str}" if extra_str else base_sys_prompt
+            )
 
-            prompt = f"{base_sys_prompt}\n\nUser: {message}\n\n{self.name}:"
-            
+            # Retrieve relevant memory context if memory manager is available
+            memory_context = ""
+            if hasattr(self, "memory_manager") and self.memory_manager:
+                try:
+                    # Search for similar memories based on the user's message
+                    similar_memories = self.memory_manager.search_similar(
+                        self.id, message, memory_type="working", limit=10
+                    )
+
+                    # Also retrieve recent conversation history for context
+                    recent_memories = self.memory_manager.retrieve_memories(self.id, memory_type="working", limit=20)
+
+                    # Combine and deduplicate memories
+                    all_memories = {}
+                    for mem in similar_memories + recent_memories:
+                        if mem.id not in all_memories:
+                            all_memories[mem.id] = mem
+
+                    # Sort by timestamp (newest first) and take top results
+                    sorted_memories = sorted(all_memories.values(), key=lambda x: x.timestamp, reverse=True)[:15]
+
+                    if sorted_memories:
+                        memory_items = [f"{mem.content}" for mem in sorted_memories]
+                        memory_context = "\n\nRecent conversation:\n" + "\n".join(memory_items)
+                except Exception as e:
+                    logger.warning(f"Failed to retrieve memory context: {e}")
+
+            # Add instruction to use memory context if available
+            # Only add memory instruction if there are actual memories to reference
+            memory_instruction = ""
+            if memory_context:
+                memory_instruction = "\n\nUse the conversation history to remember user details naturally."
+            else:
+                # No memories available - add instruction to NOT hallucinate past conversations
+                memory_instruction = "\n\nNote: This is the start of our conversation. Do not reference or invent details from previous conversations that did not occur."
+
+            prompt = f"{base_sys_prompt}{memory_context}{memory_instruction}\n\nUser: {message}\n\n{self.name}:"
+
             # Apply RAG augmentation
             prompt = self._augment_prompt_with_rag(prompt, message)
-            
+
             cfg = get_llm_config()
             try:
                 if cfg.stream:
                     sys.stdout.write(f"{self.name}: ")
                     sys.stdout.flush()
-                return self.llm.invoke(
-                    prompt, 
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.max_tokens
+                response = self.llm.invoke(
+                    prompt, temperature=self.config.temperature, max_tokens=self.config.max_tokens
                 ).strip()
+
+                # Store the conversation in memory if memory manager is available
+                if hasattr(self, "memory_manager") and self.memory_manager:
+                    try:
+                        # Store user message
+                        self.memory_manager.store_memory(
+                            self.id, f"User: {message}", memory_type="working", tags=["conversation", "user_message"]
+                        )
+                        # Store agent response
+                        self.memory_manager.store_memory(
+                            self.id,
+                            f"{self.name}: {response}",
+                            memory_type="working",
+                            tags=["conversation", "agent_response"],
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to store conversation in memory: {e}")
+
+                return response
             except Exception as exc:
                 logger.error(f"LLM invocation error: {exc}")
                 return f"Error: Failed to get response from LLM - {exc}"
@@ -551,7 +600,7 @@ class Agent:
     async def _handle_message(self, message: AgentMessage):
         """
         Handle incoming messages asynchronously without blocking agent tasks.
-        
+
         This method processes messages in a non-blocking way, allowing the agent
         to continue running tasks while handling incoming messages.
         """
@@ -582,22 +631,23 @@ class Agent:
                 task_str = task_data
                 if isinstance(task_data, dict):
                     task_str = task_data.get("task") or task_data.get("description") or str(task_data)
-                
+
                 logger.info(f"Agent '{self.name}' [ID: {self.id}] received task: {task_str}")
-                
+
                 # If streaming, show that this agent is starting
                 from daie.core.llm_manager import get_llm_config
+
                 if self.config.stream or get_llm_config().stream:
                     print(f"\n\033[96m{self.name} is working on the task...\033[0m")
 
                 result = await self.execute_task(str(task_str))
-                
+
                 reply = AgentMessage(
                     sender_id=self.id,
                     receiver_id=message.sender_id,
                     content=str(result),
                     message_type="text",
-                    metadata={"correlation_id": message.metadata.get("correlation_id")}
+                    metadata={"correlation_id": message.metadata.get("correlation_id")},
                 )
                 await self.send_message(reply)
             except Exception as e:
@@ -610,13 +660,13 @@ class Agent:
                         receiver_id=message.sender_id,
                         content=f"Error: {str(e)}",
                         message_type="text",
-                        metadata={"correlation_id": cid}
+                        metadata={"correlation_id": cid},
                     )
                     await self.send_message(reply)
             return
 
         if message.message_type == "file":
-            if not getattr(self.config, 'allow_file_transfers', False):
+            if not getattr(self.config, "allow_file_transfers", False):
                 reply = AgentMessage(
                     sender_id=self.id,
                     receiver_id=message.sender_id,
@@ -627,23 +677,25 @@ class Agent:
                 return
 
             try:
-                import os, base64
+                import base64
+                import os
+
                 downloads_dir = os.path.join(os.getcwd(), "downloads")
                 os.makedirs(downloads_dir, exist_ok=True)
-                
+
                 file_name = message.metadata.get("file_name", "received_file")
                 file_path = os.path.join(downloads_dir, f"{self.id}_{file_name}")
-                
+
                 b64_data = message.metadata.get("base64_data", "")
                 with open(file_path, "wb") as f:
                     f.write(base64.b64decode(b64_data))
-                    
+
                 reply_content = f"Successfully received and saved file: {file_name} at {file_path}"
                 logger.info(f"Agent {self.name} received file {file_name}")
             except Exception as e:
                 reply_content = f"Error saving file: {str(e)}"
                 logger.error(reply_content)
-                
+
             reply = AgentMessage(
                 sender_id=self.id,
                 receiver_id=message.sender_id,
@@ -690,6 +742,7 @@ class Agent:
             return await tool.execute(params)
         elif callable(tool):
             import inspect
+
             return await tool(**params) if inspect.iscoroutinefunction(tool) else tool(**params)
         return {"success": False, "error": f"Tool '{tool_name}' is not executable"}
 
@@ -721,16 +774,36 @@ class Agent:
             if communication_manager:
                 self.communication_manager = communication_manager
                 self.communication_manager.register_agent(self)
+
+            # Handle memory manager based on persistent_memory config
             if memory_manager:
+                # Use provided memory manager
                 self.memory_manager = memory_manager
                 self.memory_manager.initialize_agent_memory(self.id)
+            elif self.config.persistent_memory:
+                # Auto-create memory manager with persistent memory enabled
+                from daie.config import SystemConfig
+                from daie.memory import MemoryManager
+
+                # Create system config with persistent memory enabled
+                # Use default memory_root_path to ensure consistent storage location
+                system_config = SystemConfig(
+                    persistent_memory=True, memory_storage_type="binary", memory_root_path="./agent_memory"
+                )
+                self.memory_manager = MemoryManager(config=system_config)
+                self.memory_manager.start()
+                self.memory_manager.initialize_agent_memory(self.id)
+                logger.info(f"Auto-created persistent memory manager for agent '{self.name}' (ID: {self.id})")
+
             if tool_registry:
                 self.tool_registry = tool_registry
 
             # Register A2A tools if communication manager is available
             if hasattr(self, "communication_manager") and self.communication_manager:
                 try:
-                    from daie.tools.a2a import A2ASendMessageTool, A2ADelegateTaskTool
+                    from daie.tools.a2a import (A2ADelegateTaskTool,
+                                                A2ASendMessageTool)
+
                     send_msg_tool = A2ASendMessageTool()
                     send_msg_tool.set_agent(self)
                     self.add_tool(send_msg_tool)
@@ -738,15 +811,16 @@ class Agent:
                     delegate_tool = A2ADelegateTaskTool()
                     delegate_tool.set_agent(self)
                     self.add_tool(delegate_tool)
-                    
+
                     try:
                         from daie.tools.a2a_file import A2ASendFileTool
+
                         file_tool = A2ASendFileTool()
                         file_tool.set_agent(self)
                         self.add_tool(file_tool)
                     except ImportError as e:
                         logger.warning(f"Could not load A2ASendFileTool: {e}")
-                        
+
                     logger.debug(f"A2A communication tools dynamically mounted for {self.name}")
                 except ImportError as e:
                     logger.warning(f"Could not load A2A tools: {e}")
@@ -766,7 +840,9 @@ class Agent:
             # Initialize RAG engine if enabled
             if self.config.enable_rag and self.config.rag_document_path:
                 try:
-                    self.rag_engine = RAGEngine(self.config.rag_document_path)
+                    from daie.rag import VectorRAGEngine
+
+                    self.rag_engine = VectorRAGEngine(self.config.rag_document_path)
                     # Offload to thread to avoid blocking the event loop
                     await asyncio.to_thread(self.rag_engine.load)
                 except Exception as e:

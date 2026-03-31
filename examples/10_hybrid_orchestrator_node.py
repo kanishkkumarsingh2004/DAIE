@@ -24,26 +24,26 @@ from daie.core.hybrid import HybridOrchestratorNode
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='hybrid_node.log',
-    filemode='w'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="hybrid_node.log",
+    filemode="w",
 )
 
 
 async def main():
     """Main entry point for the hybrid orchestrator node example."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("   HYBRID ORCHESTRATOR NODE DEMO")
-    print("="*60)
-    
+    print("=" * 60)
+
     # Configure LLM
     set_llm(ollama_llm="llama3.2:1b", stream=True)
-    
+
     # ──────────────────────────────────────────────
     # 1. Create the Hybrid Orchestrator Node
     # ──────────────────────────────────────────────
     print("\n[*] Creating Hybrid Orchestrator Node...")
-    
+
     hybrid = HybridOrchestratorNode(
         node_id="research-lab-001",
         node_name="AI Research Lab",
@@ -56,68 +56,76 @@ async def main():
             "memory_gb": 32,
             "model_cache": {"llama3.2": True, "codellama": True},
             "max_concurrent_tasks": 10,
-        }
+        },
     )
-    
+
     print(f"[+] Created: {hybrid}")
-    
+
     # ──────────────────────────────────────────────
     # 2. Create and set the main agent (orchestrator)
     # ──────────────────────────────────────────────
     print("\n[*] Creating main agent (Professor)...")
-    
-    professor = Agent(config=AgentConfig(
-        name="Professor",
-        role=AgentRole.COORDINATOR,
-        system_prompt="You are an expert professor coordinating research projects. You break down complex queries into logical sub-tasks for your researchers.",
-        personality="wise, methodical, and encouraging"
-    ))
-    
+
+    professor = Agent(
+        config=AgentConfig(
+            name="Professor",
+            role=AgentRole.COORDINATOR,
+            system_prompt="You are an expert professor coordinating research projects. You break down complex queries into logical sub-tasks for your researchers.",
+            personality="wise, methodical, and encouraging",
+        )
+    )
+
     hybrid.set_main_agent(professor)
     print(f"[+] Main agent set: {professor.name}")
-    
+
     # ──────────────────────────────────────────────
     # 3. Create and add sub-agents
     # ──────────────────────────────────────────────
     print("\n[*] Creating sub-agents...")
-    
+
     # Researcher agent
-    researcher = Agent(config=AgentConfig(
-        name="Researcher",
-        role=AgentRole.SPECIALIZED,
-        system_prompt="You are a diligent research specialist. You conduct thorough research and gather comprehensive information on any topic.",
-        personality="analytical, thorough, and curious"
-    ))
+    researcher = Agent(
+        config=AgentConfig(
+            name="Researcher",
+            role=AgentRole.SPECIALIZED,
+            system_prompt="You are a diligent research specialist. You conduct thorough research and gather comprehensive information on any topic.",
+            personality="analytical, thorough, and curious",
+        )
+    )
     hybrid.add_sub_agent(researcher)
     print(f"[+] Added sub-agent: {researcher.name}")
-    
+
     # Analyst agent
-    analyst = Agent(config=AgentConfig(
-        name="Analyst",
-        role=AgentRole.SPECIALIZED,
-        system_prompt="You are an expert data analyst. You analyze data, identify trends, and provide insightful interpretations.",
-        personality="precise, logical, and detail-oriented"
-    ))
+    analyst = Agent(
+        config=AgentConfig(
+            name="Analyst",
+            role=AgentRole.SPECIALIZED,
+            system_prompt="You are an expert data analyst. You analyze data, identify trends, and provide insightful interpretations.",
+            personality="precise, logical, and detail-oriented",
+        )
+    )
     hybrid.add_sub_agent(analyst)
     print(f"[+] Added sub-agent: {analyst.name}")
-    
+
     # Writer agent
-    writer = Agent(config=AgentConfig(
-        name="Writer",
-        role=AgentRole.SPECIALIZED,
-        system_prompt="You are a skilled technical writer. You create clear, engaging, and well-structured content.",
-        personality="creative, articulate, and concise"
-    ))
+    writer = Agent(
+        config=AgentConfig(
+            name="Writer",
+            role=AgentRole.SPECIALIZED,
+            system_prompt="You are a skilled technical writer. You create clear, engaging, and well-structured content.",
+            personality="creative, articulate, and concise",
+        )
+    )
     hybrid.add_sub_agent(writer)
     print(f"[+] Added sub-agent: {writer.name}")
-    
+
     # ──────────────────────────────────────────────
     # 4. Start the hybrid system
     # ──────────────────────────────────────────────
     print("\n[*] Starting hybrid system...")
     await hybrid.start()
     print("[+] Hybrid system started successfully!")
-    
+
     # Display status
     status = hybrid.get_status()
     print(f"\n[*] System Status:")
@@ -128,85 +136,86 @@ async def main():
     print(f"  - Sub-Agents: {', '.join(status['sub_agents'])}")
     print(f"  - Router: {'enabled' if status['router_enabled'] else 'disabled'}")
     print(f"  - Resources: {status['resources']}")
-    
+
     # ──────────────────────────────────────────────
     # 5. Interactive task execution
     # ──────────────────────────────────────────────
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("   INTERACTIVE MODE")
-    print("="*60)
+    print("=" * 60)
     print("\nType your task to execute (or 'exit' to quit)")
     print("Commands:")
     print("  - 'route <message>' - Route message to best agent")
     print("  - 'collab <task>' - Execute collaborative task")
     print("  - 'status' - Show system status")
-    print("="*60 + "\n")
-    
+    print("=" * 60 + "\n")
+
     while True:
         try:
             user_input = input("\033[94mYou:\033[0m ").strip()
-            
+
             if not user_input:
                 continue
-            
+
             # Handle exit command
-            if user_input.lower() in ['exit', 'quit']:
+            if user_input.lower() in ["exit", "quit"]:
                 print("\n[*] Ending session...")
                 break
-            
+
             # Handle status command
-            if user_input.lower() == 'status':
+            if user_input.lower() == "status":
                 status = hybrid.get_status()
                 print(f"\n\033[93mSystem Status:\033[0m")
                 print(f"  Running: {status['is_running']}")
                 print(f"  Agents: {status['total_agents']}")
                 print(f"  Resources: {status['resources']}")
                 continue
-            
+
             # Handle route command
-            if user_input.lower().startswith('route '):
+            if user_input.lower().startswith("route "):
                 message = user_input[6:].strip()
                 print(f"\n\033[92mRouting message to best agent...\033[0m")
                 response = await hybrid.route_message(message)
                 print(f"\n\033[93mResponse:\033[0m")
                 print(f"{response}\n")
                 continue
-            
+
             # Handle collab command
-            if user_input.lower().startswith('collab '):
+            if user_input.lower().startswith("collab "):
                 task = user_input[7:].strip()
                 print(f"\n\033[92mExecuting collaborative task...\033[0m")
                 response = await hybrid.execute_collaborative_task(task)
                 print(f"\n\033[93mCollaborative Response:\033[0m")
                 print(f"{response}\n")
                 continue
-            
+
             # Default: execute task via orchestrator
             print(f"\n\033[92mProfessor is orchestrating the task...\033[0m")
             result = await hybrid.execute_task(user_input)
-            
+
             # Extract answer if it still looks like JSON
             final_display = result
             if isinstance(result, str) and result.strip().startswith("{"):
                 try:
                     import json
+
                     parsed = json.loads(result)
                     final_display = parsed.get("answer", result)
                 except:
                     pass
-            
+
             print(f"\n\033[93mFinal Answer from Professor:\033[0m")
             print(f"{final_display}\n")
-            
+
             print("-" * 30 + "\n")
-            
+
         except KeyboardInterrupt:
             print("\n\n[*] Interrupted by user. Type 'exit' to quit.")
             continue
         except Exception as e:
             print(f"\n\033[91mError:\033[0m {e}")
             logging.error(f"Error in main loop: {e}", exc_info=True)
-    
+
     # ──────────────────────────────────────────────
     # 6. Cleanup
     # ──────────────────────────────────────────────

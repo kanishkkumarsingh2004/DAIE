@@ -3,17 +3,18 @@ Communication manager for agent communication
 """
 
 import asyncio
-import logging
 import json
+import logging
 import time
-from typing import Dict, List, Optional, Callable, TYPE_CHECKING
-from dataclasses import dataclass, field
 from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
-from daie.config import SystemConfig
 from daie.agents.message import AgentMessage
+from daie.config import SystemConfig
 from daie.registry.manager import NodeRegistry
-from daie.utils.encryption import generate_encryption_key, encrypt_data, decrypt_data
+from daie.utils.encryption import (decrypt_data, encrypt_data,
+                                   generate_encryption_key)
 
 if TYPE_CHECKING:
     from daie.agents import Agent
@@ -83,22 +84,24 @@ class CommunicationManager:
         self._message_handlers: Dict[str, Callable] = {}
         self._connection: Optional[any] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        
+
         self.registry = NodeRegistry()
-        
+
         # End-to-end encryption support
         self._encryption_keys: Dict[str, bytes] = {}  # agent_id -> encryption key
-        self._enable_encryption = getattr(config, 'enable_e2e_encryption', True)
-        
+        self._enable_encryption = getattr(config, "enable_e2e_encryption", True)
+
         # Audit logging
-        self._enable_audit_logging = getattr(config, 'enable_audit_logging', True)
-        self._audit_log_file = getattr(config, 'audit_log_file', None)
-        
+        self._enable_audit_logging = getattr(config, "enable_audit_logging", True)
+        self._audit_log_file = getattr(config, "audit_log_file", None)
+
         # Rate limiting
-        self._enable_rate_limiting = getattr(config, 'enable_rate_limiting', True)
-        self._rate_limit_window = getattr(config, 'rate_limit_window', 60)  # seconds
-        self._rate_limit_max_messages = getattr(config, 'rate_limit_max_messages', 100)
+        self._enable_rate_limiting = getattr(config, "enable_rate_limiting", True)
+        self._rate_limit_window = getattr(config, "rate_limit_window", 60)  # seconds
+        self._rate_limit_max_messages = getattr(config, "rate_limit_max_messages", 100)
         self._message_counts: Dict[str, List[float]] = defaultdict(list)  # agent_id -> list of timestamps
+
+        self._background_tasks = set()
 
         logger.info("Communication manager initialized")
 
@@ -106,6 +109,11 @@ class CommunicationManager:
     def is_connected(self) -> bool:
         """Check if communication is connected"""
         return self._is_running and self._connection is not None
+
+    def _track_task(self, task: asyncio.Task) -> None:
+        """Track background task to ensure it gets cancelled on stop"""
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     @property
     def peer_count(self) -> int:
@@ -130,24 +138,19 @@ class CommunicationManager:
         logger.info(f"Agent {agent.name} (ID: {agent.id}) registered for communication")
 
         # Create a message handler for the agent
-        self._message_handlers[agent.id] = lambda msg: self._handle_message(
-            agent.id, msg
-        )
-        
+        self._message_handlers[agent.id] = lambda msg: self._handle_message(agent.id, msg)
+
         # Register Agent capabilities and network config to NodeRegistry
         # network_url: The URL where THIS agent is hosted (others use this to reach it)
         # network_connections: Dict of peer_id -> URL for agents THIS agent can directly reach
-        network_url = getattr(agent.config, 'network_url', None)
-        network_connections = getattr(agent.config, 'network_connections', {})
+        network_url = getattr(agent.config, "network_url", None)
+        network_connections = getattr(agent.config, "network_connections", {})
         capabilities = {
-            "role": getattr(agent.role, 'value', str(agent.role)) if hasattr(agent, 'role') else "unknown",
+            "role": getattr(agent.role, "value", str(agent.role)) if hasattr(agent, "role") else "unknown",
             "tools": agent.config.capabilities,
         }
         self.registry.register_node(
-            agent.id, 
-            capabilities, 
-            network_url=network_url,
-            network_connections=network_connections
+            agent.id, capabilities, network_url=network_url, network_connections=network_connections
         )
 
         return self
@@ -170,9 +173,7 @@ class CommunicationManager:
         if agent_id in self._message_handlers:
             del self._message_handlers[agent_id]
 
-        logger.info(
-            f"Agent {agent.name} (ID: {agent_id}) deregistered from communication"
-        )
+        logger.info(f"Agent {agent.name} (ID: {agent_id}) deregistered from communication")
 
         return self
 
@@ -263,9 +264,7 @@ class CommunicationManager:
             return False
 
         try:
-            logger.debug(
-                f"Sending message from {message.sender_id} to {message.receiver_id}"
-            )
+            logger.debug(f"Sending message from {message.sender_id} to {message.receiver_id}")
 
             # Rate limiting check
             if self._enable_rate_limiting and not self._check_rate_limit(message.sender_id):
@@ -308,12 +307,12 @@ class CommunicationManager:
             # Get or generate encryption key for receiver
             if message.receiver_id not in self._encryption_keys:
                 self._encryption_keys[message.receiver_id] = generate_encryption_key()
-            
+
             key = self._encryption_keys[message.receiver_id]
-            
+
             # Encrypt message content
             encrypted_content = encrypt_data(message.content, key)
-            
+
             # Create encrypted message
             encrypted_msg = AgentMessage(
                 id=message.id,
@@ -322,13 +321,9 @@ class CommunicationManager:
                 content=encrypted_content,
                 message_type=message.message_type,
                 timestamp=message.timestamp,
-                metadata={
-                    **message.metadata,
-                    "encrypted": True,
-                    "encryption_key_id": message.receiver_id
-                }
+                metadata={**message.metadata, "encrypted": True, "encryption_key_id": message.receiver_id},
             )
-            
+
             return encrypted_msg
         except Exception as e:
             logger.error(f"Encryption failed: {e}")
@@ -348,17 +343,17 @@ class CommunicationManager:
             # Check if message is encrypted
             if not message.metadata.get("encrypted", False):
                 return message
-            
+
             key_id = message.metadata.get("encryption_key_id")
             if not key_id or key_id not in self._encryption_keys:
                 logger.warning(f"No decryption key found for message {message.id}")
                 return message
-            
+
             key = self._encryption_keys[key_id]
-            
+
             # Decrypt message content
             decrypted_content = decrypt_data(message.content, key)
-            
+
             # Create decrypted message
             decrypted_msg = AgentMessage(
                 id=message.id,
@@ -367,9 +362,9 @@ class CommunicationManager:
                 content=decrypted_content,
                 message_type=message.message_type,
                 timestamp=message.timestamp,
-                metadata={k: v for k, v in message.metadata.items() if k not in ["encrypted", "encryption_key_id"]}
+                metadata={k: v for k, v in message.metadata.items() if k not in ["encrypted", "encryption_key_id"]},
             )
-            
+
             return decrypted_msg
         except Exception as e:
             logger.error(f"Decryption failed: {e}")
@@ -386,7 +381,7 @@ class CommunicationManager:
         """
         if not self._enable_audit_logging:
             return
-        
+
         try:
             audit_entry = {
                 "timestamp": time.time(),
@@ -395,9 +390,9 @@ class CommunicationManager:
                 "sender_id": message.sender_id,
                 "receiver_id": message.receiver_id,
                 "message_type": message.message_type,
-                "details": details
+                "details": details,
             }
-            
+
             audit_logger.info(json.dumps(audit_entry))
         except Exception as e:
             logger.error(f"Audit logging failed: {e}")
@@ -414,19 +409,17 @@ class CommunicationManager:
         """
         if not self._enable_rate_limiting:
             return True
-        
+
         current_time = time.time()
         window_start = current_time - self._rate_limit_window
-        
+
         # Clean old timestamps
-        self._message_counts[agent_id] = [
-            ts for ts in self._message_counts[agent_id] if ts > window_start
-        ]
-        
+        self._message_counts[agent_id] = [ts for ts in self._message_counts[agent_id] if ts > window_start]
+
         # Check if within limit
         if len(self._message_counts[agent_id]) >= self._rate_limit_max_messages:
             return False
-        
+
         # Add current timestamp
         self._message_counts[agent_id].append(current_time)
         return True
@@ -446,48 +439,55 @@ class CommunicationManager:
         if message.receiver_id in self._agents:
             # Direct agent-to-agent communication
             receiver = self._agents[message.receiver_id]
-            
+
             # --- Authorization Check ---
-            allowed = getattr(receiver.config, 'allowed_senders', [])
+            allowed = getattr(receiver.config, "allowed_senders", [])
             if allowed and message.sender_id not in allowed:
-                logger.warning(f"Blocked message from {message.sender_id} to {message.receiver_id}: sender not in allowed_senders whitelist.")
+                logger.warning(
+                    f"Blocked message from {message.sender_id} to {message.receiver_id}: sender not in allowed_senders whitelist."
+                )
                 self._audit_log("MESSAGE_BLOCKED", message, "Sender not in allowed_senders whitelist")
                 return
 
             # Decrypt message if encrypted
             if self._enable_encryption and message.metadata.get("encrypted", False):
                 message = self._decrypt_message(message)
-            
+
             # Audit log for message receive
             self._audit_log("MESSAGE_RECEIVE", message)
-            
-            await receiver._handle_message(message)
+
+            # Run handler safely
+            import inspect
+
+            result = receiver._handle_message(message)
+            if inspect.iscoroutine(result) or inspect.isawaitable(result):
+                await result
         else:
             # Try to dispatch over the network via P2P HTTP
             # First check if sender has direct connection to receiver
             sender_node = self.registry.get_node(message.sender_id)
             receiver_node = self.registry.get_node(message.receiver_id)
-            
+
             if not receiver_node:
                 logger.warning(f"Receiver agent {message.receiver_id} not found in registry.")
                 return
-            
+
             # Check for direct connection
             direct_url = None
             if sender_node:
                 sender_connections = sender_node.get("network_connections", {})
                 if message.receiver_id in sender_connections:
                     direct_url = sender_connections[message.receiver_id]
-            
+
             if direct_url:
                 # Direct connection exists
                 logger.info(f"Sending message directly to {message.receiver_id} at {direct_url}")
-                asyncio.create_task(self._send_remote_message(message, direct_url))
+                self._track_task(asyncio.create_task(self._send_remote_message(message, direct_url)))
             elif receiver_node.get("network_url"):
                 # Try direct URL from receiver node
                 network_url = receiver_node["network_url"]
                 logger.info(f"Routing message to remote agent {message.receiver_id} at {network_url}")
-                asyncio.create_task(self._send_remote_message(message, network_url))
+                self._track_task(asyncio.create_task(self._send_remote_message(message, network_url)))
             else:
                 # Try to find a route through intermediate nodes
                 route = self.registry.find_route(message.sender_id, message.receiver_id)
@@ -501,31 +501,34 @@ class CommunicationManager:
                         if sender_node:
                             sender_connections = sender_node.get("network_connections", {})
                             next_hop_url = sender_connections.get(next_hop)
-                        
+
                         if not next_hop_url:
                             next_hop_url = next_hop_node.get("network_url")
-                        
+
                         if next_hop_url:
-                            logger.info(f"Routing message to {message.receiver_id} via intermediate node {next_hop} at {next_hop_url}")
+                            logger.info(
+                                f"Routing message to {message.receiver_id} via intermediate node {next_hop} at {next_hop_url}"
+                            )
                             # Add routing metadata
                             message.metadata["route"] = route
                             message.metadata["final_destination"] = message.receiver_id
                             message.receiver_id = next_hop  # Send to next hop
-                            asyncio.create_task(self._send_remote_message(message, next_hop_url))
+                            self._track_task(asyncio.create_task(self._send_remote_message(message, next_hop_url)))
                             return
-                
+
                 logger.warning(f"No route found to receiver agent {message.receiver_id}")
-                
+
     async def _send_remote_message(self, message: AgentMessage, network_url: str):
         try:
             import websockets
+
             sender_agent = self._agents.get(message.sender_id)
-            token = getattr(sender_agent.config, 'auth_token', '') if sender_agent else ''
-            
+            token = getattr(sender_agent.config, "auth_token", "") if sender_agent else ""
+
             # Convert HTTP URL to WebSocket URL
-            ws_url = network_url.replace('http://', 'ws://').replace('https://', 'wss://')
+            ws_url = network_url.replace("http://", "ws://").replace("https://", "wss://")
             endpoint = f"{ws_url.rstrip('/')}/ws/a2a/message"
-            
+
             async with websockets.connect(endpoint) as websocket:
                 msg_dict = {
                     "sender_id": message.sender_id,
@@ -533,17 +536,17 @@ class CommunicationManager:
                     "content": message.content,
                     "message_type": message.message_type,
                     "metadata": message.metadata,
-                    "auth_token": token
+                    "auth_token": token,
                 }
                 await websocket.send(json.dumps(msg_dict))
-                
+
                 # Wait for acknowledgment
                 response = await websocket.recv()
                 response_data = json.loads(response)
-                
+
                 if "error" in response_data:
                     logger.error(f"Failed to send remote message to {endpoint}: {response_data['error']}")
-                    self._audit_log("MESSAGE_SEND_REMOTE_ERROR", message, response_data['error'])
+                    self._audit_log("MESSAGE_SEND_REMOTE_ERROR", message, response_data["error"])
                 else:
                     logger.debug(f"Remote message delivered to {endpoint}")
                     self._audit_log("MESSAGE_SEND_REMOTE_SUCCESS", message)
@@ -596,24 +599,30 @@ class CommunicationManager:
             final_destination = message.metadata.get("final_destination")
             if final_destination and final_destination != agent_id:
                 # This message needs to be forwarded to final destination
-                logger.info(f"Forwarding message from {message.sender_id} to final destination {final_destination} via {agent_id}")
+                logger.info(
+                    f"Forwarding message from {message.sender_id} to final destination {final_destination} via {agent_id}"
+                )
                 # Update receiver_id to final destination and send
                 message.receiver_id = final_destination
                 # Remove routing metadata to prevent loops
                 message.metadata.pop("final_destination", None)
                 message.metadata.pop("route", None)
-                asyncio.create_task(self.send_message(message))
+                self._track_task(asyncio.create_task(self.send_message(message)))
                 return
-            
+
             # Decrypt message if encrypted
             if self._enable_encryption and message.metadata.get("encrypted", False):
                 message = self._decrypt_message(message)
-            
+
             # Audit log for message receive
             self._audit_log("MESSAGE_RECEIVE", message)
-            
+
             agent = self._agents[agent_id]
-            asyncio.create_task(agent._handle_message(message))
+            import inspect
+
+            result = agent._handle_message(message)
+            if inspect.iscoroutine(result) or inspect.isawaitable(result):
+                self._track_task(asyncio.create_task(result))
         except Exception as e:
             logger.error(f"Error handling message for agent {agent_id}: {e}")
             self._audit_log("MESSAGE_RECEIVE_ERROR", message, str(e))
@@ -637,11 +646,14 @@ class CommunicationManager:
             # Initialize communication connection
             self._connection = await self._initialize_connection()
 
+            # Start registry discovery services
+            await self.registry.start()
+
             # Start message listener
-            self._loop.create_task(self._listen_for_messages())
+            self._listen_task = self._loop.create_task(self._listen_for_messages())
 
             # Start peer discovery
-            self._loop.create_task(self._discover_peers())
+            self._discover_task = self._loop.create_task(self._discover_peers())
 
             self._is_running = True
             logger.info("Communication manager started successfully")
@@ -651,7 +663,7 @@ class CommunicationManager:
             self._is_running = False
             raise
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Stop communication manager"""
         if not self._is_running:
             logger.warning("Communication manager already stopped")
@@ -662,13 +674,22 @@ class CommunicationManager:
         try:
             self._is_running = False
 
+            # Cancel background tasks
+            for task in list(self._background_tasks):
+                task.cancel()
+            self._background_tasks.clear()
+
+            if hasattr(self, "_listen_task") and not self._listen_task.done():
+                self._listen_task.cancel()
+            if hasattr(self, "_discover_task") and not self._discover_task.done():
+                self._discover_task.cancel()
+
             # Close connection
             if self._connection:
-                # Check if loop is already running
-                if self._loop and self._loop.is_running():
-                    asyncio.create_task(self._close_connection())
-                else:
-                    self._loop.run_until_complete(self._close_connection())
+                await self._close_connection()
+
+            # Stop registry discovery services
+            await self.registry.stop()
 
             logger.info("Communication manager stopped successfully")
 
@@ -697,9 +718,7 @@ class CommunicationManager:
             await asyncio.sleep(10)  # Discover peers every 10 seconds
             logger.debug("Discovering peers...")
 
-    def on_message_received(
-        self, agent_id: str, handler: Callable[[AgentMessage], None]
-    ):
+    def on_message_received(self, agent_id: str, handler: Callable[[AgentMessage], None]):
         """
         Register a message handler for an agent
 
@@ -731,7 +750,7 @@ class CommunicationManager:
     def get_network_topology(self) -> Dict[str, any]:
         """
         Get the complete network topology showing all nodes and their connections.
-        
+
         Returns:
             Dictionary containing nodes and their connections
         """
@@ -740,11 +759,11 @@ class CommunicationManager:
     def find_route(self, from_agent: str, to_agent: str) -> Optional[List[str]]:
         """
         Find a route between two agents through the network.
-        
+
         Args:
             from_agent: Starting agent ID
             to_agent: Destination agent ID
-            
+
         Returns:
             List of agent IDs forming the route, or None if no route exists
         """
@@ -753,26 +772,25 @@ class CommunicationManager:
     def get_connected_peers(self, agent_id: str) -> Dict[str, str]:
         """
         Get all peers directly connected to an agent.
-        
+
         Args:
             agent_id: Agent ID to get connections for
-            
+
         Returns:
             Dictionary of peer_id -> network_url for connected peers
         """
         return self.registry.get_connected_peers(agent_id)
 
-    def setup_bidirectional_connection(self, agent_a_id: str, agent_b_id: str, 
-                                      url_a: str, url_b: str) -> bool:
+    def setup_bidirectional_connection(self, agent_a_id: str, agent_b_id: str, url_a: str, url_b: str) -> bool:
         """
         Setup bidirectional connection between two agents.
-        
+
         Args:
             agent_a_id: First agent ID
             agent_b_id: Second agent ID
             url_a: Network URL for agent A
             url_b: Network URL for agent B
-            
+
         Returns:
             True if connection setup successfully
         """
@@ -782,14 +800,14 @@ class CommunicationManager:
             connections_a = node_a.get("network_connections", {})
             connections_a[agent_b_id] = url_b
             self.registry.update_connections(agent_a_id, connections_a)
-        
+
         # Update agent B's connections to include A
         node_b = self.registry.get_node(agent_b_id)
         if node_b:
             connections_b = node_b.get("network_connections", {})
             connections_b[agent_a_id] = url_a
             self.registry.update_connections(agent_b_id, connections_b)
-        
+
         logger.info(f"Setup bidirectional connection between {agent_a_id} and {agent_b_id}")
         return True
 

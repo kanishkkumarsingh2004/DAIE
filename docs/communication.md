@@ -22,14 +22,16 @@ from daie.communication import CommunicationManager
 
 comm = CommunicationManager()
 await comm.start()
+# ... use comm ...
+await comm.stop()
 ```
 
 ### Methods
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the communication manager |
-| `stop()` | Stop the communication manager |
+| `start()` | Start the communication manager (async) |
+| `stop()` | Stop the communication manager (async) |
 | `register_agent(agent)` | Register an agent for communication |
 | `deregister_agent(agent_id)` | Deregister an agent |
 | `get_agent(agent_id)` | Get an agent by ID |
@@ -209,9 +211,10 @@ The `NodeRegistry` manages agent discovery:
 from daie.registry import NodeRegistry
 
 registry = NodeRegistry()
+await registry.start()  # Required to start discovery services
 
 # Register a node
-registry.register_node(
+await registry.register_node(
     agent_id="agent-1",
     capabilities={"role": "specialist", "tools": ["web_search"]},
     network_url="http://localhost:8000"
@@ -222,7 +225,13 @@ node = registry.get_node("agent-1")
 
 # List all nodes
 nodes = registry.list_nodes()
+
+# Stop the registry
+await registry.stop()
 ```
+
+> [!NOTE]
+> When using `CommunicationManager`, the internal `NodeRegistry`'s lifecycle is managed automatically. You only need to explicitly `start()` and `stop()` the registry when using it in standalone mode.
 
 ---
 

@@ -3,14 +3,16 @@ Audio handling module using PyAudio
 """
 
 import logging
-import threading
 import queue
-from typing import Optional, Callable, List
+import threading
+from typing import Callable, List, Optional
+
 from daie.agents.config import AgentConfig
 
 try:
-    import pyaudio
     import wave
+
+    import pyaudio
 
     PYAUDIO_AVAILABLE = True
 except ImportError:
@@ -92,15 +94,9 @@ class AudioManager:
                         {
                             "id": i,
                             "name": device_info.get("name", "Unknown"),
-                            "max_input_channels": device_info.get(
-                                "maxInputChannels", 0
-                            ),
-                            "max_output_channels": device_info.get(
-                                "maxOutputChannels", 0
-                            ),
-                            "default_sample_rate": device_info.get(
-                                "defaultSampleRate", 0
-                            ),
+                            "max_input_channels": device_info.get("maxInputChannels", 0),
+                            "max_output_channels": device_info.get("maxOutputChannels", 0),
+                            "default_sample_rate": device_info.get("defaultSampleRate", 0),
                         }
                     )
                 except Exception as e:
@@ -152,9 +148,7 @@ class AudioManager:
             self.input_stream.start_stream()
 
             if callback:
-                self.recording_thread = threading.Thread(
-                    target=self._processing_thread, args=(callback,), daemon=True
-                )
+                self.recording_thread = threading.Thread(target=self._processing_thread, args=(callback,), daemon=True)
                 self.recording_thread.start()
 
             logger.info("Recording started")
@@ -237,9 +231,7 @@ class AudioManager:
 
         try:
             self.output_queue.put(audio_data)
-            self.playback_thread = threading.Thread(
-                target=self._playback_thread, args=(sample_rate,), daemon=True
-            )
+            self.playback_thread = threading.Thread(target=self._playback_thread, args=(sample_rate,), daemon=True)
             self.playback_thread.start()
 
             logger.info("Audio playback started")

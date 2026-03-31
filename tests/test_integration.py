@@ -26,14 +26,15 @@ This test file validates the entire Decentralized AI Ecosystem (DAIE) through in
 These integration tests ensure that all components of the DAIE system work together seamlessly, providing a comprehensive validation of the entire ecosystem's functionality.
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
-from daie.core.system import DecentralizedAISystem
-from daie.core.node import Node
+
 from daie.agents.agent import Agent
 from daie.agents.config import AgentConfig
 from daie.agents.message import AgentMessage
+from daie.core.node import Node
+from daie.core.system import DecentralizedAISystem
 
 
 class TestSystemIntegration:
@@ -99,8 +100,8 @@ class TestSystemIntegration:
         node2.communication_manager = comm_manager2
 
         # Start nodes
-        node1.start()
-        node2.start()
+        await node1.start()
+        await node2.start()
 
         # Send message from node1 to node2
         message = AgentMessage(
@@ -220,9 +221,9 @@ class TestNetworkIntegration:
         node3.communication_manager = comm_manager3
 
         # Start nodes
-        node1.start()
-        node2.start()
-        node3.start()
+        await node1.start()
+        await node2.start()
+        await node3.start()
 
         # Test message propagation between nodes
         message1 = AgentMessage(
@@ -255,15 +256,16 @@ class TestNetworkIntegration:
         assert comm_manager3.send_message.call_count == 1
 
         # Stop nodes
-        node1.stop()
-        node2.stop()
-        node3.stop()
+        await node1.stop()
+        await node2.stop()
+        await node3.stop()
 
 
 class TestPerformanceIntegration:
     """Performance integration tests."""
 
-    def test_system_scalability(self, mock_logger):
+    @pytest.mark.asyncio
+    async def test_system_scalability(self, mock_logger):
         """Test system scalability with multiple nodes."""
         # Create nodes
         nodes = []
@@ -275,13 +277,13 @@ class TestPerformanceIntegration:
 
         # Start nodes
         for node in nodes:
-            node.start()
+            await node.start()
 
         assert all(node.is_active for node in nodes)
 
         # Stop nodes
         for node in nodes:
-            node.stop()
+            await node.stop()
 
         assert all(not node.is_active for node in nodes)
 

@@ -3,9 +3,9 @@ System configuration module
 """
 
 import os
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -79,6 +79,9 @@ class SystemConfig:
 
     memory_storage_type: str = "binary"
     """Type of memory storage: 'vector' (ChromaDB), 'binary' (pickle), 'json' (JSON files)"""
+
+    persistent_memory: bool = True
+    """Whether to persist memory across restarts. If False, memory is in-memory only."""
 
     # Logging configuration
     enable_logging: bool = False
@@ -218,6 +221,9 @@ class SystemConfig:
         if os.getenv("MEMORY_STORAGE_TYPE"):
             config.memory_storage_type = os.getenv("MEMORY_STORAGE_TYPE")
 
+        if os.getenv("PERSISTENT_MEMORY"):
+            config.persistent_memory = os.getenv("PERSISTENT_MEMORY").lower() == "true"
+
         if os.getenv("DEFAULT_LLM_MODEL"):
             config.default_llm_model = os.getenv("DEFAULT_LLM_MODEL")
 
@@ -240,9 +246,7 @@ class SystemConfig:
             config.enable_signatures = os.getenv("ENABLE_SIGNATURES").lower() == "true"
 
         if os.getenv("REQUIRE_VERIFICATION"):
-            config.require_verification = (
-                os.getenv("REQUIRE_VERIFICATION").lower() == "true"
-            )
+            config.require_verification = os.getenv("REQUIRE_VERIFICATION").lower() == "true"
 
         if os.getenv("ENABLE_CACHING"):
             config.enable_caching = os.getenv("ENABLE_CACHING").lower() == "true"
@@ -382,18 +386,14 @@ class SystemConfig:
 
         # Validate LLM settings
         if self.llm_temperature < 0.0 or self.llm_temperature > 1.0:
-            errors.setdefault("llm_temperature", []).append(
-                "Must be between 0.0 and 1.0"
-            )
+            errors.setdefault("llm_temperature", []).append("Must be between 0.0 and 1.0")
 
         if self.llm_max_tokens <= 0:
             errors.setdefault("llm_max_tokens", []).append("Must be positive")
 
         # Validate performance settings
         if self.cache_ttl <= 0 and self.enable_caching:
-            errors.setdefault("cache_ttl", []).append(
-                "Must be positive when caching is enabled"
-            )
+            errors.setdefault("cache_ttl", []).append("Must be positive when caching is enabled")
 
         if self.max_concurrent_tasks <= 0:
             errors.setdefault("max_concurrent_tasks", []).append("Must be positive")
@@ -413,13 +413,9 @@ class SystemConfig:
             import os
 
             if not os.path.isdir(self.rag_document_path):
-                errors.setdefault("rag_document_path", []).append(
-                    "Must be a valid directory path"
-                )
+                errors.setdefault("rag_document_path", []).append("Must be a valid directory path")
             elif not os.path.exists(self.rag_document_path):
-                errors.setdefault("rag_document_path", []).append(
-                    "Directory does not exist"
-                )
+                errors.setdefault("rag_document_path", []).append("Directory does not exist")
 
         return errors
 

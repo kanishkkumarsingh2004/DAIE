@@ -6,16 +6,13 @@ This example creates an agent that has access to all prebuilt tools (API calls, 
 browser automation) and supports audio input/output functionality.
 """
 
-import logging
 import asyncio
+import logging
 import sys
+
 from daie.agents import Agent
 from daie.agents.config import AgentConfig, AgentRole
-from daie.tools import (
-    APIToolkit,
-    SeleniumToolkit,
-    FileManagerToolkit,
-)
+from daie.tools import APIToolkit, FileManagerToolkit, SeleniumToolkit
 from daie.utils.audio import AudioManager
 from daie.utils.logger import setup_logging
 
@@ -141,12 +138,12 @@ async def demonstrate_agent_capabilities(agent: Agent, logger: logging.Logger):
 
 async def listen_for_user_input(agent: Agent, logger: logging.Logger):
     """Interactive loop for user input"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("NOVA Agent Interactive Mode")
-    print("="*60)
+    print("=" * 60)
     print("Type your task or question, or 'quit' to exit")
-    print("="*60 + "\n")
-    
+    print("=" * 60 + "\n")
+
     while True:
         try:
             # Get user input

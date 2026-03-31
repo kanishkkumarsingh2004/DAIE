@@ -2,9 +2,6 @@
 
 All notable changes to the Decentralized AI Ecosystem (DAIE) library will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [1.0.5] - 2026-03-31
 ### Added
 - **Zero-Dependency Core**: Replaced several external dependencies (`requests`, `python-dotenv`, `rich`, `typer`) with in-house, lightweight implementations (`http_client`, `env`, `console`, `cli.core`).
@@ -22,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `otel` (OpenTelemetry) as a core dependency.
 - `requests`, `python-dotenv`, `rich`, and `typer` as core dependencies.
 
-## [1.0.4] - 2026-03-31
+## [1.0.5] - 2026-03-31
 ### Added
 - **Observability**: Added OpenTelemetry (OTel) support for distributed tracing across agent nodes.
 - **Resilience**: Implemented Circuit Breaker pattern for P2P communication and configurable Retry policies.

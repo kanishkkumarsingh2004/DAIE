@@ -115,15 +115,18 @@ class MemoryManager:
             raise
 
     def stop(self) -> None:
-        """Stop memory manager"""
+        """Stop memory manager and flush all pending memory to disk"""
         if not self._is_initialized:
-            logger.warning("Memory manager already stopped")
+            logger.debug("Memory manager already stopped")
             return
 
         # Save all agent memories to storage only if persistent memory is enabled
-        if self.config.persistent_memory:
-            for agent_id in self._agent_memories:
-                self._save_agent_memory(agent_id)
+        if self.config.persistent_memory and self._storage:
+            for agent_id in list(self._agent_memories.keys()):
+                try:
+                    self._save_agent_memory(agent_id)
+                except Exception as e:
+                    logger.error(f"Error saving memory for agent {agent_id} during stop: {e}")
 
         self._is_initialized = False
         logger.info("Memory manager stopped")
@@ -134,7 +137,8 @@ class MemoryManager:
             return
 
         try:
-            self._agent_memories[agent_id] = self._storage.load_agent_memory(agent_id)
+            loaded = self._storage.load_agent_memory(agent_id)
+            self._agent_memories[agent_id] = loaded
 
             total_items = sum(len(items) for items in self._agent_memories[agent_id].values())
             logger.debug(
@@ -144,11 +148,13 @@ class MemoryManager:
             )
         except Exception as e:
             logger.error(f"Failed to load memory for agent {agent_id}: {e}")
-            self._agent_memories[agent_id] = {
-                "working": [],
-                "semantic": [],
-                "episodic": [],
-            }
+            # Only initialize empty if not already present
+            if agent_id not in self._agent_memories:
+                self._agent_memories[agent_id] = {
+                    "working": [],
+                    "semantic": [],
+                    "episodic": [],
+                }
 
     def _save_agent_memory(self, agent_id: str):
         """Save agent memory to storage"""
@@ -199,7 +205,11 @@ class MemoryManager:
             self for method chaining
         """
         if agent_id not in self._agent_memories:
-            self._load_agent_memory(agent_id)
+            # Try to load from persistent storage first
+            if self._storage:
+                self._load_agent_memory(agent_id)
+
+            # If still not present (no storage or load returned nothing), init empty
             if agent_id not in self._agent_memories:
                 self._agent_memories[agent_id] = {
                     "working": [],
@@ -396,6 +406,24 @@ class MemoryManager:
             return 0
         else:
             return sum(len(memories) for memories in self._agent_memories[agent_id].values())
+
+    def log_chat_history(self, agent_id: str, content: str) -> None:
+        """
+        Log a chat history entry for an agent
+        
+        Args:
+            agent_id: Agent ID
+            content: History content to log
+        """
+        if not self._is_initialized:
+            logger.debug("Memory manager not initialized, skipping history log")
+            return
+
+        if self._storage:
+            try:
+                self._storage.log_history(agent_id, content)
+            except Exception as e:
+                logger.error(f"Failed to log chat history: {e}")
 
     def get_storage_info(self) -> Dict[str, Any]:
         """

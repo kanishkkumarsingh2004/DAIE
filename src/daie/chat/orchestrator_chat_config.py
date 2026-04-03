@@ -1,139 +1,126 @@
 """
 OrchestratorChatConfig Module
 
-Provides a pre-configured setup for MultiNodeHybridSystem so users don't need to write
-the full boilerplate code. Simply configure and run!
+Provides a simple chat loop for a single Orchestrator (main agent + sub-agents)
+so users don't need to write the full boilerplate code. Simply pass the 
+orchestrator and run!
 
-Features:
-- Accepts an already-created MultiNodeHybridSystem externally
-- Creating a MultiNodeHybridSystem with multiple hybrid nodes
-- Configuring different orchestrators on each node
-- Connecting nodes for P2P communication
-- Executing tasks on specific nodes
-- Broadcasting tasks to all nodes
-- Cross-node collaboration
+This focuses on simple task orchestration interaction - just like
+ChatLoopConfig but for multi-agent orchestrators.
 """
 
 import asyncio
+import re
 import logging
+import json
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Any, Dict
 
-from daie.core.hybrid import MultiNodeHybridSystem
-from daie.core.llm_manager import get_llm_config
+from daie.core.orchestrator import Orchestrator
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class OrchestratorChatConfig:
     """
-    Configuration for running a pre-built MultiNodeHybridSystem with advanced error handling.
+    Configuration for a simple chat loop with a single Orchestrator.
 
-    This class provides a simple way to run a multi-node hybrid system
-    without writing the full boilerplate code. Just pass the system
-    and call run() to start the interactive system!
+    This class provides a simple way to run a chat loop with an Orchestrator
+    instance without writing the full boilerplate code. Just pass the 
+    orchestrator and call run()!
 
     Features:
-    - Accepts an already-created MultiNodeHybridSystem externally
-    - Creating a MultiNodeHybridSystem with multiple hybrid nodes
-    - Configuring different orchestrators on each node
-    - Connecting nodes for P2P communication
-    - Executing tasks on specific nodes
-    - Broadcasting tasks to all nodes
-    - Cross-node collaboration
+    - Accepts a single Orchestrator instance
+    - Simple chat loop for task-oriented multi-agent work
+    - Automatic error handling and recovery
+    - Graceful shutdown on interrupts
+    - Configurable prompts and messages
 
     Example:
     >>> from daie import Agent, AgentConfig
-    >>> from daie.core.hybrid import MultiNodeHybridSystem
+    >>> from daie.core.orchestrator import Orchestrator
     >>> from daie.chat import OrchestratorChatConfig
     >>>
-    >>> # Create your multi-node system externally
-    >>> system = MultiNodeHybridSystem()
+    >>> # Create your agents
+    >>> main_agent = Agent(config=AgentConfig(name="Manager", ...))
+    >>> sub_agent1 = Agent(config=AgentConfig(name="Researcher", ...))
     >>>
-    >>> # Create and configure nodes
-    >>> research_node = system.create_node(
-    ...     node_id="research-lab",
-    ...     node_name="AI Research Lab",
-    ...     context_name="Research Lab",
-    ...     main_role="Professor",
-    ...     sub_role="Researcher"
-    ... )
+    >>> # Create orchestrator
+    >>> orch = Orchestrator(main_agent=main_agent, sub_agents=[sub_agent1])
     >>>
-    >>> # Add agents
-    >>> professor = Agent(config=AgentConfig(name="Professor", ...))
-    >>> research_node.set_main_agent(professor)
-    >>>
-    >>> # Run the multi-node system with minimal code!
-    >>> config = OrchestratorChatConfig(system=system)
-    ... config.run()
+    >>> # Run simple chat loop!
+    >>> config = OrchestratorChatConfig(orchestrator=orch)
+    >>> config.run()
     """
 
-    # Required: The multi-node system to run
-    system: MultiNodeHybridSystem
-    """The MultiNodeHybridSystem instance to run"""
+    # Required: The orchestrator to use for chat
+    orchestrator: Orchestrator
+    """The Orchestrator instance to use for identifying and delegating tasks"""
 
-    # Logging settings
-    enable_logging: bool = True
-    """Whether to enable logging"""
+    # Chat loop behavior settings
+    welcome_message: str = "=== Orchestrator Chat Loop ===\nType your task for the orchestrator (or 'exit' to quit)\n"
+    """Welcome message displayed when chat starts"""
 
-    log_level: str = "INFO"
-    """Logging level (DEBUG, INFO, WARNING, ERROR)"""
-
-    log_file: Optional[str] = None
-    """Log file path (None for console only)"""
-
-    # Interactive mode settings
-    welcome_message: str = "=== Multi-Node Hybrid System ===\nType your command (or 'exit' to quit)\n"
-    """Welcome message displayed when interactive mode starts"""
-
-    exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit"])
-    """Commands that will exit the interactive loop"""
+    exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit", "bye", "goodbye"])
+    """Commands that will exit the chat loop"""
 
     prompt_prefix: str = "You: "
     """Prefix displayed before user input"""
 
-    show_status_on_start: bool = True
-    """Whether to show system status when starting"""
+    # Error handling settings
+    error_prefix: str = "⚠️ Error: "
+    """Prefix for error messages"""
+
+    show_errors: bool = True
+    """Whether to show error messages to user"""
+
+    max_retries: int = 3
+    """Maximum number of retries on error before giving up"""
+
+    retry_delay: float = 1.0
+    """Delay in seconds between retries"""
+
+    # Advanced settings
+    start_orchestrator: bool = True
+    """Whether to start the orchestrator automatically (default: True)"""
+
+    stop_orchestrator: bool = True
+    """Whether to stop the orchestrator automatically on exit (default: True)"""
+
+    clear_screen_on_start: bool = False
+    """Whether to clear screen when chat starts"""
+
+    show_goodbye: bool = True
+    """Whether to show goodbye message on exit"""
+
+    goodbye_message: str = "\nGoodbye! Orchestration session ended."
+    """Goodbye message displayed when chat ends"""
 
     # Callback hooks
     on_start: Optional[Callable[[], None]] = None
-    """Callback function called when system starts"""
+    """Callback function called when chat loop starts"""
 
     on_exit: Optional[Callable[[], None]] = None
-    """Callback function called when system exits"""
+    """Callback function called when chat loop exits"""
 
     on_error: Optional[Callable[[Exception], None]] = None
     """Callback function called when an error occurs"""
 
-    def _setup_logging(self) -> None:
-        """Setup logging configuration."""
-        if self.enable_logging:
-            log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            if self.log_file:
-                logging.basicConfig(
-                    level=getattr(logging, self.log_level.upper()),
-                    format=log_format,
-                    filename=self.log_file,
-                    filemode="w",
-                )
-            else:
-                logging.basicConfig(level=getattr(logging, self.log_level.upper()), format=log_format)
+    def _clear_screen(self) -> None:
+        """Clear the terminal screen."""
+        import os
+
+        os.system("cls" if os.name == "nt" else "clear")
 
     async def run_async(self) -> None:
         """
-        Run the multi-node hybrid system asynchronously with comprehensive error handling.
-
-        This method handles the complete system lifecycle:
-        1. Sets up logging
-        2. Calls on_start callback if provided
-        3. Starts the multi-node system
-        4. Displays system status if configured
-        5. Runs the interactive loop with error recovery
-        6. Calls on_exit callback if provided
-        7. Stops the system cleanly on exit
+        Run the chat loop asynchronously with comprehensive error handling.
         """
         try:
-            # Setup logging
-            self._setup_logging()
+            # Clear screen if configured
+            if self.clear_screen_on_start:
+                self._clear_screen()
 
             # Call on_start callback if provided
             if self.on_start:
@@ -142,115 +129,87 @@ class OrchestratorChatConfig:
                 except Exception as e:
                     print(f"Warning: on_start callback failed: {e}")
 
-            # Start all nodes
-            print("\n[*] Starting all nodes...")
-            await self.system.start_all()
-            print("[+] All nodes started successfully!")
-
-            # Display status if configured
-            if self.show_status_on_start:
-                status = self.system.get_system_status()
-                print("\n[*] System Status:")
-                print(f"  Total Nodes: {status['total_nodes']}")
-                print(f"  Running: {status['is_running']}")
-
-                for node_id, node_status in status["nodes"].items():
-                    print(f"\n  Node: {node_status['node_name']} (ID: {node_id})")
-                    print(f"    - Context: {node_status['context_name']}")
-                    print(f"    - Agents: {node_status['total_agents']}")
-                    print(f"    - Main Agent: {node_status['main_agent']}")
-                    print(f"    - Sub-Agents: {', '.join(node_status['sub_agents'])}")
-                    print(f"    - Resources: {node_status['resources']}")
+            # Start the orchestrator if configured
+            if self.start_orchestrator:
+                try:
+                    print(f"\n[*] Starting {self.orchestrator.context_name}...")
+                    await self.orchestrator.start()
+                    print(f"[+] Orchestrator '{self.orchestrator.main_agent.name}' is ready.")
+                except Exception as e:
+                    print(f"{self.error_prefix}Failed to start orchestrator: {e}")
+                    if self.on_error:
+                        self.on_error(e)
+                    return
 
             # Display welcome message
             print(f"\n{self.welcome_message}")
-            print("Commands:")
-            status = self.system.get_system_status()
-            for node_id in status["nodes"].keys():
-                print(f"  - '{node_id} <task>' - Execute task on {node_id}")
-            print("  - 'broadcast <task>' - Broadcast task to all nodes")
-            print("  - 'status' - Show system status")
-            print("  - 'exit' - Quit")
-            print("=" * 60 + "\n")
 
-            # Interactive loop
+            # Chat loop with error recovery
+            retry_count = 0
             while True:
                 try:
+                    # Get user input
                     user_input = input(self.prompt_prefix).strip()
 
+                    # Check for exit commands
+                    if user_input.lower() in self.exit_commands:
+                        break
+
+                    # Skip empty input
                     if not user_input:
                         continue
 
-                    # Handle exit commands
-                    if user_input.lower() in self.exit_commands:
-                        print("\n[*] Ending session...")
-                        break
+                    # Send message and get response with retry logic
+                    response = await self._send_message_with_retry(user_input)
 
-                    # Handle status command
-                    if user_input.lower() == "status":
-                        status = self.system.get_system_status()
-                        print("\n\033[93mSystem Status:\033[0m")
-                        print(f"  Running: {status['is_running']}")
-                        print(f"  Total Nodes: {status['total_nodes']}")
-                        for node_id, node_status in status["nodes"].items():
-                            print(f"  - {node_id}: {node_status['total_agents']} agents")
-                        continue
+                    # Robustly parse the response if it contains JSON
+                    final_display = response
+                    if response:
+                        parsed = self._extract_json(response)
+                        if parsed and isinstance(parsed, dict) and "answer" in parsed:
+                            ans = parsed["answer"]
+                            # answer must be a string — convert if LLM returned a list/dict
+                            final_display = ans if isinstance(ans, str) else json.dumps(ans, ensure_ascii=False)
 
-                    # Handle broadcast command
-                    if user_input.lower().startswith("broadcast "):
-                        task = user_input[10:].strip()
-                        print("\n\033[92mBroadcasting to all nodes...\033[0m")
-                        results = await self.system.broadcast_task(task)
-                        # Display response only if streaming is disabled
-                        # (when streaming is enabled, tokens are already printed as they arrive)
+                    # When stream=True the agent already printed the answer via
+                    # _stream_final_answer() inside execute_task. Only print here
+                    # when stream=False.
+                    if final_display:
+                        from daie.core.llm_manager import get_llm_config
+
                         cfg = get_llm_config()
                         if not cfg.stream:
-                            print("\n\033[93mBroadcast Results:\033[0m")
-                            for node_id, result in results.items():
-                                print(f"\n  {node_id}:")
-                                print(f"  {result}\n")
-                        continue
+                            print(f"\n{final_display}\n")
 
-                    # Handle node-specific commands
-                    handled = False
-                    status = self.system.get_system_status()
-                    for node_id in status["nodes"].keys():
-                        if user_input.lower().startswith(f"{node_id} "):
-                            task = user_input[len(node_id) + 1:].strip()
-                            print(f"\n\033[92mExecuting on {node_id}...\033[0m")
-                            result = await self.system.execute_task(node_id, task)
-                            # Display response only if streaming is disabled
-                            # (when streaming is enabled, tokens are already printed as they arrive)
-                            cfg = get_llm_config()
-                            if not cfg.stream:
-                                print(f"\n\033[93m{node_id} Result:\033[0m")
-                                print(f"{result}\n")
-                            handled = True
-                            break
-
-                    if handled:
-                        continue
-
-                    # Default: show help
-                    print("\n\033[93mUnknown command. Available commands:\033[0m")
-                    for node_id in status["nodes"].keys():
-                        print(f"  - '{node_id} <task>' - Execute on {node_id}")
-                    print("  - 'broadcast <task>' - Broadcast to all nodes")
-                    print("  - 'status' - Show system status")
-                    print("  - 'exit' - Quit")
+                    # Reset retry count on successful interaction
+                    retry_count = 0
 
                 except KeyboardInterrupt:
-                    print("\n\n[*] Interrupted by user. Type 'exit' to quit.")
-                    continue
+                    print("\n\nExiting chat loop...")
+                    break
+                except EOFError:
+                    print("\n\nInput stream closed. Exiting...")
+                    break
                 except Exception as e:
-                    print(f"\n\033[91mError:\033[0m {e}")
-                    logging.error(f"Error in main loop: {e}", exc_info=True)
+                    retry_count += 1
+                    if retry_count >= self.max_retries:
+                        print(f"{self.error_prefix}Maximum retries reached. Exiting...")
+                        if self.on_error:
+                            self.on_error(e)
+                        break
+
+                    if self.show_errors:
+                        print(f"{self.error_prefix}{e}")
+                        print(f"Retrying... ({retry_count}/{self.max_retries})")
+
                     if self.on_error:
                         self.on_error(e)
 
+                    # Wait before retry
+                    await asyncio.sleep(self.retry_delay)
+
         except Exception as e:
-            print(f"\n\033[91mFatal error:\033[0m {e}")
-            logging.error(f"Fatal error in hybrid system: {e}", exc_info=True)
+            print(f"{self.error_prefix}Fatal error in chat loop: {e}")
             if self.on_error:
                 self.on_error(e)
 
@@ -262,97 +221,95 @@ class OrchestratorChatConfig:
                 except Exception as e:
                     print(f"Warning: on_exit callback failed: {e}")
 
-            # Stop the system
-            print("\n[*] Shutting down multi-node system...")
-            try:
-                await self.system.stop_all()
-                print("[+] Multi-node system stopped successfully.")
-            except Exception as e:
-                print(f"\033[91mError stopping system:\033[0m {e}")
+            # Stop the orchestrator if configured
+            if self.stop_orchestrator:
+                try:
+                    print(f"\n[*] Shutting down {self.orchestrator.context_name}...")
+                    await self.orchestrator.stop()
+                except Exception as e:
+                    print(f"{self.error_prefix}Failed to stop orchestrator: {e}")
 
-            print("\n[*] Demo completed. Goodbye!")
+            # Show goodbye message if configured
+            if self.show_goodbye:
+                print(self.goodbye_message)
+
+    async def _send_message_with_retry(self, user_input: str) -> str:
+        """
+        Send message to orchestrator with retry logic.
+        """
+        last_error = None
+
+        for attempt in range(self.max_retries):
+            try:
+                # Use execute_task for Orchestrator
+                response = await self.orchestrator.execute_task(user_input)
+
+                # Handle error responses
+                if isinstance(response, str) and response.startswith("Error:"):
+                    if self.show_errors:
+                        print(f"{self.error_prefix}{response}")
+                    return ""
+
+                return str(response)
+
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(self.retry_delay)
+
+        # All retries failed
+        raise last_error
+
+    def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
+        """Extract the first valid JSON object from text."""
+        import json
+        # Strip code fences
+        text = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
+
+        def try_parse(s):
+            try:
+                return json.loads(s)
+            except:
+                return None
+
+        # Try whole string
+        res = try_parse(text)
+        if res: return res
+
+        # Search for first { } block
+        search_from = 0
+        while True:
+            start = text.find("{", search_from)
+            if start == -1: break
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == "{": depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidate = text[start : i + 1]
+                        res = try_parse(candidate)
+                        if res: return res
+                        break
+            search_from = start + 1
+        return None
 
     def run(self) -> None:
         """
-        Run the multi-node hybrid system synchronously.
-
-        This is the main entry point for users. Simply call this method
-        to start the interactive multi-node hybrid system.
-
-        Features:
-        - Accepts an already-created MultiNodeHybridSystem externally
-        - Creating a MultiNodeHybridSystem with multiple hybrid nodes
-        - Configuring different orchestrators on each node
-        - Connecting nodes for P2P communication
-        - Executing tasks on specific nodes
-        - Broadcasting tasks to all nodes
-        - Cross-node collaboration
-
-        Example:
-        >>> from daie import Agent, AgentConfig
-        >>> from daie.core.hybrid import MultiNodeHybridSystem
-        >>> from daie.chat import OrchestratorChatConfig
-        >>>
-        >>> system = MultiNodeHybridSystem()
-        >>>
-        >>> research_node = system.create_node(
-        ...     node_id="research-lab",
-        ...     node_name="AI Research Lab",
-        ...     context_name="Research Lab",
-        ...     main_role="Professor",
-        ...     sub_role="Researcher"
-        ... )
-        >>>
-        >>> professor = Agent(config=AgentConfig(name="Professor", ...))
-        >>> research_node.set_main_agent(professor)
-        >>>
-        >>> config = OrchestratorChatConfig(system=system)
-        ... config.run()
+        Run the chat loop synchronously.
         """
         try:
             asyncio.run(self.run_async())
         except KeyboardInterrupt:
-            print("\n\nMulti-node hybrid system interrupted by user.")
+            print("\n\nChat loop interrupted by user.")
         except Exception as e:
             print(f"\n\nFatal error: {e}")
             import sys
-
             sys.exit(1)
 
     @classmethod
-    def quick_start(cls, system: MultiNodeHybridSystem, **kwargs) -> "OrchestratorChatConfig":
+    def quick_start(cls, orchestrator: Orchestrator, **kwargs) -> "OrchestratorChatConfig":
         """
         Quick start method for simple use cases.
-
-        This is the simplest way to start a multi-node hybrid system. Just pass
-        the system and optionally override any settings.
-
-        Args:
-            system: The MultiNodeHybridSystem instance to run
-            **kwargs: Optional settings to override
-
-        Returns:
-            OrchestratorChatConfig instance ready to run
-
-        Example:
-        >>> from daie import Agent, AgentConfig
-        >>> from daie.core.hybrid import MultiNodeHybridSystem
-        >>> from daie.chat import OrchestratorChatConfig
-        >>>
-        >>> system = MultiNodeHybridSystem()
-        >>>
-        >>> research_node = system.create_node(
-        ...     node_id="research-lab",
-        ...     node_name="AI Research Lab",
-        ...     context_name="Research Lab",
-        ...     main_role="Professor",
-        ...     sub_role="Researcher"
-        ... )
-        >>>
-        >>> professor = Agent(config=AgentConfig(name="Professor", ...))
-        >>> research_node.set_main_agent(professor)
-        >>>
-        >>> # One-liner to start multi-node system!
-        >>> OrchestratorChatConfig.quick_start(system=system).run()
         """
-        return cls(system=system, **kwargs)
+        return cls(orchestrator=orchestrator, **kwargs)

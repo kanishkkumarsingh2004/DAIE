@@ -27,9 +27,9 @@ class Orchestrator:
         self,
         main_agent: "Agent",
         sub_agents: List["Agent"],
-        context_name: str = "Classroom",
-        main_role: str = "Teacher",
-        sub_role: str = "Student",
+        context_name: str = "Team Collaboration",
+        main_role: str = "Coordinator",
+        sub_role: str = "Specialist",
         comm_manager: Optional[CommunicationManager] = None,
     ):
         self.main_agent = main_agent
@@ -61,14 +61,36 @@ class Orchestrator:
         )
         main_sys_prompt = (
             f"{self.main_agent.config.system_prompt}\n\n"
-            f"You are the {self.main_role.upper()} in a {self.context_name}. Your {self.sub_role.lower()}s are:\n{sub_info}\n\n"
-            "ORCHESTRATION RULES:\n"
-            '1. If the user input is a greeting (like \'hi\', \'hello\', \'how are you\'), DO NOT delegate to others. Respond directly with a friendly greeting using {"thought":"reason", "answer":"..."}.\n'
-            f"2. For tasks required specialized work, break them down and delegate sub-tasks to {self.sub_role.lower()}s individually.\n"
-            "3. To delegate to a sub-agent, you MUST use the tool 'a2a_delegate_task' with parameters 'target_agent_id' and 'task_payload'.\n"
-            '4. Example tool call: {"thought":"Delegating work", "tool":"a2a_delegate_task", "params":{"target_agent_id":"agent_id", "task_payload":{"task":"Specific task description"}}}\n'
-            "5. After receiving answers, combine them into a final response.\n"
-            "6. FINAL ANSWER FORMAT: Your final response MUST be a clear, professional, and well-structured string in the 'answer' field. DO NOT use sub-agent names to refer to the user (the user is your supervisor/client). DO NOT output raw JSON in the answer field itself."
+            "╔══════════════════════════════════════════════════════════════╗\n"
+            f"║  ORCHESTRATION CONTEXT: {self.context_name:<37}║\n"
+            "╚══════════════════════════════════════════════════════════════╝\n\n"
+            f"Your Role    : {self.main_role.upper()} — You are the lead coordinator responsible for\n"
+            f"               understanding user requests, delegating work to your team,\n"
+            f"               and synthesizing their outputs into a single coherent response.\n\n"
+            f"Your Team ({self.sub_role.lower()}s):\n"
+            f"{sub_info}\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "RESPONSE PROTOCOL\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "You MUST respond with exactly ONE valid JSON object. No other text.\n\n"
+            "SCENARIO A — Direct response (greetings, simple questions, status updates):\n"
+            '  {"thought": "This is a simple question I can answer directly.", "answer": "Your complete plain-text response."}\n\n'
+            f"SCENARIO B — Delegation required (tasks needing a {self.sub_role.lower()}'s expertise):\n"
+            "  Step 1 — Delegate the task:\n"
+            '  {"thought": "This requires Luna\'s expertise. I will delegate.", "tool": "a2a_delegate_task", "params": {"target_agent_id": "<exact_agent_id>", "task_payload": {"task": "<clear task description>"}}}\n\n'
+            "  Step 2 — After receiving the tool result, synthesize and respond:\n"
+            '  {"thought": "Luna has completed the task. I will now present her findings.", "answer": "Based on the work completed: <incorporate agent_response here as natural prose>"}\n\n'
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "STRICT RULES — VIOLATIONS WILL CAUSE ERRORS\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            '1. The "answer" field MUST always be a plain text string.\n'
+            '   ✗ WRONG : {"answer": {"data": "..."}}\n'
+            '   ✗ WRONG : {"answer": [{"name": "Luna"}]}\n'
+            '   ✓ CORRECT: {"answer": "The team consists of Luna and Alex."}\n\n'
+            '2. After every tool call, you MUST follow up with an {"answer": "..."} in the next step.\n'
+            '3. NEVER return null. NEVER leave "answer" empty or undefined.\n'
+            "4. Use the EXACT agent IDs listed above when calling a2a_delegate_task.\n"
+            "5. Do not address the user by a team member's name."
         )
         self.main_agent.config.system_prompt = main_sys_prompt
 
@@ -78,18 +100,34 @@ class Orchestrator:
             others_info = "\n".join([f"- {s.name} (ID: {s.id})" for s in other_subs])
             sub_sys_prompt = (
                 f"{sub_agent.config.system_prompt}\n\n"
-                f"You are a {self.sub_role.upper()} in a {self.context_name}. Your {self.main_role.lower()} is {self.main_agent.name} (ID: {self.main_agent.id}).\n"
-                f"Other {self.sub_role.lower()}s in the {self.context_name} are:\n{others_info if others_info else '(None)'}\n\n"
-                f"You should follow instructions from the {self.main_role.lower()}. "
-                "You can discuss with others using 'a2a_send_message' if it helps solve the task."
+                "╔══════════════════════════════════════════════════════════════╗\n"
+                f"║  TEAM CONTEXT: {self.context_name:<47}║\n"
+                "╚══════════════════════════════════════════════════════════════╝\n\n"
+                f"Your Role      : {self.sub_role.upper()} — You are a specialist team member responsible\n"
+                f"                 for executing tasks assigned to you by your {self.main_role.lower()}.\n\n"
+                f"Your {self.main_role.capitalize()}: {self.main_agent.name} (ID: {self.main_agent.id})\n"
+                f"Your Colleagues:\n"
+                f"{others_info if others_info else '  (You are the only specialist on this team.)'}\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "EXECUTION GUIDELINES\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"- When you receive a task from {self.main_agent.name}, execute it thoroughly and professionally.\n"
+                "- Provide complete, well-structured responses — your output will be presented to the end user.\n"
+                "- Be specific, accurate, and detailed. Avoid vague or placeholder responses.\n"
+                "- If you cannot complete a task, clearly explain why and what information you would need.\n"
+                f"- Collaborate proactively with {self.main_agent.name} and your colleagues to achieve the best outcome."
             )
             sub_agent.config.system_prompt = sub_sys_prompt
 
         # Start main agent
         await self.main_agent.start(communication_manager=self.comm_manager)
 
-        # Start sub-agents
-        start_tasks = [sub_agent.start(communication_manager=self.comm_manager) for sub_agent in self.sub_agents]
+        # Start sub-agents — agent.start() auto-creates memory manager when
+        # persistent_memory=True is set in the agent's config
+        start_tasks = [
+            sub_agent.start(communication_manager=self.comm_manager)
+            for sub_agent in self.sub_agents
+        ]
         await asyncio.gather(*start_tasks)
 
         self._is_running = True

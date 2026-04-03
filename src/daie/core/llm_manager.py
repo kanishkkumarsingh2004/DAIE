@@ -45,7 +45,6 @@ class LLMManager:
     """
 
     _instance = None
-    _initialized = False
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -496,6 +495,7 @@ class LLMManager:
 
             def __init__(self, config: LLMConfig):
                 self.config = config
+                self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
             def invoke(self, prompt: str, stream: Optional[bool] = None, **kwargs) -> str:
                 """

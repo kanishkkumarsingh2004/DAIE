@@ -140,11 +140,29 @@ class A2ADelegateTaskTool(Tool):
             # Wait for response with timeout
             response_content = await asyncio.wait_for(future, timeout=30.0)
 
+            # Log the delegation and result in the calling agent's memory
+            if hasattr(self._agent_ref, "memory_manager") and self._agent_ref.memory_manager:
+                task_summary = str(task_payload)[:200]
+                self._agent_ref.memory_manager.log_chat_history(
+                    self._agent_ref.id,
+                    f"[Delegated to {target_agent_id}]: {task_summary}"
+                )
+                self._agent_ref.memory_manager.log_chat_history(
+                    self._agent_ref.id,
+                    f"[Response from {target_agent_id}]: {str(response_content)[:500]}"
+                )
+                self._agent_ref.memory_manager.store_memory(
+                    self._agent_ref.id,
+                    f"Delegated task to {target_agent_id}: {task_summary}. Response: {str(response_content)[:300]}",
+                    memory_type="episodic",
+                    tags=["delegation", target_agent_id],
+                )
+
+            # Return just the sub-agent's response string so the orchestrator LLM
+            # can directly use it without needing to parse a nested dict
             return {
                 "success": True,
-                "result": response_content,
-                "info": f"Task completed by {target_agent_id}.",
-                "mapped_payload": mapped_payload,
+                "agent_response": str(response_content),
             }
         except asyncio.TimeoutError:
             self._agent_ref._pending_responses.pop(correlation_id, None)

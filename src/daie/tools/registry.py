@@ -123,14 +123,13 @@ class ToolRegistry:
 
         Returns:
             self for method chaining
-
-        Raises:
-            ValueError: If tool with same name already exists
         """
         tool_name = tool.name
 
         if tool_name in self._tools:
-            raise ValueError(f"Tool '{tool_name}' already registered")
+            # Update existing registration silently
+            logger.debug(f"Tool '{tool_name}' already registered, updating")
+            self.unregister(tool_name)
 
         import time
 

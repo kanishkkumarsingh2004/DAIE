@@ -1,61 +1,62 @@
 """
 Decentralized AI Ecosystem Library
-A professional, optimized Python library for creating and managing AI agents with tools
-
-This library provides a high-level API for:
-- Creating and configuring AI agents with intelligent tool selection
-- Defining and registering tools with automatic parameter fixing
-- Setting up communication between agents
-- Managing agent memory with efficient persistence
-- Deploying agents with optimized performance
+A professional, production-ready Python library for building autonomous AI agents
+with tool use, multi-agent orchestration, P2P networking, and persistent memory.
 
 Example usage:
 >>> from daie import Agent, AgentConfig, set_llm
 >>> from daie.agents import AgentRole
 
-# Configure LLM (default: llama3.2:latest from Ollama with session pooling)
 >>> set_llm(ollama_llm="llama3.2:latest")
-
-# Create an agent with configuration
->>> config = AgentConfig(
-...     name="MyAgent",
-...     role=AgentRole.GENERAL_PURPOSE,
-...     task_timeout=30,
-...     max_concurrent_tasks=10
-... )
->>> agent = Agent(config=config)
-
-# Start the agent (initializes task queue)
+>>> agent = Agent(config=AgentConfig(name="MyAgent", role=AgentRole.GENERAL_PURPOSE))
 >>> await agent.start()
-
-# Execute tasks with natural language
->>> result = await agent.execute_task("Say hello to Alice")
+>>> result = await agent.execute_task("Say hello")
+>>> await agent.stop()
 """
 
 __version__ = "1.0.5"
+__author__ = "Kanishk Kumar Singh"
+__email__ = "kanishkkumar2004@gmail.com"
+__license__ = "MIT"
 
-from daie.agents import (Agent, AgentConfig, AgentMessage, AgentRole)
+from daie.agents import Agent, AgentConfig, AgentMessage, AgentRole
 from daie.cli import cli
-from daie.core import (DecentralizedAISystem, HybridOrchestratorNode,
-                       LLMConfig, LLMManager, LLMType, MultiNodeHybridSystem,
-                       Node, Orchestrator, get_llm, get_llm_config, reset_llm_config,
-                       set_llm)
+from daie.core import (
+    DecentralizedAISystem,
+    HybridOrchestratorNode,
+    LLMConfig,
+    LLMManager,
+    LLMType,
+    MultiNodeHybridSystem,
+    Node,
+    Orchestrator,
+    get_llm,
+    get_llm_config,
+    reset_llm_config,
+    set_llm,
+)
 from daie.tools import Tool, ToolRegistry
 
 __all__ = [
     "__version__",
+    "__author__",
+    "__license__",
+    # Agents
     "Agent",
     "AgentConfig",
     "AgentRole",
     "AgentMessage",
+    # Orchestration
     "Orchestrator",
-    "Tool",
-    "ToolRegistry",
-    "DecentralizedAISystem",
-    "Node",
     "HybridOrchestratorNode",
     "MultiNodeHybridSystem",
-    "cli",
+    # Tools
+    "Tool",
+    "ToolRegistry",
+    # System
+    "DecentralizedAISystem",
+    "Node",
+    # LLM
     "set_llm",
     "get_llm",
     "get_llm_config",
@@ -63,4 +64,6 @@ __all__ = [
     "LLMManager",
     "LLMConfig",
     "LLMType",
+    # CLI
+    "cli",
 ]

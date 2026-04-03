@@ -217,8 +217,10 @@ class NodeChatConfig:
                         except Exception:
                             pass
 
-                    # Display response only if streaming is disabled
-                    # (when streaming is enabled, tokens are already printed as they arrive)
+                    # Always print — execute_task never streams, so nothing
+                    # has been printed to stdout yet regardless of stream setting
+                    from daie.core.llm_manager import get_llm_config
+
                     cfg = get_llm_config()
                     if not cfg.stream:
                         print("\n\033[93mFinal Answer:\033[0m")

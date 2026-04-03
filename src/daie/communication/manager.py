@@ -442,18 +442,8 @@ class CommunicationManager:
 
     async def _send_message_internal(self, message: AgentMessage):
         """Internal message sending implementation with routing support"""
-        # Use a simple in-memory communication
-        if not hasattr(self, "_inbox"):
-            self._inbox = {}
-
-        if message.receiver_id not in self._inbox:
-            self._inbox[message.receiver_id] = []
-
-        # Store message in inbox for testing
-        self._inbox[message.receiver_id].append(message)
-
         if message.receiver_id in self._agents:
-            # Direct agent-to-agent communication
+            # Direct agent-to-agent communication (same process)
             receiver = self._agents[message.receiver_id]
 
             # --- Authorization Check ---
@@ -472,15 +462,11 @@ class CommunicationManager:
             # Audit log for message receive
             self._audit_log("MESSAGE_RECEIVE", message)
 
-            # Run handler safely
-            import inspect
-
             result = receiver._handle_message(message)
-            if inspect.iscoroutine(result) or inspect.isawaitable(result):
+            if asyncio.iscoroutine(result):
                 await result
         else:
             # Try to dispatch over the network via P2P HTTP
-            # First check if sender has direct connection to receiver
             sender_node = self.registry.get_node(message.sender_id)
             receiver_node = self.registry.get_node(message.receiver_id)
 
@@ -496,11 +482,9 @@ class CommunicationManager:
                     direct_url = sender_connections[message.receiver_id]
 
             if direct_url:
-                # Direct connection exists
                 logger.info(f"Sending message directly to {message.receiver_id} at {direct_url}")
                 self._track_task(asyncio.create_task(self._send_remote_message(message, direct_url)))
             elif receiver_node.get("network_url"):
-                # Try direct URL from receiver node
                 network_url = receiver_node["network_url"]
                 logger.info(f"Routing message to remote agent {message.receiver_id} at {network_url}")
                 self._track_task(asyncio.create_task(self._send_remote_message(message, network_url)))
@@ -508,27 +492,22 @@ class CommunicationManager:
                 # Try to find a route through intermediate nodes
                 route = self.registry.find_route(message.sender_id, message.receiver_id)
                 if route and len(route) > 1:
-                    # Route through intermediate node
-                    next_hop = route[1]  # First hop after sender
+                    next_hop = route[1]
                     next_hop_node = self.registry.get_node(next_hop)
                     if next_hop_node:
-                        # Get URL for next hop
                         next_hop_url = None
                         if sender_node:
                             sender_connections = sender_node.get("network_connections", {})
                             next_hop_url = sender_connections.get(next_hop)
-
                         if not next_hop_url:
                             next_hop_url = next_hop_node.get("network_url")
-
                         if next_hop_url:
                             logger.info(
                                 f"Routing message to {message.receiver_id} via intermediate node {next_hop} at {next_hop_url}"
                             )
-                            # Add routing metadata
                             message.metadata["route"] = route
                             message.metadata["final_destination"] = message.receiver_id
-                            message.receiver_id = next_hop  # Send to next hop
+                            message.receiver_id = next_hop
                             self._track_task(asyncio.create_task(self._send_remote_message(message, next_hop_url)))
                             return
 
@@ -598,7 +577,7 @@ class CommunicationManager:
 
     async def broadcast_message(self, message: AgentMessage) -> int:
         """
-        Broadcast a message to all connected agents
+        Broadcast a message to all registered agents except the sender.
 
         Args:
             message: Message to broadcast
@@ -608,24 +587,22 @@ class CommunicationManager:
         """
         count = 0
 
-        # Store the broadcast message in each agent's inbox
-        if not hasattr(self, "_inbox"):
-            self._inbox = {}
+        for agent_id, agent in self._agents.items():
+            if agent_id == message.sender_id:
+                continue
 
-        # Send to all agents (including those not registered) for testing purposes
-        for agent_id in ["agent2", "agent3"]:
-            if agent_id != message.sender_id:
-                if agent_id not in self._inbox:
-                    self._inbox[agent_id] = []
-                broadcast_msg = AgentMessage(
-                    sender_id=message.sender_id,
-                    receiver_id=agent_id,
-                    content=message.content,
-                    message_type=message.message_type,
-                    metadata=message.metadata,
-                )
-                self._inbox[agent_id].append(broadcast_msg)
+            broadcast_msg = AgentMessage(
+                sender_id=message.sender_id,
+                receiver_id=agent_id,
+                content=message.content,
+                message_type=message.message_type,
+                metadata=dict(message.metadata),
+            )
+            try:
+                await self._send_message_internal(broadcast_msg)
                 count += 1
+            except Exception as e:
+                logger.error(f"Failed to broadcast to agent {agent_id}: {e}")
 
         logger.debug(f"Broadcast message sent to {count} agents")
         return count
@@ -640,13 +617,10 @@ class CommunicationManager:
             # Check if this message is being routed through this node
             final_destination = message.metadata.get("final_destination")
             if final_destination and final_destination != agent_id:
-                # This message needs to be forwarded to final destination
                 logger.info(
                     f"Forwarding message from {message.sender_id} to final destination {final_destination} via {agent_id}"
                 )
-                # Update receiver_id to final destination and send
                 message.receiver_id = final_destination
-                # Remove routing metadata to prevent loops
                 message.metadata.pop("final_destination", None)
                 message.metadata.pop("route", None)
                 self._track_task(asyncio.create_task(self.send_message(message)))
@@ -661,11 +635,10 @@ class CommunicationManager:
 
             with TraceContextManager(message.metadata):
                 agent = self._agents[agent_id]
-                import inspect
-
-                result = agent._handle_message(message)
-                if inspect.iscoroutine(result) or inspect.isawaitable(result):
-                    self._track_task(asyncio.create_task(result))
+                # Always schedule via create_task — agent._handle_message is async
+                # and handles task vs non-task internally (task messages are awaited
+                # directly inside _handle_message to ensure timely reply)
+                self._track_task(asyncio.create_task(agent._handle_message(message)))
         except Exception as e:
             logger.error(f"Error handling message for agent {agent_id}: {e}")
             self._audit_log("MESSAGE_RECEIVE_ERROR", message, str(e))
@@ -856,22 +829,12 @@ class CommunicationManager:
 
     def receive_messages(self, agent_id: str) -> List[AgentMessage]:
         """
-        Receive messages for a specific agent
+        Receive messages for a specific agent (returns empty list — delivery is push-based via _handle_message)
 
         Args:
             agent_id: Agent ID to receive messages for
 
         Returns:
-            List of messages received
+            Empty list (messages are delivered directly to agents via _handle_message)
         """
-        # Track messages in memory
-        if not hasattr(self, "_inbox"):
-            self._inbox = {}
-
-        if agent_id not in self._inbox:
-            self._inbox[agent_id] = []
-
-        messages = self._inbox[agent_id]
-        # Clear the inbox after reading
-        self._inbox[agent_id] = []
-        return messages
+        return []

@@ -252,12 +252,12 @@ class ChatLoopConfig:
                 response = await self.agent.send_message(user_input)
 
                 # Handle error responses from agent
-                if response.startswith("Error:"):
+                if isinstance(response, str) and response.startswith("Error:"):
                     if self.show_errors:
                         print(f"{self.error_prefix}{response}")
                     return ""
 
-                return response
+                return str(response) if response is not None else ""
 
             except Exception as e:
                 last_error = e

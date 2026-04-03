@@ -338,13 +338,13 @@ class HybridOrchestratorNode:
         # Start the node
         await self.node.start()
 
-        # Start all agents
-        for agent in self.all_agents:
-            await agent.start(communication_manager=self.comm_manager)
-
-        # Start the orchestrator
+        # Start the orchestrator (which starts main_agent + sub_agents internally)
         if self.orchestrator:
             await self.orchestrator.start()
+        else:
+            # Fallback: start all agents directly if no orchestrator
+            for agent in self.all_agents:
+                await agent.start(communication_manager=self.comm_manager)
 
         # Create intelligent router if enabled
         if self.enable_router and self.all_agents:

@@ -46,12 +46,12 @@ class NodeRegistry:
 
     def __init__(
         self,
-        registry_file: str = "node_registry.json",
+        registry_file: str = None,
         enable_mdns: bool = True,
         enable_dht: bool = False,
         dht_port: int = 8468,
     ):
-        # We can store the registry in the same config path if available
+        # Use None to disable file persistence by default (in-memory only)
         self.registry_file = registry_file
         self._nodes: Dict[str, Dict[str, Any]] = {}
 
@@ -85,7 +85,7 @@ class NodeRegistry:
                 self._start_dht_sync()
 
     def _load_registry(self):
-        if os.path.exists(self.registry_file):
+        if self.registry_file and os.path.exists(self.registry_file):
             try:
                 with open(self.registry_file, "r", encoding="utf-8") as f:
                     self._nodes = json.load(f)
@@ -94,6 +94,8 @@ class NodeRegistry:
                 self._nodes = {}
 
     def _save_registry(self):
+        if not self.registry_file:
+            return  # In-memory only, no persistence
         try:
             with open(self.registry_file, "w", encoding="utf-8") as f:
                 json.dump(self._nodes, f, indent=4, default=str)

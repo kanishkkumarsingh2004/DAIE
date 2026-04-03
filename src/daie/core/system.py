@@ -157,8 +157,8 @@ class DecentralizedAISystem:
             # Initialize communication manager
             await self.communication_manager.start()
 
-            # Initialize memory manager
-            await self.memory_manager.start()
+            # Initialize memory manager (sync)
+            self.memory_manager.start()
 
             # Start all agents
             for agent in self.agents.values():
@@ -206,27 +206,28 @@ class DecentralizedAISystem:
 
         logger.info("Stopping Decentralized AI System...")
 
+        # Mark as stopped first to prevent re-entrant calls
+        self._is_running = False
+
         try:
             # Stop all agents
             for agent in self.agents.values():
-                await agent.stop()
+                try:
+                    await agent.stop()
+                except Exception as e:
+                    logger.error(f"Error stopping agent {agent.name}: {e}")
 
             # Stop memory manager
-            await self.memory_manager.stop()
+            try:
+                self.memory_manager.stop()
+            except Exception as e:
+                logger.error(f"Error stopping memory manager: {e}")
 
             # Stop communication manager
-            await self.communication_manager.stop()
-
-            # Stop event loop
-            if self._loop and self._loop.is_running():
-                try:
-                    # Only stop if we are not in run_until_complete
-                    # self._loop.stop()
-                    pass
-                except Exception:
-                    pass
-
-            self._is_running = False
+            try:
+                await self.communication_manager.stop()
+            except Exception as e:
+                logger.error(f"Error stopping communication manager: {e}")
 
             # Remove PID file
             self._remove_pid_file()

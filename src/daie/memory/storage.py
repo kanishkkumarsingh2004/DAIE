@@ -53,6 +53,10 @@ class StorageBackend(ABC):
     def list_agents(self) -> List[str]:
         """List all agent IDs with stored memories"""
 
+    @abstractmethod
+    def log_history(self, agent_id: str, content: str) -> None:
+        """Log a chat history entry to a human-readable file"""
+
 
 class VectorDatabaseStorage(StorageBackend):
     """
@@ -239,6 +243,9 @@ class VectorDatabaseStorage(StorageBackend):
         except Exception as e:
             logger.error(f"Failed to list agents: {e}")
             return []
+    def log_history(self, agent_id: str, content: str) -> None:
+        """Log to vector database (no-op for history.txt)"""
+        pass
 
     def search_similar(
         self, agent_id: str, query: str, memory_type: Optional[str] = None, limit: int = 10
@@ -338,9 +345,10 @@ class BinaryFileStorage(StorageBackend):
         return os.path.join(agent_dir, "memory.pkl")
 
     def save_agent_memory(self, agent_id: str, memories: Dict[str, List[MemoryItem]]) -> None:
-        """Save agent memory to binary file"""
+        """Save agent memory to binary file using atomic write to prevent corruption"""
         try:
             memory_file = self._get_memory_file(agent_id)
+            tmp_file = memory_file + ".tmp"
 
             # Convert MemoryItem objects to dictionaries for pickling
             data = {}
@@ -357,13 +365,24 @@ class BinaryFileStorage(StorageBackend):
                     for item in items
                 ]
 
-            with open(memory_file, "wb") as f:
+            # Write to temp file first, then atomically rename
+            with open(tmp_file, "wb") as f:
                 pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+                f.flush()
+                os.fsync(f.fileno())
 
-            logger.debug(f"Saved memory for agent {agent_id} to binary file")
+            os.replace(tmp_file, memory_file)
+            logger.debug(f"Saved memory for agent {agent_id} to binary file: {memory_file}")
 
         except Exception as e:
             logger.error(f"Failed to save memory for agent {agent_id}: {e}")
+            # Clean up temp file if it exists
+            tmp_file = self._get_memory_file(agent_id) + ".tmp"
+            if os.path.exists(tmp_file):
+                try:
+                    os.remove(tmp_file)
+                except OSError:
+                    pass
             raise
 
     def load_agent_memory(self, agent_id: str) -> Dict[str, List[MemoryItem]]:
@@ -419,6 +438,20 @@ class BinaryFileStorage(StorageBackend):
             logger.error(f"Failed to list agents: {e}")
             return []
 
+    def log_history(self, agent_id: str, content: str) -> None:
+        """Log a chat history entry to history.txt"""
+        try:
+            agent_dir = self._get_agent_directory(agent_id)
+            history_file = os.path.join(agent_dir, "history.txt")
+            
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(history_file, "a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] {content}\n")
+                
+            logger.debug(f"Logged history for agent {agent_id}")
+        except Exception as e:
+            logger.error(f"Failed to log history for agent {agent_id}: {e}")
+
 
 def create_storage_backend(storage_type: str) -> StorageBackend:
     """
@@ -433,6 +466,10 @@ def create_storage_backend(storage_type: str) -> StorageBackend:
     if storage_type == "vector":
         return VectorDatabaseStorage()
     elif storage_type == "binary":
+        return BinaryFileStorage()
+    elif storage_type == "json":
+        # Fallback to binary for now as JSON backend is not yet implemented
+        logger.warning("JSON storage backend not yet implemented, falling back to binary")
         return BinaryFileStorage()
     else:
         logger.warning(f"Unknown storage type: {storage_type}, using binary as fallback")

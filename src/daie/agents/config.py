@@ -9,14 +9,13 @@ from typing import Any, Dict, List, Literal, Optional
 
 class AgentRole(Enum):
     """Agent role types"""
-
-    GENERAL_PURPOSE = "general-purpose"
-    SPECIALIZED = "specialized"
-    WORKER = "worker"
-    COORDINATOR = "coordinator"
-    ANALYZER = "analyzer"
-    EXECUTOR = "executor"
-
+    GENERAL_PURPOSE = "general-purpose" # Jack-of-all-trades
+    SPECIALIZED = "specialized"         # Focused on one specific niche
+    WORKER = "worker"                   # Task-oriented executor
+    COORDINATOR = "coordinator"         # Manager/Orchestrator
+    ANALYZER = "analyzer"               # Data and logic focused
+    EXECUTOR = "executor"               # Action and tool focused
+    ASSISTANT = "assistant"             # User-centric support (High friendliness)
 
 @dataclass
 class AgentConfig:

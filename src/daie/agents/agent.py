@@ -22,26 +22,60 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 _TOOL_SYSTEM = """\
-You are {name}. {system_prompt}
+You are {name}, a professional AI assistant.
 
-Tools available:
+{system_prompt}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AVAILABLE TOOLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {tools_block}
 
-IMPORTANT: Respond with ONLY a single JSON object, no other text.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESPONSE FORMAT — CRITICAL INSTRUCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST respond with ONLY a single valid JSON object. No prose, no markdown, no explanation outside the JSON.
+
 To call a tool:
-{{"thought":"reason","tool":"tool_name","params":{{...}}}}
+{{"thought": "<your reasoning>", "tool": "<tool_name>", "params": {{<parameters>}}}}
+
 To give a final answer:
-{{"thought":"reason","answer":"your response"}}
+{{"thought": "<your reasoning>", "answer": "<your complete response as a plain string>"}}
+
+Rules:
+- "answer" MUST be a plain text string. Never put JSON, lists, or objects inside "answer".
+- Only call one tool per response.
+- After seeing a tool result, reason about it and either call another tool or give your final "answer".
+- If you cannot complete the task, explain why in the "answer" field.
 """
 
 _TOOL_TURN = """\
-History: {history}
-Task: {user_input}
-JSON:"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONVERSATION HISTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{history}
 
-_TOOL_RESULT_TURN = 'Tool "{tool_name}" result: {result}\nNext JSON:'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CURRENT TASK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{user_input}
 
-_NO_TOOL_SYSTEM = "You are {name}. {system_prompt}"
+Your JSON response:"""
+
+_TOOL_RESULT_TURN = """\
+Tool "{tool_name}" returned the following result:
+{result}
+
+Analyze this result carefully. Now provide your next JSON response \
+(either call another tool or give your final "answer"):"""
+
+_NO_TOOL_SYSTEM = """\
+You are {name}, a professional AI assistant.
+
+{system_prompt}
+
+Respond naturally and helpfully. Be concise, accurate, and professional.\
+"""
 
 
 class Agent:
@@ -99,8 +133,16 @@ class Agent:
                 system_prompt=system_prompt or "You are a helpful AI agent that can assist with various tasks.",
             )
 
-        # Use persistent agent_id from config if provided, otherwise generate a new one
-        self.id = self.config.agent_id or generate_id()
+        # Use persistent agent_id from config if provided.
+        # If persistent_memory is enabled and no explicit agent_id is provided, 
+        # fallback to the agent's name to ensure stable memory directory.
+        if self.config.agent_id:
+            self.id = self.config.agent_id
+        elif self.config.persistent_memory:
+            # Create a filesystem-friendly ID from the name
+            self.id = self.config.name.lower().replace(" ", "_")
+        else:
+            self.id = generate_id()
         self.tools: Dict[str, Any] = {}
         self.tool_registry = ToolRegistry()
         self._is_running = False
@@ -218,20 +260,52 @@ class Agent:
                     lines.append(f"  optional: {opt_str}")
         return "\n".join(lines)
 
-    def _build_system_prompt(self) -> str:
-        prompt_extras = []
-        if getattr(self.config, "gender", None):
-            prompt_extras.append(f"Gender: {self.config.gender}")
-        if getattr(self.config, "personality", None):
-            prompt_extras.append(f"Personality: {self.config.personality}")
-        if getattr(self.config, "behavior", None):
-            prompt_extras.append(f"Behavior: {self.config.behavior}")
+    def _build_persona_context(self) -> str:
+        """Construct a rich, professional persona block injected into the LLM system prompt."""
+        parts = []
 
-        extra_str = "\\n".join(prompt_extras)
+        if self.config.role:
+            role_val = self.config.role.value if hasattr(self.config.role, "value") else str(self.config.role)
+            parts.append(f"Professional Role : {role_val}")
+
+        if self.config.goal:
+            parts.append(f"Primary Objective : {self.config.goal}")
+
+        if self.config.backstory:
+            parts.append(f"Background        : {self.config.backstory}")
+
+        if getattr(self.config, "gender", None):
+            parts.append(f"Gender Identity   : {self.config.gender}")
+            parts.append(
+                f"Identity Directive: You MUST present yourself as {self.config.gender} at all times. "
+                "Never describe yourself as neutral, genderless, or a generic AI assistant."
+            )
+
+        if getattr(self.config, "personality", None):
+            parts.append(f"Personality Traits: {self.config.personality}")
+
+        if getattr(self.config, "behavior", None):
+            parts.append(f"Behavioral Style  : {self.config.behavior}")
+
+        if not parts:
+            return ""
+
+        parts.append(
+            "Persona Compliance: Remain fully in character at all times. "
+            "Do not break persona, acknowledge being an AI, or deviate from the traits above "
+            "unless explicitly instructed to do so as part of your backstory."
+        )
+
+        header = "╔══════════════════════════════════════╗\n║       AGENT PERSONA & IDENTITY       ║\n╚══════════════════════════════════════╝"
+        footer = "═" * 42
+        return f"\n{header}\n" + "\n".join(parts) + f"\n{footer}"
+
+    def _build_system_prompt(self) -> str:
+        """Assemble the full system prompt with persona, instructions, and tool schema."""
+        persona_context = self._build_persona_context()
         base_sys_prompt = (
-            f"{self.config.system_prompt}\\n\\nAgent Persona Traits:\\n{extra_str}"
-            if extra_str
-            else self.config.system_prompt
+            f"{persona_context}\n\n"
+            f"Core Instructions:\n{self.config.system_prompt}"
         )
 
         if self.tools:
@@ -252,6 +326,7 @@ class Agent:
         """
         Extract the first valid JSON object from LLM output.
         Handles code fences, leading prose, and partial wrapping.
+        Also handles non-JSON Thought/Answer formats as a fallback.
         """
         # Strip code fences
         text = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
@@ -286,8 +361,17 @@ class Agent:
                         res = try_parse(candidate)
                         if res:
                             return res
-                        break  # Failed this one, look for next {
+                        break
             search_from = start + 1
+
+        # Fallback: parse plain-text "Thought: ... Answer: ..." or "Answer: ..." formats
+        # that some models emit instead of JSON
+        answer_match = re.search(r"(?:^|\n)\s*(?:Answer|ANSWER|Response|RESPONSE)\s*[:\-]\s*(.+)", text, re.DOTALL)
+        if answer_match:
+            answer_text = answer_match.group(1).strip()
+            thought_match = re.search(r"(?:^|\n)\s*(?:Thought|THOUGHT|Thinking)\s*[:\-]\s*(.+?)(?:\n\s*(?:Answer|ANSWER))", text, re.DOTALL)
+            thought_text = thought_match.group(1).strip() if thought_match else ""
+            return {"thought": thought_text, "answer": answer_text}
 
         return None
 
@@ -331,6 +415,27 @@ class Agent:
         except Exception as exc:
             logger.error(f"Tool '{tool_name}' raised: {exc}", exc_info=True)
             return f"Error executing '{tool_name}': {exc}"
+
+    def _stream_final_answer(self, answer: str) -> None:
+        """
+        Stream a final answer string to stdout word-by-word.
+        Called after the ReAct loop has already computed the answer non-streaming.
+        Gives the user a natural streaming experience for the final response.
+        """
+        import sys
+        import time
+
+        sys.stdout.write(f"\n{self.name}: ")
+        sys.stdout.flush()
+        words = answer.split(" ")
+        for i, word in enumerate(words):
+            sys.stdout.write(word)
+            if i < len(words) - 1:
+                sys.stdout.write(" ")
+            sys.stdout.flush()
+            time.sleep(0.03)
+        sys.stdout.write("\n\n")
+        sys.stdout.flush()
 
     # ── RAG helpers ──────────────────────────────────────────────────────────
 
@@ -404,6 +509,10 @@ class Agent:
 
         # ── natural-language task ──────────────────────────────────────────
         user_input = task_input
+        
+        # Log task input to history.txt if memory manager is available
+        if hasattr(self, "memory_manager") and self.memory_manager:
+            self.memory_manager.log_chat_history(self.id, f"User (Task): {task_input}")
 
         # RAG context retrieval for reasoning loop
         if self.config.enable_rag and self.rag_engine:
@@ -425,12 +534,14 @@ class Agent:
                     system_prompt + "\n\n" + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
                 )
 
-            # Invoke LLM. If streaming is enabled, reasoning is shown too.
+            # Invoke LLM — always non-streaming for the ReAct reasoning loop.
+            # Streaming the reasoning loop would print raw JSON to stdout and
+            # break tool-call parsing. Streaming is only for send_message() chat.
             from daie.core.llm_manager import get_llm_config
 
             raw = self.llm.invoke(
                 full_prompt,
-                stream=self.config.stream or get_llm_config().stream,
+                stream=False,
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
             ).strip()
@@ -458,10 +569,26 @@ class Agent:
             # ── final answer ───────────────────────────────────────────────
             if parsed is None:
                 # LLM returned plain text — treat as final answer
+                from daie.core.llm_manager import get_llm_config as _get_cfg
+                if _get_cfg().stream or self.config.stream:
+                    self._stream_final_answer(raw)
                 return raw
 
             if "answer" in parsed:
-                return parsed["answer"]
+                answer = parsed["answer"]
+                # Ensure answer is always a plain string — LLMs sometimes put
+                # lists or dicts in the answer field
+                if not isinstance(answer, str):
+                    answer = json.dumps(answer, ensure_ascii=False)
+                # Log final answer to history.txt
+                if hasattr(self, "memory_manager") and self.memory_manager:
+                    self.memory_manager.log_chat_history(self.id, f"{self.name}: {answer}")
+                # If streaming is enabled, re-deliver the answer via the LLM
+                # so the user sees real token-by-token output
+                from daie.core.llm_manager import get_llm_config as _get_cfg
+                if _get_cfg().stream or self.config.stream:
+                    self._stream_final_answer(answer)
+                return answer
 
             # ── tool call ─────────────────────────────────────────────────
             tool_name = parsed.get("tool")
@@ -470,6 +597,9 @@ class Agent:
 
             if not tool_name:
                 # LLM gave JSON but no tool/answer key — treat as answer
+                from daie.core.llm_manager import get_llm_config as _get_cfg
+                if _get_cfg().stream or self.config.stream:
+                    self._stream_final_answer(raw)
                 return raw
 
             logger.info(f"Agent '{self.name}' → tool '{tool_name}' | thought: {thought}")
@@ -485,13 +615,18 @@ class Agent:
             system_prompt
             + "\n\n"
             + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
-            + "\nYou have reached the tool call limit. Summarise what you found and give a final answer."
+            + "\n\nNote: You have reached the maximum number of tool calls allowed for this task. "
+            "Based on all the information gathered so far, provide a comprehensive final answer. "
+            "Summarise what was accomplished and what the outcome is."
         )
         raw = self.llm.invoke(
             summary_prompt, stream=False, temperature=self.config.temperature, max_tokens=self.config.max_tokens
         ).strip()
         parsed = self._parse_llm_json(raw)
-        return (parsed or {}).get("answer", raw)
+        answer = (parsed or {}).get("answer", raw)
+        if not isinstance(answer, str):
+            answer = json.dumps(answer, ensure_ascii=False)
+        return answer
 
     async def _direct_tool_call(self, task: Dict[str, Any]) -> Any:
         """Execute a tool directly from a dict spec, via the task queue."""
@@ -524,57 +659,61 @@ class Agent:
 
             from daie.core.llm_manager import get_llm_config
 
-            prompt_extras = []
-            if getattr(self.config, "gender", None):
-                prompt_extras.append(f"Gender: {self.config.gender}")
-            if getattr(self.config, "personality", None):
-                prompt_extras.append(f"Personality: {self.config.personality}")
-            if getattr(self.config, "behavior", None):
-                prompt_extras.append(f"Behavior: {self.config.behavior}")
-
-            extra_str = "\n".join(prompt_extras)
-            base_sys_prompt = f"You are {self.name}. {self.config.system_prompt}"
+            persona_context = self._build_persona_context()
             base_sys_prompt = (
-                f"{base_sys_prompt}\n\nAgent Persona Traits:\n{extra_str}" if extra_str else base_sys_prompt
+                f"You are {self.name}, a professional AI assistant.\n"
+                f"{persona_context}\n\n"
+                f"Core Instructions:\n{self.config.system_prompt}"
             )
 
             # Retrieve relevant memory context if memory manager is available
             memory_context = ""
             if hasattr(self, "memory_manager") and self.memory_manager:
                 try:
-                    # Search for similar memories based on the user's message
                     similar_memories = self.memory_manager.search_similar(
                         self.id, message, memory_type="working", limit=10
                     )
-
-                    # Also retrieve recent conversation history for context
                     recent_memories = self.memory_manager.retrieve_memories(self.id, memory_type="working", limit=20)
 
-                    # Combine and deduplicate memories
                     all_memories = {}
                     for mem in similar_memories + recent_memories:
                         if mem.id not in all_memories:
                             all_memories[mem.id] = mem
 
-                    # Sort by timestamp (newest first) and take top results
                     sorted_memories = sorted(all_memories.values(), key=lambda x: x.timestamp, reverse=True)[:15]
 
                     if sorted_memories:
-                        memory_items = [f"{mem.content}" for mem in sorted_memories]
-                        memory_context = "\n\nRecent conversation:\n" + "\n".join(memory_items)
+                        memory_items = [f"  {mem.content}" for mem in sorted_memories]
+                        memory_context = (
+                            "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            "CONVERSATION HISTORY (most recent first)\n"
+                            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            + "\n".join(memory_items)
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to retrieve memory context: {e}")
 
-            # Add instruction to use memory context if available
-            # Only add memory instruction if there are actual memories to reference
-            memory_instruction = ""
             if memory_context:
-                memory_instruction = "\n\nUse the conversation history to remember user details naturally."
+                memory_instruction = (
+                    "\n\nMemory Directive: Use the conversation history above to recall prior context, "
+                    "user preferences, and previously shared information. Reference it naturally without "
+                    "explicitly saying 'according to our history'."
+                )
             else:
-                # No memories available - add instruction to NOT hallucinate past conversations
-                memory_instruction = "\n\nNote: This is the start of our conversation. Do not reference or invent details from previous conversations that did not occur."
+                memory_instruction = (
+                    "\n\nMemory Directive: This is the beginning of the conversation. "
+                    "Do not fabricate or reference any prior interactions that have not occurred."
+                )
 
-            prompt = f"{base_sys_prompt}{memory_context}{memory_instruction}\n\nUser: {message}\n\n{self.name}:"
+            prompt = (
+                f"{base_sys_prompt}"
+                f"{memory_context}"
+                f"{memory_instruction}"
+                f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"User: {message}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"{self.name}:"
+            )
 
             # Apply RAG augmentation
             prompt = self._augment_prompt_with_rag(prompt, message)
@@ -595,6 +734,9 @@ class Agent:
                         self.memory_manager.store_memory(
                             self.id, f"User: {message}", memory_type="working", tags=["conversation", "user_message"]
                         )
+                        # Log user message to history.txt
+                        self.memory_manager.log_chat_history(self.id, f"User: {message}")
+
                         # Store agent response
                         self.memory_manager.store_memory(
                             self.id,
@@ -602,6 +744,8 @@ class Agent:
                             memory_type="working",
                             tags=["conversation", "agent_response"],
                         )
+                        # Log agent response to history.txt
+                        self.memory_manager.log_chat_history(self.id, f"{self.name}: {response}")
                     except Exception as e:
                         logger.warning(f"Failed to store conversation in memory: {e}")
 
@@ -648,16 +792,13 @@ class Agent:
     async def _handle_message(self, message: AgentMessage):
         """
         Handle incoming messages asynchronously without blocking agent tasks.
-
-        This method processes messages in a non-blocking way, allowing the agent
-        to continue running tasks while handling incoming messages.
         """
         from daie.core.tracing import TraceContextManager
-        
+
         # Extract trace context from incoming message
         with TraceContextManager(message.metadata):
             try:
-                # Check for correlation_id to resolve pending requests
+                # Check for correlation_id to resolve pending requests (reply to a delegation)
                 correlation_id = message.metadata.get("correlation_id")
                 if correlation_id and correlation_id in self._pending_responses:
                     future = self._pending_responses.pop(correlation_id)
@@ -665,13 +806,19 @@ class Agent:
                         future.set_result(message.content)
                     return
 
-                # Process message asynchronously without blocking
-                if self._message_handler:
-                    # Use create_task to avoid blocking
-                    asyncio.create_task(self._message_handler(message))
+                # For task messages, await directly so the reply is sent before
+                # the delegation future times out
+                if message.message_type == "task":
+                    if self._message_handler:
+                        await self._message_handler(message)
+                    else:
+                        await self._default_message_handler(message)
                 else:
-                    # Use create_task to avoid blocking
-                    asyncio.create_task(self._default_message_handler(message))
+                    # For non-task messages, fire-and-forget is fine
+                    if self._message_handler:
+                        asyncio.create_task(self._message_handler(message))
+                    else:
+                        asyncio.create_task(self._default_message_handler(message))
             except Exception as exc:
                 logger.error(f"Error handling message: {exc}")
 
@@ -680,11 +827,31 @@ class Agent:
             # Handle task message and reply with result
             try:
                 task_data = json.loads(message.content) if isinstance(message.content, str) else message.content
-                task_str = task_data
-                if isinstance(task_data, dict):
-                    task_str = task_data.get("task") or task_data.get("description") or str(task_data)
 
+                # Recursively unwrap nested {"task": ...} dicts until we get a plain string
+                task_str = task_data
+                while isinstance(task_str, dict):
+                    task_str = (
+                        task_str.get("task")
+                        or task_str.get("description")
+                        or task_str.get("content")
+                        or str(task_str)
+                    )
+
+                task_str = str(task_str)
                 logger.info(f"Agent '{self.name}' [ID: {self.id}] received task: {task_str}")
+
+                # Log incoming task to this agent's history
+                if hasattr(self, "memory_manager") and self.memory_manager:
+                    self.memory_manager.log_chat_history(
+                        self.id, f"[Delegated task from {message.sender_id}]: {task_str}"
+                    )
+                    self.memory_manager.store_memory(
+                        self.id,
+                        f"Received task: {task_str}",
+                        memory_type="episodic",
+                        tags=["task", "delegated"],
+                    )
 
                 # If streaming, show that this agent is starting
                 from daie.core.llm_manager import get_llm_config
@@ -692,7 +859,17 @@ class Agent:
                 if self.config.stream or get_llm_config().stream:
                     print(f"\n\033[96m{self.name} is working on the task...\033[0m")
 
-                result = await self.execute_task(str(task_str))
+                result = await self.execute_task(task_str)
+
+                # Log the result to this agent's history
+                if hasattr(self, "memory_manager") and self.memory_manager:
+                    self.memory_manager.log_chat_history(self.id, f"[Task result]: {result}")
+                    self.memory_manager.store_memory(
+                        self.id,
+                        f"Task completed: {result}",
+                        memory_type="episodic",
+                        tags=["task", "result"],
+                    )
 
                 reply = AgentMessage(
                     sender_id=self.id,
@@ -701,7 +878,13 @@ class Agent:
                     message_type="text",
                     metadata={"correlation_id": message.metadata.get("correlation_id")},
                 )
-                await self.send_message(reply)
+                comm_mgr = getattr(self, "communication_manager", None)
+                if comm_mgr:
+                    await comm_mgr.send_message(reply)
+                else:
+                    logger.error(
+                        f"Agent '{self.name}' has no communication_manager — cannot send task reply"
+                    )
             except Exception as e:
                 logger.error(f"Error handling task message: {e}")
                 # Send error back if correlation_id exists
@@ -714,7 +897,9 @@ class Agent:
                         message_type="text",
                         metadata={"correlation_id": cid},
                     )
-                    await self.send_message(reply)
+                    comm_mgr = getattr(self, "communication_manager", None)
+                    if comm_mgr:
+                        await comm_mgr.send_message(reply)
             return
 
         if message.message_type == "file":
@@ -725,7 +910,9 @@ class Agent:
                     content="File transfer rejected: receiver does not allow incoming files.",
                     message_type="text",
                 )
-                await self.send_message(reply)
+                comm_mgr = getattr(self, "communication_manager", None)
+                if comm_mgr:
+                    await comm_mgr.send_message(reply)
                 return
 
             try:
@@ -754,7 +941,9 @@ class Agent:
                 content=reply_content,
                 message_type="text",
             )
-            await self.send_message(reply)
+            comm_mgr = getattr(self, "communication_manager", None)
+            if comm_mgr:
+                await comm_mgr.send_message(reply)
             return
 
         if message.content.strip() and not message.content.startswith("I received your message:"):
@@ -764,7 +953,9 @@ class Agent:
                 content=f"I received your message: {message.content}",
                 message_type=message.message_type,
             )
-            await self.send_message(reply)
+            comm_mgr = getattr(self, "communication_manager", None)
+            if comm_mgr:
+                await comm_mgr.send_message(reply)
 
     async def _handle_task(self, task: Dict[str, Any]):
         try:
@@ -916,6 +1107,15 @@ class Agent:
             self._is_running = False
             if hasattr(self, "communication_manager"):
                 self.communication_manager.deregister_agent(self.id)
+
+            # Stop memory manager if it was auto-created (persistent_memory=True)
+            if hasattr(self, "memory_manager") and self.memory_manager is not None:
+                try:
+                    self.memory_manager.stop()
+                    logger.debug(f"Memory manager stopped for agent '{self.name}'")
+                except Exception as mem_exc:
+                    logger.error(f"Error stopping memory manager for agent '{self.name}': {mem_exc}")
+
             logger.info(f"Agent '{self.name}' stopped successfully")
         except Exception as exc:
             logger.error(f"Error stopping agent '{self.name}': {exc}")

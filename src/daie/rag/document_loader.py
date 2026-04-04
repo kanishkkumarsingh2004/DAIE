@@ -45,7 +45,10 @@ def _load_pdf(file_path: str) -> str:
                 pages.append(text)
         return "\n\n".join(pages)
     except ImportError:
-        logger.warning(f"PyPDF2 is not installed. Skipping PDF file: {file_path}. " "Install with: pip install PyPDF2")
+        logger.warning(
+            f"PyPDF2 is not installed. Skipping PDF file: {file_path}. "
+            "Install with: pip install PyPDF2"
+        )
         return ""
     except Exception as exc:
         logger.error(f"Error reading PDF '{file_path}': {exc}")

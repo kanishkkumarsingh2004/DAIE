@@ -77,7 +77,9 @@ class NodeChatConfig:
     """Log file path (None for console only)"""
 
     # Interactive mode settings
-    welcome_message: str = "=== Hybrid Orchestrator Node ===\nType your task to execute (or 'exit' to quit)\n"
+    welcome_message: str = (
+        "=== Hybrid Orchestrator Node ===\nType your task to execute (or 'exit' to quit)\n"
+    )
     """Welcome message displayed when interactive mode starts"""
 
     exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit"])
@@ -111,7 +113,9 @@ class NodeChatConfig:
                     filemode="w",
                 )
             else:
-                logging.basicConfig(level=getattr(logging, self.log_level.upper()), format=log_format)
+                logging.basicConfig(
+                    level=getattr(logging, self.log_level.upper()), format=log_format
+                )
 
     async def run_async(self) -> None:
         """

@@ -25,7 +25,10 @@ class A2ASendFileTool(Tool):
                     required=True,
                 ),
                 ToolParameter(
-                    name="file_path", type="string", description="The local path of the file to send.", required=True
+                    name="file_path",
+                    type="string",
+                    description="The local path of the file to send.",
+                    required=True,
                 ),
                 ToolParameter(
                     name="message",
@@ -55,7 +58,10 @@ class A2ASendFileTool(Tool):
         if not os.path.exists(file_path):
             return f"Error: File {file_path} not found."
 
-        if not hasattr(self._agent_ref, "communication_manager") or self._agent_ref.communication_manager is None:
+        if (
+            not hasattr(self._agent_ref, "communication_manager")
+            or self._agent_ref.communication_manager is None
+        ):
             return "Error: Agent is not connected to any network. CommunicationManager is required."
 
         # Read file and encode it as base64
@@ -80,7 +86,11 @@ class A2ASendFileTool(Tool):
             receiver_id=receiver_id,
             content=message_text,
             message_type="file",
-            metadata={"file_name": file_name, "mime_type": mime_type, "base64_data": base64_encoded},
+            metadata={
+                "file_name": file_name,
+                "mime_type": mime_type,
+                "base64_data": base64_encoded,
+            },
         )
 
         success = await self._agent_ref.communication_manager.send_message(msg)

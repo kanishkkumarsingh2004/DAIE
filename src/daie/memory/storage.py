@@ -183,7 +183,9 @@ class VectorDatabaseStorage(StorageBackend):
                                 memory_type=memory_type,
                                 timestamp=metadata.get("timestamp", time.time()),
                                 metadata={
-                                    k: v for k, v in metadata.items() if k not in ["memory_type", "timestamp", "tags"]
+                                    k: v
+                                    for k, v in metadata.items()
+                                    if k not in ["memory_type", "timestamp", "tags"]
                                 },
                                 tags=tags,
                             )
@@ -243,6 +245,7 @@ class VectorDatabaseStorage(StorageBackend):
         except Exception as e:
             logger.error(f"Failed to list agents: {e}")
             return []
+
     def log_history(self, agent_id: str, content: str) -> None:
         """Log to vector database (no-op for history.txt)"""
         pass
@@ -280,7 +283,11 @@ class VectorDatabaseStorage(StorageBackend):
 
                     if search_results and search_results["ids"]:
                         for i, doc_id in enumerate(search_results["ids"][0]):
-                            metadata = search_results["metadatas"][0][i] if search_results["metadatas"] else {}
+                            metadata = (
+                                search_results["metadatas"][0][i]
+                                if search_results["metadatas"]
+                                else {}
+                            )
 
                             tags_str = metadata.get("tags", "[]")
                             try:
@@ -290,11 +297,17 @@ class VectorDatabaseStorage(StorageBackend):
 
                             item = MemoryItem(
                                 id=doc_id,
-                                content=search_results["documents"][0][i] if search_results["documents"] else "",
+                                content=(
+                                    search_results["documents"][0][i]
+                                    if search_results["documents"]
+                                    else ""
+                                ),
                                 memory_type=m_type,
                                 timestamp=metadata.get("timestamp", time.time()),
                                 metadata={
-                                    k: v for k, v in metadata.items() if k not in ["memory_type", "timestamp", "tags"]
+                                    k: v
+                                    for k, v in metadata.items()
+                                    if k not in ["memory_type", "timestamp", "tags"]
                                 },
                                 tags=tags,
                             )
@@ -443,11 +456,11 @@ class BinaryFileStorage(StorageBackend):
         try:
             agent_dir = self._get_agent_directory(agent_id)
             history_file = os.path.join(agent_dir, "history.txt")
-            
+
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             with open(history_file, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] {content}\n")
-                
+
             logger.debug(f"Logged history for agent {agent_id}")
         except Exception as e:
             logger.error(f"Failed to log history for agent {agent_id}: {e}")

@@ -21,6 +21,7 @@ class Span:
     """
     Represents a single operation in a trace.
     """
+
     def __init__(self, name: str, trace_id: str, parent_id: Optional[str] = None):
         self.name = name
         self.trace_id = trace_id
@@ -60,7 +61,7 @@ class Span:
         self.end_time = time.time()
         if exc_type:
             self.record_exception(exc_val)
-        
+
         # Log the span if tracing is enabled
         manager = TracerManager()
         if manager.is_enabled:
@@ -70,7 +71,7 @@ class Span:
                 f"[TRACE] {self.name} | trace:{self.trace_id} | span:{self.span_id}{parent_info} | "
                 f"{duration:.2f}ms | {self.status}"
             )
-        
+
         if self._token:
             _current_span_var.reset(self._token)
 
@@ -79,6 +80,7 @@ class TracerManager:
     """
     Manages tracing for the system.
     """
+
     _instance = None
 
     def __new__(cls):
@@ -90,7 +92,7 @@ class TracerManager:
     def __init__(self):
         if self._initialized:
             return
-        
+
         self._initialized = True
         self._is_enabled = False
         self._service_name = "daie"
@@ -114,14 +116,14 @@ class TracerManager:
     def start_span(self, name: str, attributes: Optional[Dict[str, Any]] = None) -> Span:
         """Start a new span, automatically nesting it if a parent exists."""
         current = self.get_current_span()
-        
+
         if current:
             trace_id = current.trace_id
             parent_id = current.span_id
         else:
             trace_id = uuid7()
             parent_id = None
-            
+
         span = Span(name, trace_id, parent_id)
         if attributes:
             span.set_attributes(attributes)
@@ -133,6 +135,7 @@ def trace_span(name: Optional[str] = None, attributes: Optional[Dict[str, Any]] 
     Decorator to wrap a function call in a trace span.
     Supports both synchronous and asynchronous functions.
     """
+
     def decorator(func: Callable):
         span_name = name or func.__name__
 
@@ -188,7 +191,7 @@ def extract_trace_context(metadata: Dict[str, Any]) -> Optional[Dict[str, str]]:
     """
     trace_id = metadata.get("trace_id")
     parent_id = metadata.get("parent_span_id")
-    
+
     if trace_id:
         return {"trace_id": trace_id, "parent_id": parent_id}
     return None
@@ -198,6 +201,7 @@ class TraceContextManager:
     """
     Context manager for manual trace propagation (e.g. when receiving a message).
     """
+
     def __init__(self, metadata: Dict[str, Any]):
         self.metadata = metadata
         self.span = None

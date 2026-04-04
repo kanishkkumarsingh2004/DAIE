@@ -155,7 +155,8 @@ class NodeRegistry:
 
     def _start_dht_sync(self):
         """Synchronous wrapper for starting DHT"""
-        if not DHT_AVAILABLE: return
+        if not DHT_AVAILABLE:
+            return
         try:
             self._dht_server = Server()
             loop = asyncio.new_event_loop()
@@ -202,7 +203,8 @@ class NodeRegistry:
             try:
                 self._zeroconf.close()
                 self._zeroconf = None
-            except Exception: pass
+            except Exception:
+                pass
 
     async def _stop_dht(self):
         """Stop DHT service"""
@@ -221,9 +223,12 @@ class NodeRegistry:
                 loop = asyncio.new_event_loop()
                 loop.run_until_complete(self._dht_server.stop())
                 self._dht_server = None
-            except Exception: pass
+            except Exception:
+                pass
 
-    async def _publish_mdns_service(self, agent_id: str, network_url: str, capabilities: Dict[str, Any]):
+    async def _publish_mdns_service(
+        self, agent_id: str, network_url: str, capabilities: Dict[str, Any]
+    ):
         """Publish agent service via mDNS"""
         if not self._enable_mdns or not self._zeroconf:
             return
@@ -249,7 +254,10 @@ class NodeRegistry:
             service_name = f"{agent_id_str}.{service_type}"
 
             # Encode capabilities as TXT record
-            txt_data = {"capabilities": json.dumps(capabilities, default=str), "agent_id": agent_id_str}
+            txt_data = {
+                "capabilities": json.dumps(capabilities, default=str),
+                "agent_id": agent_id_str,
+            }
 
             service_info = ServiceInfo(
                 service_type,
@@ -265,7 +273,7 @@ class NodeRegistry:
                 await self._zeroconf.async_register_service(service_info)
             else:
                 self._zeroconf.register_service(service_info)
-                
+
             self._mdns_services[agent_id] = service_info
             logger.info(f"Published mDNS service for agent {agent_id}")
         except Exception as e:
@@ -288,14 +296,20 @@ class NodeRegistry:
         except Exception as e:
             logger.error(f"Failed to unpublish mDNS service for {agent_id}: {e}")
 
-    async def _publish_dht_node(self, agent_id: str, network_url: str, capabilities: Dict[str, Any]):
+    async def _publish_dht_node(
+        self, agent_id: str, network_url: str, capabilities: Dict[str, Any]
+    ):
         """Publish agent node to DHT"""
         if not self._enable_dht or not self._dht_server:
             return
 
         try:
             # Store node info in DHT
-            node_data = {"network_url": network_url, "capabilities": capabilities, "timestamp": time.time()}
+            node_data = {
+                "network_url": network_url,
+                "capabilities": capabilities,
+                "timestamp": time.time(),
+            }
 
             await self._dht_server.set(agent_id, json.dumps(node_data))
             logger.info(f"Published DHT node for agent {agent_id}")
@@ -345,7 +359,11 @@ class NodeRegistry:
         if self._enable_mdns and network_url:
             try:
                 loop = asyncio.get_running_loop()
-                self._track_task(loop.create_task(self._publish_mdns_service(agent_id, network_url, capabilities)))
+                self._track_task(
+                    loop.create_task(
+                        self._publish_mdns_service(agent_id, network_url, capabilities)
+                    )
+                )
             except RuntimeError:
                 # No running loop, handle sync if needed
                 pass
@@ -354,7 +372,9 @@ class NodeRegistry:
         if self._enable_dht and network_url:
             try:
                 loop = asyncio.get_running_loop()
-                self._track_task(loop.create_task(self._publish_dht_node(agent_id, network_url, capabilities)))
+                self._track_task(
+                    loop.create_task(self._publish_dht_node(agent_id, network_url, capabilities))
+                )
             except RuntimeError:
                 # No running loop, create a new one
                 loop = asyncio.new_event_loop()
@@ -379,7 +399,8 @@ class NodeRegistry:
                 try:
                     loop = asyncio.get_running_loop()
                     self._track_task(loop.create_task(self._unpublish_mdns_service(agent_id)))
-                except RuntimeError: pass
+                except RuntimeError:
+                    pass
 
             # Remove from DHT
             if self._enable_dht and self._dht_server:
@@ -439,7 +460,9 @@ class NodeRegistry:
         try:
             # Browse for DAIE agent services
             service_type = "_daie-agent._tcp.local."
-            browser = ServiceBrowser(self._zeroconf, service_type, handlers=[self._on_mdns_service_added])
+            browser = ServiceBrowser(
+                self._zeroconf, service_type, handlers=[self._on_mdns_service_added]
+            )
 
             # Wait for discovery
             time.sleep(timeout)
@@ -641,7 +664,8 @@ class NodeRegistry:
                 # Just trigger async stop in background if we must.
                 self._track_task(loop.create_task(self.stop()))
                 return
-        except RuntimeError: pass
+        except RuntimeError:
+            pass
 
         self._stop_mdns_sync()
         self._stop_dht_sync()

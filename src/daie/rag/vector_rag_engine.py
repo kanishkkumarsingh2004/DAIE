@@ -110,7 +110,9 @@ class VectorRAGEngine:
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError:
-            logger.error("sentence-transformers not installed. Install with: pip install sentence-transformers")
+            logger.error(
+                "sentence-transformers not installed. Install with: pip install sentence-transformers"
+            )
             raise
 
         # Load documents
@@ -134,7 +136,8 @@ class VectorRAGEngine:
         # Initialize ChromaDB
         os.makedirs(self.persist_directory, exist_ok=True)
         client = chromadb.PersistentClient(
-            path=self.persist_directory, settings=Settings(anonymized_telemetry=False, allow_reset=True)
+            path=self.persist_directory,
+            settings=Settings(anonymized_telemetry=False, allow_reset=True),
         )
 
         # Get or create collection
@@ -224,7 +227,11 @@ class VectorRAGEngine:
         for doc in documents:
             text = doc.content
             if len(text) <= self.chunk_size:
-                chunks.append(Chunk(text=text, source=doc.source, chunk_index=0, metadata={"source": doc.source}))
+                chunks.append(
+                    Chunk(
+                        text=text, source=doc.source, chunk_index=0, metadata={"source": doc.source}
+                    )
+                )
                 continue
 
             start = 0
@@ -286,7 +293,9 @@ class VectorRAGEngine:
         embeddings_list = embeddings.tolist()
 
         # Store in ChromaDB
-        self._collection.add(ids=ids, documents=documents, embeddings=embeddings_list, metadatas=metadatas)
+        self._collection.add(
+            ids=ids, documents=documents, embeddings=embeddings_list, metadatas=metadatas
+        )
 
         logger.info(f"Indexed {len(self._chunks)} chunks in ChromaDB")
 

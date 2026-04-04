@@ -2,7 +2,7 @@
 OrchestratorChatConfig Module
 
 Provides a simple chat loop for a single Orchestrator (main agent + sub-agents)
-so users don't need to write the full boilerplate code. Simply pass the 
+so users don't need to write the full boilerplate code. Simply pass the
 orchestrator and run!
 
 This focuses on simple task orchestration interaction - just like
@@ -27,7 +27,7 @@ class OrchestratorChatConfig:
     Configuration for a simple chat loop with a single Orchestrator.
 
     This class provides a simple way to run a chat loop with an Orchestrator
-    instance without writing the full boilerplate code. Just pass the 
+    instance without writing the full boilerplate code. Just pass the
     orchestrator and call run()!
 
     Features:
@@ -62,7 +62,9 @@ class OrchestratorChatConfig:
     welcome_message: str = "=== Orchestrator Chat Loop ===\nType your task for the orchestrator (or 'exit' to quit)\n"
     """Welcome message displayed when chat starts"""
 
-    exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit", "bye", "goodbye"])
+    exit_commands: List[str] = field(
+        default_factory=lambda: ["exit", "quit", "bye", "goodbye"]
+    )
     """Commands that will exit the chat loop"""
 
     prompt_prefix: str = "You: "
@@ -134,7 +136,9 @@ class OrchestratorChatConfig:
                 try:
                     print(f"\n[*] Starting {self.orchestrator.context_name}...")
                     await self.orchestrator.start()
-                    print(f"[+] Orchestrator '{self.orchestrator.main_agent.name}' is ready.")
+                    print(
+                        f"[+] Orchestrator '{self.orchestrator.main_agent.name}' is ready."
+                    )
                 except Exception as e:
                     print(f"{self.error_prefix}Failed to start orchestrator: {e}")
                     if self.on_error:
@@ -169,7 +173,11 @@ class OrchestratorChatConfig:
                         if parsed and isinstance(parsed, dict) and "answer" in parsed:
                             ans = parsed["answer"]
                             # answer must be a string — convert if LLM returned a list/dict
-                            final_display = ans if isinstance(ans, str) else json.dumps(ans, ensure_ascii=False)
+                            final_display = (
+                                ans
+                                if isinstance(ans, str)
+                                else json.dumps(ans, ensure_ascii=False)
+                            )
 
                     # When stream=True the agent already printed the answer via
                     # _stream_final_answer() inside execute_task. Only print here
@@ -263,33 +271,38 @@ class OrchestratorChatConfig:
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
         """Extract the first valid JSON object from text."""
         import json
+
         # Strip code fences
         text = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
 
         def try_parse(s):
             try:
                 return json.loads(s)
-            except:
+            except Exception:
                 return None
 
         # Try whole string
         res = try_parse(text)
-        if res: return res
+        if res:
+            return res
 
         # Search for first { } block
         search_from = 0
         while True:
             start = text.find("{", search_from)
-            if start == -1: break
+            if start == -1:
+                break
             depth = 0
             for i in range(start, len(text)):
-                if text[i] == "{": depth += 1
+                if text[i] == "{":
+                    depth += 1
                 elif text[i] == "}":
                     depth -= 1
                     if depth == 0:
                         candidate = text[start : i + 1]
                         res = try_parse(candidate)
-                        if res: return res
+                        if res:
+                            return res
                         break
             search_from = start + 1
         return None
@@ -305,10 +318,13 @@ class OrchestratorChatConfig:
         except Exception as e:
             print(f"\n\nFatal error: {e}")
             import sys
+
             sys.exit(1)
 
     @classmethod
-    def quick_start(cls, orchestrator: Orchestrator, **kwargs) -> "OrchestratorChatConfig":
+    def quick_start(
+        cls, orchestrator: Orchestrator, **kwargs
+    ) -> "OrchestratorChatConfig":
         """
         Quick start method for simple use cases.
         """

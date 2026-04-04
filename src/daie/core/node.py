@@ -217,7 +217,7 @@ class Node:
         if parent_node_id == self.node_id:
             logger.warning(f"Node {self.name} cannot be its own parent")
             return self
-        
+
         self._parent_node_id = parent_node_id
         logger.debug(f"Node {self.name} set parent to {parent_node_id}")
         return self
@@ -235,7 +235,7 @@ class Node:
         if child_node_id == self.node_id:
             logger.warning(f"Node {self.name} cannot be its own child")
             return self
-        
+
         if child_node_id not in self._child_node_ids:
             self._child_node_ids.append(child_node_id)
             logger.debug(f"Node {self.name} added child node {child_node_id}")

@@ -82,7 +82,9 @@ def start_core(args: argparse.Namespace):
     try:
         if args.background:
             if not DAEMON_AVAILABLE:
-                print_error("Daemon mode requires 'python-daemon' package. Install it with: pip install python-daemon")
+                print_error(
+                    "Daemon mode requires 'python-daemon' package. Install it with: pip install python-daemon"
+                )
                 exit(1)
 
             pid_file = get_pid_file()
@@ -104,7 +106,8 @@ def start_core(args: argparse.Namespace):
             wait_time = 0
             while wait_time < max_wait:
                 pid = read_pid()
-                if pid: break
+                if pid:
+                    break
                 time.sleep(0.5)
                 wait_time += 0.5
 
@@ -117,7 +120,9 @@ def start_core(args: argparse.Namespace):
             print_info("Initializing system components...")
             config = SystemConfig()
             DecentralizedAISystem(config=config)
-            print_success(f"Central core system started successfully! API: http://localhost:{args.port}")
+            print_success(
+                f"Central core system started successfully! API: http://localhost:{args.port}"
+            )
             print_info("Press Ctrl+C to stop the server")
             start_server("0.0.0.0", args.port, args.debug)
 
@@ -167,7 +172,9 @@ def stop_core(args: argparse.Namespace):
             if args.force:
                 print_info("Process did not terminate, force killing...")
                 if platform.system() == "Windows":
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5)
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=5
+                    )
                 else:
                     os.kill(pid, signal.SIGKILL)
                 time.sleep(1)
@@ -179,8 +186,10 @@ def stop_core(args: argparse.Namespace):
 
     except Exception as e:
         print_error(f"Error stopping system: {e}")
-        try: os.kill(pid, 0)
-        except (OSError, ProcessLookupError): remove_pid_file()
+        try:
+            os.kill(pid, 0)
+        except (OSError, ProcessLookupError):
+            remove_pid_file()
         exit(1)
 
 
@@ -216,7 +225,9 @@ def init_core(args: argparse.Namespace):
     config_file = config_dir / "config.yaml"
 
     if config_dir.exists() and config_file.exists():
-        choice = input("Configuration already exists. Do you want to reinitialize? (y/n) [n]: ").lower()
+        choice = input(
+            "Configuration already exists. Do you want to reinitialize? (y/n) [n]: "
+        ).lower()
         if choice != "y":
             print_info("Initialization cancelled")
             return

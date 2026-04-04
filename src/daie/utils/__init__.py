@@ -19,8 +19,7 @@ __all__ = [
 
 # Optional audio support
 try:
-    from daie.utils.audio import (AudioManager, play_audio_file,
-                                  record_audio_file)
+    from daie.utils.audio import AudioManager, play_audio_file, record_audio_file
 
     __all__ += ["AudioManager", "record_audio_file", "play_audio_file"]
 except ImportError:
@@ -28,8 +27,7 @@ except ImportError:
 
 # Optional camera support
 try:
-    from daie.utils.camera import (CameraManager, capture_image,
-                                   list_camera_devices, test_camera)
+    from daie.utils.camera import CameraManager, capture_image, list_camera_devices, test_camera
 
     __all__ += ["CameraManager", "list_camera_devices", "capture_image", "test_camera"]
 except ImportError:

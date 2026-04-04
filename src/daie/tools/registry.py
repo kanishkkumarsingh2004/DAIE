@@ -133,7 +133,9 @@ class ToolRegistry:
 
         import time
 
-        registration = ToolRegistration(tool=tool, metadata=tool.metadata, registered_at=time.time(), usage_count=0)
+        registration = ToolRegistration(
+            tool=tool, metadata=tool.metadata, registered_at=time.time(), usage_count=0
+        )
 
         self._tools[tool_name] = registration
 
@@ -411,6 +413,7 @@ class ToolRegistry:
             "category_counts": dict(category_counts),
             "total_usage": sum(self._usage_counts.values()),
             "top_used": [
-                {"name": tool.name, "usage": self._usage_counts[tool.name]} for tool in self.get_top_used_tools(10)
+                {"name": tool.name, "usage": self._usage_counts[tool.name]}
+                for tool in self.get_top_used_tools(10)
             ],
         }

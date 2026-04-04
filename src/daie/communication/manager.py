@@ -13,11 +13,9 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 from daie.agents.message import AgentMessage
 from daie.config import SystemConfig
 from daie.core.resilience import CircuitBreaker, RetryPolicy
-from daie.core.tracing import (TraceContextManager, inject_trace_context,
-                               trace_span)
+from daie.core.tracing import TraceContextManager, inject_trace_context, trace_span
 from daie.registry.manager import NodeRegistry
-from daie.utils.encryption import (decrypt_data, encrypt_data,
-                                   generate_encryption_key)
+from daie.utils.encryption import decrypt_data, encrypt_data, generate_encryption_key
 
 if TYPE_CHECKING:
     from daie.agents import Agent
@@ -102,7 +100,9 @@ class CommunicationManager:
         self._enable_rate_limiting = getattr(config, "enable_rate_limiting", True)
         self._rate_limit_window = getattr(config, "rate_limit_window", 60)  # seconds
         self._rate_limit_max_messages = getattr(config, "rate_limit_max_messages", 100)
-        self._message_counts: Dict[str, List[float]] = defaultdict(list)  # agent_id -> list of timestamps
+        self._message_counts: Dict[str, List[float]] = defaultdict(
+            list
+        )  # agent_id -> list of timestamps
 
         # Resilience: Circuit Breakers for remote nodes
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}  # peer_url -> CircuitBreaker
@@ -152,7 +152,11 @@ class CommunicationManager:
         network_url = getattr(agent.config, "network_url", None)
         network_connections = getattr(agent.config, "network_connections", {})
         capabilities = {
-            "role": getattr(agent.role, "value", str(agent.role)) if hasattr(agent, "role") else "unknown",
+            "role": (
+                getattr(agent.role, "value", str(agent.role))
+                if hasattr(agent, "role")
+                else "unknown"
+            ),
             "tools": agent.config.capabilities,
         }
         self.registry.register_node(
@@ -331,7 +335,11 @@ class CommunicationManager:
                 content=encrypted_content,
                 message_type=message.message_type,
                 timestamp=message.timestamp,
-                metadata={**message.metadata, "encrypted": True, "encryption_key_id": message.receiver_id},
+                metadata={
+                    **message.metadata,
+                    "encrypted": True,
+                    "encryption_key_id": message.receiver_id,
+                },
             )
 
             return encrypted_msg
@@ -372,7 +380,11 @@ class CommunicationManager:
                 content=decrypted_content,
                 message_type=message.message_type,
                 timestamp=message.timestamp,
-                metadata={k: v for k, v in message.metadata.items() if k not in ["encrypted", "encryption_key_id"]},
+                metadata={
+                    k: v
+                    for k, v in message.metadata.items()
+                    if k not in ["encrypted", "encryption_key_id"]
+                },
             )
 
             return decrypted_msg
@@ -421,16 +433,19 @@ class CommunicationManager:
             return True
 
         current_time = time.time()
-        
+
         # Use config values or system defaults - check both possible keys for compatibility
         window = getattr(self.config, "rate_limit_window", 60)
-        max_msgs = getattr(self.config, "rate_limit_max_messages", 
-                          getattr(self.config, "rate_limit_per_peer", 100))
-        
+        max_msgs = getattr(
+            self.config, "rate_limit_max_messages", getattr(self.config, "rate_limit_per_peer", 100)
+        )
+
         window_start = current_time - window
 
         # Clean old timestamps
-        self._message_counts[agent_id] = [ts for ts in self._message_counts[agent_id] if ts > window_start]
+        self._message_counts[agent_id] = [
+            ts for ts in self._message_counts[agent_id] if ts > window_start
+        ]
 
         # Check if within limit
         if len(self._message_counts[agent_id]) >= max_msgs:
@@ -452,7 +467,9 @@ class CommunicationManager:
                 logger.warning(
                     f"Blocked message from {message.sender_id} to {message.receiver_id}: sender not in allowed_senders whitelist."
                 )
-                self._audit_log("MESSAGE_BLOCKED", message, "Sender not in allowed_senders whitelist")
+                self._audit_log(
+                    "MESSAGE_BLOCKED", message, "Sender not in allowed_senders whitelist"
+                )
                 return
 
             # Decrypt message if encrypted
@@ -483,11 +500,17 @@ class CommunicationManager:
 
             if direct_url:
                 logger.info(f"Sending message directly to {message.receiver_id} at {direct_url}")
-                self._track_task(asyncio.create_task(self._send_remote_message(message, direct_url)))
+                self._track_task(
+                    asyncio.create_task(self._send_remote_message(message, direct_url))
+                )
             elif receiver_node.get("network_url"):
                 network_url = receiver_node["network_url"]
-                logger.info(f"Routing message to remote agent {message.receiver_id} at {network_url}")
-                self._track_task(asyncio.create_task(self._send_remote_message(message, network_url)))
+                logger.info(
+                    f"Routing message to remote agent {message.receiver_id} at {network_url}"
+                )
+                self._track_task(
+                    asyncio.create_task(self._send_remote_message(message, network_url))
+                )
             else:
                 # Try to find a route through intermediate nodes
                 route = self.registry.find_route(message.sender_id, message.receiver_id)
@@ -508,7 +531,11 @@ class CommunicationManager:
                             message.metadata["route"] = route
                             message.metadata["final_destination"] = message.receiver_id
                             message.receiver_id = next_hop
-                            self._track_task(asyncio.create_task(self._send_remote_message(message, next_hop_url)))
+                            self._track_task(
+                                asyncio.create_task(
+                                    self._send_remote_message(message, next_hop_url)
+                                )
+                            )
                             return
 
                 logger.warning(f"No route found to receiver agent {message.receiver_id}")
@@ -521,23 +548,21 @@ class CommunicationManager:
             self._circuit_breakers[network_url] = CircuitBreaker(
                 name=f"remote_{network_url}",
                 failure_threshold=getattr(self.config, "circuit_failure_threshold", 5),
-                recovery_timeout=getattr(self.config, "circuit_recovery_timeout", 30)
+                recovery_timeout=getattr(self.config, "circuit_recovery_timeout", 30),
             )
-        
+
         cb = self._circuit_breakers[network_url]
-        
+
         # Setup retry policy
         retry_policy = None
         if getattr(self.config, "enable_retries", True):
             retry_policy = RetryPolicy(
-                max_retries=getattr(self.config, "max_retries", 3),
-                base_delay=1.0,
-                jitter=True
+                max_retries=getattr(self.config, "max_retries", 3), base_delay=1.0, jitter=True
             )
 
         async def _do_send():
             import websockets
-            
+
             sender_agent = self._agents.get(message.sender_id)
             token = getattr(sender_agent.config, "auth_token", "") if sender_agent else ""
 
@@ -562,7 +587,7 @@ class CommunicationManager:
 
                 if "error" in response_data:
                     raise RuntimeError(f"Peer error: {response_data['error']}")
-                
+
                 logger.debug(f"Remote message delivered to {endpoint}")
                 self._audit_log("MESSAGE_SEND_REMOTE_SUCCESS", message)
 
@@ -797,7 +822,9 @@ class CommunicationManager:
         """
         return self.registry.get_connected_peers(agent_id)
 
-    def setup_bidirectional_connection(self, agent_a_id: str, agent_b_id: str, url_a: str, url_b: str) -> bool:
+    def setup_bidirectional_connection(
+        self, agent_a_id: str, agent_b_id: str, url_a: str, url_b: str
+    ) -> bool:
         """
         Setup bidirectional connection between two agents.
 

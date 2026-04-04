@@ -81,7 +81,9 @@ class MultiNodeChatConfig:
     """Log file path (None for console only)"""
 
     # Interactive mode settings
-    welcome_message: str = "=== Multi-Node Hybrid System ===\nType your command (or 'exit' to quit)\n"
+    welcome_message: str = (
+        "=== Multi-Node Hybrid System ===\nType your command (or 'exit' to quit)\n"
+    )
     """Welcome message displayed when interactive mode starts"""
 
     exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit"])
@@ -115,7 +117,9 @@ class MultiNodeChatConfig:
                     filemode="w",
                 )
             else:
-                logging.basicConfig(level=getattr(logging, self.log_level.upper()), format=log_format)
+                logging.basicConfig(
+                    level=getattr(logging, self.log_level.upper()), format=log_format
+                )
 
     async def run_async(self) -> None:
         """
@@ -212,7 +216,7 @@ class MultiNodeChatConfig:
                     status = self.system.get_system_status()
                     for node_id in status["nodes"].keys():
                         if user_input.lower().startswith(f"{node_id} "):
-                            task = user_input[len(node_id) + 1:].strip()
+                            task = user_input[len(node_id) + 1 :].strip()
                             print(f"\n\033[92mExecuting on {node_id}...\033[0m")
                             result = await self.system.execute_task(node_id, task)
                             # Always print — execute_task never streams

@@ -21,8 +21,8 @@ def show_help():
     print(logo)
     print_info("A command-line interface for managing the Decentralized AI Ecosystem")
     print("\nAvailable Commands:")
-    print(f"  daie agent  - Manage AI agents")
-    print(f"  daie core   - Manage central core system")
+    print("  daie agent  - Manage AI agents")
+    print("  daie core   - Manage central core system")
     print("\nQuick Start Guide:")
     print("  1. Initialize the system: daie core init")
     print("  2. Create an agent:       daie agent create")
@@ -34,23 +34,26 @@ def show_help():
 def cli():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
-        prog="daie",
-        description="Decentralized AI Ecosystem CLI",
-        add_help=False
+        prog="daie", description="Decentralized AI Ecosystem CLI", add_help=False
     )
-    parser.add_argument("--version", "-v", action="store_true", help="Show version information")
-    parser.add_argument("--help", "-h", action="store_true", help="Show help information")
-    
+    parser.add_argument(
+        "--version", "-v", action="store_true", help="Show version information"
+    )
+    parser.add_argument(
+        "--help", "-h", action="store_true", help="Show help information"
+    )
+
     subparsers = parser.add_subparsers(dest="command")
-    
+
     # Register subcommands
     register_agent_commands(subparsers)
     register_core_commands(subparsers)
-    
+
     args = parser.parse_args()
-    
+
     if args.version:
         from daie import __version__
+
         print_header(f"Decentralized AI Library - Version: {__version__}")
         print("Repository: https://github.com/decentralized-ai/daie_ecosystem")
         return
@@ -60,7 +63,7 @@ def cli():
         return
 
     # Execute the command
-    if hasattr(args, 'func'):
+    if hasattr(args, "func"):
         args.func(args)
     else:
         parser.print_help()

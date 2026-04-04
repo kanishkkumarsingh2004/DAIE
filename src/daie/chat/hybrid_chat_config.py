@@ -64,7 +64,9 @@ class HybridChatConfig:
     """The hybrid system instance to use for chat"""
 
     # Chat loop behavior settings
-    welcome_message: str = "=== Hybrid Chat Loop ===\nType your message to the hybrid system (or 'exit' to quit)\n"
+    welcome_message: str = (
+        "=== Hybrid Chat Loop ===\nType your message to the hybrid system (or 'exit' to quit)\n"
+    )
     """Welcome message displayed when chat starts"""
 
     exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit", "bye", "goodbye"])

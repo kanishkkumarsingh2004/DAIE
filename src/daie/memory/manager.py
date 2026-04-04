@@ -12,8 +12,12 @@ import time
 from typing import Any, Dict, List, Optional
 
 from daie.config import SystemConfig
-from daie.memory.storage import (MemoryItem, StorageBackend,
-                                 VectorDatabaseStorage, create_storage_backend)
+from daie.memory.storage import (
+    MemoryItem,
+    StorageBackend,
+    VectorDatabaseStorage,
+    create_storage_backend,
+)
 from daie.utils.encryption import uuid7
 
 logger = logging.getLogger(__name__)
@@ -102,7 +106,8 @@ class MemoryManager:
                 # Load existing agent memories
                 self._load_agent_memories()
                 logger.info(
-                    "Memory manager started successfully with %s backend (persistent)", self.config.memory_storage_type
+                    "Memory manager started successfully with %s backend (persistent)",
+                    self.config.memory_storage_type,
                 )
             else:
                 self._storage = None
@@ -264,7 +269,9 @@ class MemoryManager:
         current_count = len(self._agent_memories[agent_id][memory_type])
         if current_count > max_items:
             # Remove oldest items in one operation
-            self._agent_memories[agent_id][memory_type] = self._agent_memories[agent_id][memory_type][-max_items:]
+            self._agent_memories[agent_id][memory_type] = self._agent_memories[agent_id][
+                memory_type
+            ][-max_items:]
 
         # Log only if content is string
         content_preview = str(content)[:50] if content else ""
@@ -410,7 +417,7 @@ class MemoryManager:
     def log_chat_history(self, agent_id: str, content: str) -> None:
         """
         Log a chat history entry for an agent
-        
+
         Args:
             agent_id: Agent ID
             content: History content to log
@@ -438,5 +445,7 @@ class MemoryManager:
             "is_initialized": self._is_initialized,
             "persistent_memory": self.config.persistent_memory,
             "agent_count": len(self._agent_memories),
-            "total_memories": sum(self.get_memory_count(agent_id) for agent_id in self._agent_memories),
+            "total_memories": sum(
+                self.get_memory_count(agent_id) for agent_id in self._agent_memories
+            ),
         }

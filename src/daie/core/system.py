@@ -162,7 +162,9 @@ class DecentralizedAISystem:
 
             # Start all agents
             for agent in self.agents.values():
-                await agent.start(self.communication_manager, self.memory_manager, self.tool_registry)
+                await agent.start(
+                    self.communication_manager, self.memory_manager, self.tool_registry
+                )
 
             self._is_running = True
             logger.info(f"System started successfully with {len(self.agents)} agents")

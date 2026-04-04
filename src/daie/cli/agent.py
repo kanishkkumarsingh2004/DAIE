@@ -32,7 +32,9 @@ def list_agents(args: argparse.Namespace):
 
         for agent in agents:
             caps = ", ".join(agent.capabilities) if agent.capabilities else "None"
-            print(f"{agent.name:<20} | {agent.role.value:<20} | {agent.llm_provider:<10} | {agent.llm_model} | {caps}")
+            print(
+                f"{agent.name:<20} | {agent.role.value:<20} | {agent.llm_provider:<10} | {agent.llm_model} | {caps}"
+            )
 
         print("-" * 80)
 
@@ -55,10 +57,20 @@ def create_agent(args: argparse.Namespace):
 
         valid_roles = [r.value for r in AgentRole]
         print(f"Valid Roles: {', '.join(valid_roles)}")
-        role = input(f"Role [{AgentRole.GENERAL_PURPOSE.value}]: ") or role or AgentRole.GENERAL_PURPOSE.value
+        role = (
+            input(f"Role [{AgentRole.GENERAL_PURPOSE.value}]: ")
+            or role
+            or AgentRole.GENERAL_PURPOSE.value
+        )
 
-        goal = input("Agent Goal [Perform specific tasks effectively]: ") or "Perform specific tasks effectively"
-        system_prompt = input("System Prompt [You are a helpful AI assistant.]: ") or "You are a helpful AI assistant."
+        goal = (
+            input("Agent Goal [Perform specific tasks effectively]: ")
+            or "Perform specific tasks effectively"
+        )
+        system_prompt = (
+            input("System Prompt [You are a helpful AI assistant.]: ")
+            or "You are a helpful AI assistant."
+        )
 
         provider = input("LLM Provider [ollama]: ") or "ollama"
         model = input("LLM Model [llama3.2:latest]: ") or "llama3.2:latest"
@@ -69,7 +81,9 @@ def create_agent(args: argparse.Namespace):
         network_url = input("P2P Network URL (enter for none): ") or None
         auth_token = input("P2P Auth Token (enter for none): ") or None
 
-        allow_file_transfers = input("Allow incoming file transfers over P2P? (y/n) [n]: ").lower() == "y"
+        allow_file_transfers = (
+            input("Allow incoming file transfers over P2P? (y/n) [n]: ").lower() == "y"
+        )
     else:
         goal = "Perform general tasks"
         system_prompt = "You are a helpful AI assistant."
@@ -189,7 +203,10 @@ def register_agent_commands(subparsers):
     create_parser.add_argument("--role", "-r", help="Agent role type")
     create_parser.add_argument("--capabilities", "-c", help="Comma-separated list of capabilities")
     create_parser.add_argument(
-        "--no-interactive", dest="interactive", action="store_false", help="Don't use interactive wizard"
+        "--no-interactive",
+        dest="interactive",
+        action="store_false",
+        help="Don't use interactive wizard",
     )
     create_parser.set_defaults(interactive=True, func=create_agent)
 

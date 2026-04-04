@@ -20,15 +20,15 @@ def is_strong_password(password: str) -> bool:
     """
     if len(password) < 12:
         return False
-    
+
     # Check for complexity
     patterns = [
-        r"[A-Z]",      # Uppercase
-        r"[a-z]",      # Lowercase
-        r"[0-9]",      # Digit
-        r"[!@#$%^&*(),.?\":{}|<>]"  # Special character
+        r"[A-Z]",  # Uppercase
+        r"[a-z]",  # Lowercase
+        r"[0-9]",  # Digit
+        r"[!@#$%^&*(),.?\":{}|<>]",  # Special character
     ]
-    
+
     return all(re.search(p, password) for p in patterns)
 
 
@@ -61,14 +61,14 @@ def obfuscate_email(email: str) -> str:
     """Obfuscate email address for display"""
     if not email or "@" not in email:
         return email
-    
+
     parts = email.split("@")
     name = parts[0]
     domain = parts[1]
-    
+
     if len(name) <= 2:
         masked_name = "*" * len(name)
     else:
         masked_name = name[0] + "*" * (len(name) - 2) + name[-1]
-    
+
     return f"{masked_name}@{domain}"

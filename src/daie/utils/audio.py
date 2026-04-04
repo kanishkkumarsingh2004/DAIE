@@ -148,7 +148,9 @@ class AudioManager:
             self.input_stream.start_stream()
 
             if callback:
-                self.recording_thread = threading.Thread(target=self._processing_thread, args=(callback,), daemon=True)
+                self.recording_thread = threading.Thread(
+                    target=self._processing_thread, args=(callback,), daemon=True
+                )
                 self.recording_thread.start()
 
             logger.info("Recording started")
@@ -231,7 +233,9 @@ class AudioManager:
 
         try:
             self.output_queue.put(audio_data)
-            self.playback_thread = threading.Thread(target=self._playback_thread, args=(sample_rate,), daemon=True)
+            self.playback_thread = threading.Thread(
+                target=self._playback_thread, args=(sample_rate,), daemon=True
+            )
             self.playback_thread.start()
 
             logger.info("Audio playback started")

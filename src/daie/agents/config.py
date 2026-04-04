@@ -9,13 +9,15 @@ from typing import Any, Dict, List, Literal, Optional
 
 class AgentRole(Enum):
     """Agent role types"""
-    GENERAL_PURPOSE = "general-purpose" # Jack-of-all-trades
-    SPECIALIZED = "specialized"         # Focused on one specific niche
-    WORKER = "worker"                   # Task-oriented executor
-    COORDINATOR = "coordinator"         # Manager/Orchestrator
-    ANALYZER = "analyzer"               # Data and logic focused
-    EXECUTOR = "executor"               # Action and tool focused
-    ASSISTANT = "assistant"             # User-centric support (High friendliness)
+
+    GENERAL_PURPOSE = "general-purpose"  # Jack-of-all-trades
+    SPECIALIZED = "specialized"  # Focused on one specific niche
+    WORKER = "worker"  # Task-oriented executor
+    COORDINATOR = "coordinator"  # Manager/Orchestrator
+    ANALYZER = "analyzer"  # Data and logic focused
+    EXECUTOR = "executor"  # Action and tool focused
+    ASSISTANT = "assistant"  # User-centric support (High friendliness)
+
 
 @dataclass
 class AgentConfig:
@@ -321,7 +323,9 @@ class AgentConfig:
         if self.camera_resolution:
             parts = self.camera_resolution.split("x")
             if len(parts) != 2:
-                errors.append("Camera resolution must be in format 'widthxheight' (e.g., '640x480')")
+                errors.append(
+                    "Camera resolution must be in format 'widthxheight' (e.g., '640x480')"
+                )
             else:
                 try:
                     width = int(parts[0])

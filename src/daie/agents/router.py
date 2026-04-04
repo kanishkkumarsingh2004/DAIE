@@ -43,7 +43,9 @@ class AgentRouter:
         self._build_agent_descriptions()
 
     @classmethod
-    def from_agents(cls, agents_list: List[Any], router_agent_name: Optional[str] = None) -> "AgentRouter":
+    def from_agents(
+        cls, agents_list: List[Any], router_agent_name: Optional[str] = None
+    ) -> "AgentRouter":
         """
         Create a router from a list of agents.
 
@@ -212,7 +214,9 @@ class AgentRouter:
         # Get the router agent
         router_agent = self.agents.get(self.router_agent_name)
         if not router_agent:
-            logger.error(f"Router agent '{self.router_agent_name}' not found. Available: {list(self.agents.keys())}")
+            logger.error(
+                f"Router agent '{self.router_agent_name}' not found. Available: {list(self.agents.keys())}"
+            )
             # Fallback to first available agent
             return list(self.agents.keys())[0] if self.agents else None
 

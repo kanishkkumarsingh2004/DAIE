@@ -171,7 +171,9 @@ class Orchestrator:
         """
         if child_orchestrator_id not in self._child_orchestrator_ids:
             self._child_orchestrator_ids.append(child_orchestrator_id)
-            logger.debug(f"Orchestrator {self.context_name} added child orchestrator {child_orchestrator_id}")
+            logger.debug(
+                f"Orchestrator {self.context_name} added child orchestrator {child_orchestrator_id}"
+            )
         return self
 
     def remove_child_orchestrator(self, child_orchestrator_id: str) -> "Orchestrator":
@@ -186,7 +188,9 @@ class Orchestrator:
         """
         if child_orchestrator_id in self._child_orchestrator_ids:
             self._child_orchestrator_ids.remove(child_orchestrator_id)
-            logger.debug(f"Orchestrator {self.context_name} removed child orchestrator {child_orchestrator_id}")
+            logger.debug(
+                f"Orchestrator {self.context_name} removed child orchestrator {child_orchestrator_id}"
+            )
         return self
 
     @property

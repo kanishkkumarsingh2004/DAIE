@@ -23,9 +23,17 @@ class A2ASendMessageTool(Tool):
             category=ToolCategory.CUSTOM,
             parameters=[
                 ToolParameter(
-                    name="target_agent_id", type="string", description="ID of the receiving agent", required=True
+                    name="target_agent_id",
+                    type="string",
+                    description="ID of the receiving agent",
+                    required=True,
                 ),
-                ToolParameter(name="message", type="string", description="The text message content", required=True),
+                ToolParameter(
+                    name="message",
+                    type="string",
+                    description="The text message content",
+                    required=True,
+                ),
             ],
         )
         super().__init__(metadata)
@@ -47,11 +55,17 @@ class A2ASendMessageTool(Tool):
 
         comm_mgr = getattr(self._agent_ref, "communication_manager", None)
         if not comm_mgr:
-            return {"success": False, "error": "Communication Manager is not attached to this agent."}
+            return {
+                "success": False,
+                "error": "Communication Manager is not attached to this agent.",
+            }
 
         # Send the message
         agent_msg = AgentMessage(
-            sender_id=self._agent_ref.id, receiver_id=target_agent_id, content=message, message_type="text"
+            sender_id=self._agent_ref.id,
+            receiver_id=target_agent_id,
+            content=message,
+            message_type="text",
         )
 
         success = await comm_mgr.send_message(agent_msg)
@@ -74,10 +88,16 @@ class A2ADelegateTaskTool(Tool):
             category=ToolCategory.CUSTOM,
             parameters=[
                 ToolParameter(
-                    name="target_agent_id", type="string", description="ID of the receiving agent", required=True
+                    name="target_agent_id",
+                    type="string",
+                    description="ID of the receiving agent",
+                    required=True,
                 ),
                 ToolParameter(
-                    name="task_payload", type="object", description="JSON payload of the task", required=True
+                    name="task_payload",
+                    type="object",
+                    description="JSON payload of the task",
+                    required=True,
                 ),
                 ToolParameter(
                     name="mapping_rules",
@@ -111,7 +131,10 @@ class A2ADelegateTaskTool(Tool):
 
         comm_mgr = getattr(self._agent_ref, "communication_manager", None)
         if not comm_mgr:
-            return {"success": False, "error": "Communication Manager is not attached to this agent."}
+            return {
+                "success": False,
+                "error": "Communication Manager is not attached to this agent.",
+            }
 
         from daie.utils import generate_id
 
@@ -144,12 +167,11 @@ class A2ADelegateTaskTool(Tool):
             if hasattr(self._agent_ref, "memory_manager") and self._agent_ref.memory_manager:
                 task_summary = str(task_payload)[:200]
                 self._agent_ref.memory_manager.log_chat_history(
-                    self._agent_ref.id,
-                    f"[Delegated to {target_agent_id}]: {task_summary}"
+                    self._agent_ref.id, f"[Delegated to {target_agent_id}]: {task_summary}"
                 )
                 self._agent_ref.memory_manager.log_chat_history(
                     self._agent_ref.id,
-                    f"[Response from {target_agent_id}]: {str(response_content)[:500]}"
+                    f"[Response from {target_agent_id}]: {str(response_content)[:500]}",
                 )
                 self._agent_ref.memory_manager.store_memory(
                     self._agent_ref.id,
@@ -166,7 +188,10 @@ class A2ADelegateTaskTool(Tool):
             }
         except asyncio.TimeoutError:
             self._agent_ref._pending_responses.pop(correlation_id, None)
-            return {"success": False, "error": f"Task delegation to {target_agent_id} timed out after 30s."}
+            return {
+                "success": False,
+                "error": f"Task delegation to {target_agent_id} timed out after 30s.",
+            }
         except Exception as e:
             self._agent_ref._pending_responses.pop(correlation_id, None)
             return {"success": False, "error": f"Error during task delegation: {str(e)}"}

@@ -342,7 +342,9 @@ def list_camera_devices() -> List[int]:
     return devices
 
 
-def capture_image(file_path: str, device_index: int = 0, width: int = 640, height: int = 480) -> bool:
+def capture_image(
+    file_path: str, device_index: int = 0, width: int = 640, height: int = 480
+) -> bool:
     """
     Capture a single image from camera
 

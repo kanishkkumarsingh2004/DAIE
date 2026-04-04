@@ -204,11 +204,18 @@ try:
                     if expected_token:
                         auth_token = message_data.get("auth_token", "")
                         if auth_token != expected_token:
-                            await websocket.send_text(json.dumps({"error": "Unauthorized: Invalid token"}))
+                            await websocket.send_text(
+                                json.dumps({"error": "Unauthorized: Invalid token"})
+                            )
                             continue
 
-                    if not hasattr(agent, "communication_manager") or not agent.communication_manager:
-                        await websocket.send_text(json.dumps({"error": "Agent CommunicationManager not active"}))
+                    if (
+                        not hasattr(agent, "communication_manager")
+                        or not agent.communication_manager
+                    ):
+                        await websocket.send_text(
+                            json.dumps({"error": "Agent CommunicationManager not active"})
+                        )
                         continue
 
                     message = AgentMessage(
@@ -224,7 +231,9 @@ try:
 
                     task = asyncio.create_task(agent._handle_message(message))
                     # Add error handling for the background task
-                    task.add_done_callback(lambda t: t.exception() if t.done() and not t.cancelled() else None)
+                    task.add_done_callback(
+                        lambda t: t.exception() if t.done() and not t.cancelled() else None
+                    )
 
                     # Send acknowledgment
                     await websocket.send_text(json.dumps({"status": "Message delivered"}))
@@ -233,7 +242,9 @@ try:
                     await websocket.send_text(json.dumps({"error": "Invalid JSON format"}))
                 except Exception as e:
                     logger.error(f"Error processing message: {e}")
-                    await websocket.send_text(json.dumps({"error": f"Internal server error: {str(e)}"}))
+                    await websocket.send_text(
+                        json.dumps({"error": f"Internal server error: {str(e)}"})
+                    )
 
         except WebSocketDisconnect:
             logger.info("WebSocket connection closed")
@@ -256,4 +267,7 @@ except ImportError:
     app = None
 
     def start_server(host: str = "0.0.0.0", port: int = 3333, reload: bool = False):
-        raise ImportError("Server support requires fastapi and uvicorn. " "Install with: pip install 'daie[server]'")
+        raise ImportError(
+            "Server support requires fastapi and uvicorn. "
+            "Install with: pip install 'daie[server]'"
+        )

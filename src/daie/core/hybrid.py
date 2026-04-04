@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 class HybridOrchestratorNode:
     """
     A hybrid system that combines Node and Orchestrator architectures.
@@ -220,7 +221,9 @@ class HybridOrchestratorNode:
         logger.debug(f"Resource '{name}' set to '{value}' on node '{self.node_name}'")
         return self
 
-    def connect_to_node(self, peer_node_id: str, peer_connections: Optional[Dict[str, str]] = None) -> "HybridOrchestratorNode":
+    def connect_to_node(
+        self, peer_node_id: str, peer_connections: Optional[Dict[str, str]] = None
+    ) -> "HybridOrchestratorNode":
         """
         Connect this node to another peer node.
 
@@ -238,7 +241,9 @@ class HybridOrchestratorNode:
             for agent in self.all_agents:
                 agent.config.network_connections.update(peer_connections)
                 if hasattr(agent, "communication_manager") and agent.communication_manager:
-                    agent.communication_manager.registry.update_connections(agent.id, agent.config.network_connections)
+                    agent.communication_manager.registry.update_connections(
+                        agent.id, agent.config.network_connections
+                    )
 
         return self
 
@@ -255,7 +260,7 @@ class HybridOrchestratorNode:
         if parent_node_id == self.node_id:
             logger.warning(f"Hybrid node '{self.node_name}' cannot be its own parent")
             return self
-        
+
         self._parent_hybrid_node_id = parent_node_id
         self.node.set_parent(parent_node_id)
         logger.info(f"Hybrid node '{self.node_name}' set parent to '{parent_node_id}'")
@@ -274,7 +279,7 @@ class HybridOrchestratorNode:
         if child_node_id == self.node_id:
             logger.warning(f"Hybrid node '{self.node_name}' cannot be its own child")
             return self
-        
+
         if child_node_id not in self._child_hybrid_node_ids:
             self._child_hybrid_node_ids.append(child_node_id)
             self.node.add_child(child_node_id)
@@ -662,7 +667,9 @@ class MultiNodeHybridSystem:
                 connections[agent.id] = agent.config.network_url
         return connections
 
-    def _synchronize_network_connections(self, node1: HybridOrchestratorNode, node2: HybridOrchestratorNode) -> None:
+    def _synchronize_network_connections(
+        self, node1: HybridOrchestratorNode, node2: HybridOrchestratorNode
+    ) -> None:
         """
         Ensure every agent in both connected nodes has direct peer network connections
         and updates the underlying communication registry.
@@ -672,14 +679,18 @@ class MultiNodeHybridSystem:
                 agent.config.network_connections = {}
             agent.config.network_connections.update(self._build_peer_connections(node2))
             if hasattr(agent, "communication_manager") and agent.communication_manager:
-                agent.communication_manager.registry.update_connections(agent.id, agent.config.network_connections)
+                agent.communication_manager.registry.update_connections(
+                    agent.id, agent.config.network_connections
+                )
 
         for agent in node2.all_agents:
             if not agent.config.network_connections:
                 agent.config.network_connections = {}
             agent.config.network_connections.update(self._build_peer_connections(node1))
             if hasattr(agent, "communication_manager") and agent.communication_manager:
-                agent.communication_manager.registry.update_connections(agent.id, agent.config.network_connections)
+                agent.communication_manager.registry.update_connections(
+                    agent.id, agent.config.network_connections
+                )
 
     def set_parent_child(self, parent_node_id: str, child_node_id: str) -> "MultiNodeHybridSystem":
         """
@@ -701,7 +712,9 @@ class MultiNodeHybridSystem:
         logger.info(f"Node '{child_node_id}' set as child of '{parent_node_id}'")
         return self
 
-    def remove_parent_child(self, parent_node_id: str, child_node_id: str) -> "MultiNodeHybridSystem":
+    def remove_parent_child(
+        self, parent_node_id: str, child_node_id: str
+    ) -> "MultiNodeHybridSystem":
         """
         Remove a parent-child relationship between two nodes.
 
@@ -718,7 +731,9 @@ class MultiNodeHybridSystem:
         parent_node.remove_child_hybrid_node(child_node_id)
         child_node.set_parent_hybrid_node(None)
 
-        logger.info(f"Parent-child relationship between '{parent_node_id}' and '{child_node_id}' removed")
+        logger.info(
+            f"Parent-child relationship between '{parent_node_id}' and '{child_node_id}' removed"
+        )
         return self
 
     def get_child_nodes(self, node_id: str) -> List[HybridOrchestratorNode]:

@@ -18,16 +18,19 @@ except ImportError:
 # Exception classes for compatibility with requests library
 class ConnectionError(Exception):
     """Connection error exception"""
+
     pass
 
 
 class Timeout(Exception):
     """Timeout exception"""
+
     pass
 
 
 class exceptions:
     """Namespace for exception classes (requests-compatible)"""
+
     ConnectionError = ConnectionError
     Timeout = Timeout
 
@@ -35,7 +38,9 @@ class exceptions:
 class Response:
     """Mock requests Response object"""
 
-    def __init__(self, data: bytes, headers: Any, status_code: int, url: str = "", reason: str = ""):
+    def __init__(
+        self, data: bytes, headers: Any, status_code: int, url: str = "", reason: str = ""
+    ):
         self.content = data
         self.headers = headers
         self.status_code = status_code
@@ -43,9 +48,10 @@ class Response:
         self.reason = reason
         self.text = data.decode("utf-8") if data else ""
         self.encoding = "utf-8"
-        
+
         # Simple elapsed time mock
         import collections
+
         Elapsed = collections.namedtuple("Elapsed", ["total_seconds"])
         self.elapsed = Elapsed(lambda: 0.1)
 
@@ -63,13 +69,13 @@ class Response:
         for line in self.content.split(b"\n"):
             if line:
                 yield line
-    
+
     def iter_content(self, chunk_size: int = 8192):
         """Iterate over response content in chunks"""
         if not self.content:
             return
         for i in range(0, len(self.content), chunk_size):
-            yield self.content[i:i + chunk_size]
+            yield self.content[i : i + chunk_size]
 
 
 def request(
@@ -139,7 +145,9 @@ def request(
         with urllib.request.urlopen(req, timeout=timeout) as response:
             # Read response content
             content = response.read()
-            return Response(content, response.info(), response.getcode(), url=url, reason=response.reason)
+            return Response(
+                content, response.info(), response.getcode(), url=url, reason=response.reason
+            )
     except urllib.error.HTTPError as e:
         # For HTTP errors, read the error content
         error_content = e.read()

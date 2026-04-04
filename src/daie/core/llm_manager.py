@@ -141,7 +141,9 @@ class LLMManager:
 
         # Clear cached LLM instance
         self.llm = None
-        logger.info(f"LLM configuration updated: {self.config.llm_type.value}:{self.config.model_name}")
+        logger.info(
+            f"LLM configuration updated: {self.config.llm_type.value}:{self.config.model_name}"
+        )
 
         return self
 
@@ -206,6 +208,7 @@ class LLMManager:
                 # Reuse session for better performance
                 self._session = None
                 from daie.utils import http_client
+
                 self._session = http_client.Session()
                 self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
@@ -215,7 +218,11 @@ class LLMManager:
 
             @trace_span("llm_invoke")
             def invoke(
-                self, prompt: str, stream: Optional[bool] = None, images: Optional[List[str]] = None, **kwargs
+                self,
+                prompt: str,
+                stream: Optional[bool] = None,
+                images: Optional[List[str]] = None,
+                **kwargs,
             ) -> str:
                 """
                 Invoke the LLM with a prompt
@@ -235,7 +242,9 @@ class LLMManager:
                 else:
                     return self._invoke_non_stream(prompt, images=images, **kwargs)
 
-            def _invoke_non_stream(self, prompt: str, images: Optional[List[str]] = None, **kwargs) -> str:
+            def _invoke_non_stream(
+                self, prompt: str, images: Optional[List[str]] = None, **kwargs
+            ) -> str:
                 """Non-streaming invocation"""
                 try:
                     pass
@@ -259,23 +268,28 @@ class LLMManager:
                         payload["options"] = {"num_predict": self.config.max_tokens}
 
                     # Call ollama API
-                    response = session.post(f"{self.base_url}/api/chat", json=payload, timeout=300.0)
+                    response = session.post(
+                        f"{self.base_url}/api/chat", json=payload, timeout=300.0
+                    )
 
                     # Parse response
                     if response.status_code == 200:
                         data = response.json()
-                        
+
                         # Update usage stats
                         self.last_usage = {
                             "prompt_tokens": data.get("prompt_eval_count", 0),
                             "completion_tokens": data.get("eval_count", 0),
-                            "total_tokens": data.get("prompt_eval_count", 0) + data.get("eval_count", 0)
+                            "total_tokens": data.get("prompt_eval_count", 0)
+                            + data.get("eval_count", 0),
                         }
 
                         if "message" in data and "content" in data["message"]:
                             return data["message"]["content"]
 
-                        logger.error(f"Ollama API returned unexpected format: {response.text[:200]}")
+                        logger.error(
+                            f"Ollama API returned unexpected format: {response.text[:200]}"
+                        )
                         return "Error: Failed to parse Ollama response format"
 
                     else:
@@ -296,7 +310,9 @@ class LLMManager:
                         logger.error(f"Ollama LLM error: {e}")
                         return f"Error: {e}"
 
-            def _invoke_stream(self, prompt: str, images: Optional[List[str]] = None, **kwargs) -> str:
+            def _invoke_stream(
+                self, prompt: str, images: Optional[List[str]] = None, **kwargs
+            ) -> str:
                 """Streaming invocation with token-by-token display"""
                 try:
                     import json
@@ -321,14 +337,18 @@ class LLMManager:
                         payload["options"] = {"num_predict": self.config.max_tokens}
 
                     # Call ollama API with streaming
-                    response = session.post(f"{self.base_url}/api/chat", json=payload, stream=True, timeout=300.0)
+                    response = session.post(
+                        f"{self.base_url}/api/chat", json=payload, stream=True, timeout=300.0
+                    )
 
                     if response.status_code != 200:
                         try:
                             err_msg = response.json().get("error", response.text)
                         except Exception:
                             err_msg = response.text
-                        return f"Error: Ollama API returned status {response.status_code} - {err_msg}"
+                        return (
+                            f"Error: Ollama API returned status {response.status_code} - {err_msg}"
+                        )
 
                     full_response = ""
 
@@ -420,13 +440,13 @@ class LLMManager:
                     response.raise_for_status()
 
                     data = response.json()
-                    
+
                     # Update usage stats
                     usage = data.get("usage", {})
                     self.last_usage = {
                         "prompt_tokens": usage.get("prompt_tokens", 0),
                         "completion_tokens": usage.get("completion_tokens", 0),
-                        "total_tokens": usage.get("total_tokens", 0)
+                        "total_tokens": usage.get("total_tokens", 0),
                     }
 
                     return data["choices"][0]["message"]["content"]
@@ -537,13 +557,14 @@ class LLMManager:
                     response.raise_for_status()
 
                     data = response.json()
-                    
+
                     # Update usage stats
                     usage = data.get("usage", {})
                     self.last_usage = {
                         "prompt_tokens": usage.get("input_tokens", 0),
                         "completion_tokens": usage.get("output_tokens", 0),
-                        "total_tokens": usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+                        "total_tokens": usage.get("input_tokens", 0)
+                        + usage.get("output_tokens", 0),
                     }
 
                     return data["content"][0]["text"]
@@ -812,7 +833,9 @@ class LLMManager:
 
                     from daie.utils import http_client as requests
 
-                    url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
+                    url = (
+                        f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
+                    )
                     headers = {
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {self.config.api_key}",
@@ -851,7 +874,9 @@ class LLMManager:
 
                     from daie.utils import http_client as requests
 
-                    url = f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
+                    url = (
+                        f"{self.config.base_url or 'https://openrouter.ai'}/api/v1/chat/completions"
+                    )
                     headers = {
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {self.config.api_key}",
@@ -873,7 +898,9 @@ class LLMManager:
                             if key not in ["referer", "title"] and key not in payload:
                                 payload[key] = value
 
-                    response = requests.post(url, headers=headers, data=json.dumps(payload), stream=True)
+                    response = requests.post(
+                        url, headers=headers, data=json.dumps(payload), stream=True
+                    )
                     response.raise_for_status()
 
                     full_response = ""

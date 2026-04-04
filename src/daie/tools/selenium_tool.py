@@ -314,7 +314,9 @@ class SeleniumChromeTool(Tool):
         timeout = params.get("timeout", 30)
         self.wait = WebDriverWait(self.driver, timeout)
 
-    def _find_element(self, selector: str, selector_type: str = "css", timeout: Optional[float] = None):
+    def _find_element(
+        self, selector: str, selector_type: str = "css", timeout: Optional[float] = None
+    ):
         """Find an element using CSS selector or XPath."""
         from selenium.common.exceptions import TimeoutException
         from selenium.webdriver.common.by import By
@@ -551,7 +553,9 @@ class SeleniumChromeTool(Tool):
             selector = params.get("element_selector")
             if not selector:
                 raise Exception("element_selector is required for wait_for_element action")
-            self._find_element(selector, params.get("selector_type", "css"), params.get("wait_time", 5))
+            self._find_element(
+                selector, params.get("selector_type", "css"), params.get("wait_time", 5)
+            )
             result["element_found"] = True
 
         elif action == "wait_for_text":
@@ -559,7 +563,9 @@ class SeleniumChromeTool(Tool):
             text = params.get("text")
             if not selector or not text:
                 raise Exception("element_selector and text are required for wait_for_text action")
-            element = self._find_element(selector, params.get("selector_type", "css"), params.get("wait_time", 5))
+            element = self._find_element(
+                selector, params.get("selector_type", "css"), params.get("wait_time", 5)
+            )
             result["text_found"] = text in element.text
 
         elif action == "select_dropdown":

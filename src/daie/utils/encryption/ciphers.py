@@ -56,7 +56,7 @@ def chacha20_crypt(data: bytes, key: bytes, nonce: bytes, counter: int = 0) -> b
     res = bytearray()
     for i in range(0, len(data), 64):
         keystream = _chacha20_block(key, counter + (i // 64), nonce)
-        block = data[i: i + 64]
+        block = data[i : i + 64]
         for j in range(len(block)):
             res.append(block[j] ^ keystream[j])
     return bytes(res)

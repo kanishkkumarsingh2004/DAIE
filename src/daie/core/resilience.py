@@ -22,7 +22,7 @@ class CircuitState(Enum):
 class CircuitBreaker:
     """
     Circuit Breaker pattern implementation to prevent cascading failures.
-    
+
     States:
     - CLOSED: Requests pass through normally.
     - OPEN: Requests fail fast without calling the underlying service.
@@ -96,7 +96,7 @@ class CircuitBreaker:
                 result = await func(*args, **kwargs)
             else:
                 result = func(*args, **kwargs)
-            
+
             self._on_success()
             return result
         except Exception as e:
@@ -128,7 +128,7 @@ class RetryPolicy:
     async def execute(self, func: Callable, *args, **kwargs) -> Any:
         """Execute a function with retries."""
         last_exception = None
-        
+
         for attempt in range(self.max_retries + 1):
             try:
                 if asyncio.iscoroutinefunction(func):
@@ -139,35 +139,38 @@ class RetryPolicy:
                 last_exception = e
                 if attempt == self.max_retries:
                     break
-                
+
                 # Calculate delay with exponential backoff
                 delay = min(self.max_delay, self.base_delay * (self.exponential_base**attempt))
-                
+
                 # Add jitter
                 if self.jitter:
                     import random
-                    delay *= (0.5 + random.random())
-                
-                logger.info(f"Retry attempt {attempt + 1}/{self.max_retries} after {delay:.2f}s due to: {e}")
+
+                    delay *= 0.5 + random.random()
+
+                logger.info(
+                    f"Retry attempt {attempt + 1}/{self.max_retries} after {delay:.2f}s due to: {e}"
+                )
                 await asyncio.sleep(delay)
-        
+
         if last_exception:
             raise last_exception
-        
+
         raise RuntimeError("Retry failed without an exception (should not happen)")
 
 
 def with_resilience(
-    circuit_breaker: Optional[CircuitBreaker] = None,
-    retry_policy: Optional[RetryPolicy] = None
+    circuit_breaker: Optional[CircuitBreaker] = None, retry_policy: Optional[RetryPolicy] = None
 ):
     """
     Decorator to apply resilience to a function.
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            
+
             async def execute_actual():
                 if circuit_breaker:
                     return await circuit_breaker.call(func, *args, **kwargs)
@@ -179,6 +182,7 @@ def with_resilience(
                 return await retry_policy.execute(execute_actual)
             else:
                 return await execute_actual()
-                
+
         return wrapper
+
     return decorator

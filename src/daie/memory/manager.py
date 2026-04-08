@@ -9,6 +9,8 @@ binary files, and JSON files.
 import logging
 import os
 import time
+import heapq
+from collections import deque, OrderedDict
 from typing import Any, Dict, List, Optional
 
 from daie.config import SystemConfig
@@ -67,7 +69,11 @@ class MemoryManager:
         """
         self.config = config or SystemConfig()
         self._is_initialized = False
-        self._agent_memories: Dict[str, Dict[str, List[MemoryItem]]] = {}
+        
+        # Limit the number of agents kept in RAM to prevent memory bloat
+        self._max_agents_in_ram = getattr(self.config, "max_agents_in_ram", 20)
+        self._agent_memories: OrderedDict[str, Dict[str, deque[MemoryItem]]] = OrderedDict()
+        
         self._storage: Optional[StorageBackend] = None
         self._root_path = self.config.memory_root_path
 
@@ -143,7 +149,14 @@ class MemoryManager:
 
         try:
             loaded = self._storage.load_agent_memory(agent_id)
-            self._agent_memories[agent_id] = loaded
+            # Convert loaded lists to deques for performance
+            max_items = self.config.max_memory_items or 1000
+            self._agent_memories[agent_id] = {
+                m_type: deque(items, maxlen=max_items)
+                for m_type, items in loaded.items()
+            }
+            # Move to end (MRU)
+            self._agent_memories.move_to_end(agent_id)
 
             total_items = sum(len(items) for items in self._agent_memories[agent_id].values())
             logger.debug(
@@ -155,11 +168,14 @@ class MemoryManager:
             logger.error(f"Failed to load memory for agent {agent_id}: {e}")
             # Only initialize empty if not already present
             if agent_id not in self._agent_memories:
+                max_items = self.config.max_memory_items or 1000
                 self._agent_memories[agent_id] = {
-                    "working": [],
-                    "semantic": [],
-                    "episodic": [],
+                    "working": deque(maxlen=max_items),
+                    "semantic": deque(maxlen=max_items),
+                    "episodic": deque(maxlen=max_items),
+                    "long_term": deque(maxlen=max_items),
                 }
+                self._agent_memories.move_to_end(agent_id)
 
     def _save_agent_memory(self, agent_id: str):
         """Save agent memory to storage"""
@@ -184,7 +200,7 @@ class MemoryManager:
     def _load_agent_memories(self):
         """Load all agent memories from storage"""
         logger.debug("Loading agent memories from storage...")
-        self._agent_memories = {}
+        self._agent_memories.clear()
 
         if not self._storage:
             return
@@ -216,11 +232,20 @@ class MemoryManager:
 
             # If still not present (no storage or load returned nothing), init empty
             if agent_id not in self._agent_memories:
+                max_items = self.config.max_memory_items or 1000
                 self._agent_memories[agent_id] = {
-                    "working": [],
-                    "semantic": [],
-                    "episodic": [],
+                    "working": deque(maxlen=max_items),
+                    "semantic": deque(maxlen=max_items),
+                    "episodic": deque(maxlen=max_items),
+                    "long_term": deque(maxlen=max_items),
                 }
+            self._agent_memories.move_to_end(agent_id)
+            
+            # Maintenance: Evict least recently used agent if we exceed RAM limit
+            if len(self._agent_memories) > self._max_agents_in_ram:
+                lru_id, _ = self._agent_memories.popitem(last=False)
+                logger.debug(f"Evicted agent {lru_id} from RAM cache")
+
             logger.info(f"Memory initialized for agent: {agent_id}")
 
         return self
@@ -258,20 +283,8 @@ class MemoryManager:
             tags=tags or [],
         )
 
-        # Check if memory type exists
-        if memory_type not in self._agent_memories[agent_id]:
-            self._agent_memories[agent_id][memory_type] = []
-
+        # deque with maxlen handles truncation automatically and efficiently
         self._agent_memories[agent_id][memory_type].append(memory_item)
-
-        # Limit memory size efficiently
-        max_items = self.config.max_memory_items or 1000
-        current_count = len(self._agent_memories[agent_id][memory_type])
-        if current_count > max_items:
-            # Remove oldest items in one operation
-            self._agent_memories[agent_id][memory_type] = self._agent_memories[agent_id][
-                memory_type
-            ][-max_items:]
 
         # Log only if content is string
         content_preview = str(content)[:50] if content else ""
@@ -305,22 +318,36 @@ class MemoryManager:
         if agent_id not in self._agent_memories:
             return []
 
-        all_memories = []
+        # Update LRU
+        self._agent_memories.move_to_end(agent_id)
 
+        pools = []
         if memory_type:
             if memory_type in self._agent_memories[agent_id]:
-                all_memories.extend(self._agent_memories[agent_id][memory_type])
+                pools.append(self._agent_memories[agent_id][memory_type])
         else:
-            for memories in self._agent_memories[agent_id].values():
-                all_memories.extend(memories)
+            pools = list(self._agent_memories[agent_id].values())
 
-        # Filter by tags if specified
+        if not pools:
+            return []
+
+        # Pools are deques added with append(), so newest is at the end.
+        # We use heapq.merge on reversed deques (iterators) to get newest first in O(limit * log(num_pools)).
+        # This is significantly faster than combining and sorting O(N log N).
+        import itertools
+        merged = heapq.merge(
+            *[reversed(p) for p in pools],
+            key=lambda x: x.timestamp,
+            reverse=True
+        )
+        
+        results = list(itertools.islice(merged, limit))
+
+        # Filter by tags if specified (post-merge as tags are rare)
         if tags:
-            all_memories = [item for item in all_memories if any(tag in tags for tag in item.tags)]
-
-        # Sort by timestamp (newest first) and apply limit
-        all_memories.sort(key=lambda x: x.timestamp, reverse=True)
-        return all_memories[:limit]
+            results = [item for item in results if any(tag in tags for tag in item.tags)]
+            
+        return results
 
     def search_similar(
         self,
@@ -449,3 +476,163 @@ class MemoryManager:
                 self.get_memory_count(agent_id) for agent_id in self._agent_memories
             ),
         }
+
+    # ── Memory Summarization ──────────────────────────────────────────────────
+
+    def summarize_episodic_memory(
+        self,
+        agent_id: str,
+        llm,
+        threshold: int = 50,
+    ) -> Optional[str]:
+        """
+        Summarize old episodic memories using an LLM.
+
+        Retrieves episodic memories, uses the LLM to generate a concise summary,
+        stores it as a semantic memory, and clears the summarized episodes.
+
+        Args:
+            agent_id: Agent ID
+            llm: LLM instance with an invoke() method
+            threshold: Minimum number of episodic memories before summarization triggers
+
+        Returns:
+            The generated summary string, or None if threshold not met.
+        """
+        if agent_id not in self._agent_memories:
+            return None
+
+        episodic = self._agent_memories[agent_id].get("episodic", deque())
+        if len(episodic) < threshold:
+            logger.debug(
+                f"Agent {agent_id} has {len(episodic)} episodic memories "
+                f"(threshold={threshold}), skipping summarization"
+            )
+            return None
+
+        # Collect all episodic content
+        contents = [mem.content for mem in episodic]
+        combined = "\n".join(f"- {c}" for c in contents)
+
+        prompt = (
+            "You are a concise summarizer. Below are episodic memory entries from an AI agent's history. "
+            "Create a brief, factual summary that captures the most important information, decisions, "
+            "and outcomes. Be concise but preserve key details.\n\n"
+            f"Episodic memories:\n{combined}\n\n"
+            "Summary:"
+        )
+
+        try:
+            summary = llm.invoke(prompt, stream=False, temperature=0.3, max_tokens=500)
+            summary = summary.strip()
+        except Exception as e:
+            logger.error(f"Failed to generate memory summary for agent {agent_id}: {e}")
+            return None
+
+        # Store summary as semantic memory
+        self.store_memory(
+            agent_id,
+            f"[Auto-Summary] {summary}",
+            memory_type="semantic",
+            tags=["auto_summary", "episodic_digest"],
+        )
+
+        # Also store in long_term for permanent reference
+        self.store_memory(
+            agent_id,
+            f"[Long-Term Summary] {summary}",
+            memory_type="long_term",
+            tags=["auto_summary", "long_term"],
+        )
+
+        # Clear summarized episodic memories
+        self._agent_memories[agent_id]["episodic"] = deque(
+            maxlen=self.config.max_memory_items or 1000
+        )
+
+        # Persist changes
+        if self.config.persistent_memory:
+            self._save_agent_memory(agent_id)
+
+        logger.info(
+            f"Summarized {len(contents)} episodic memories for agent {agent_id}"
+        )
+        return summary
+
+    # ── Shared Memory (Cross-Agent in Orchestrator) ───────────────────────────
+
+    def store_shared_memory(
+        self,
+        namespace: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Store a shared memory accessible by any agent in the namespace.
+
+        Args:
+            namespace: Shared memory namespace (e.g., orchestrator name)
+            content: Memory content
+            metadata: Optional metadata
+            tags: Optional tags
+
+        Returns:
+            Memory item ID
+        """
+        shared_agent_id = f"shared_{namespace}"
+        return self.store_memory(
+            shared_agent_id,
+            content,
+            memory_type="semantic",
+            metadata=metadata,
+            tags=tags or ["shared"],
+        )
+
+    def retrieve_shared_memory(
+        self,
+        namespace: str,
+        limit: int = 20,
+        tags: Optional[List[str]] = None,
+    ) -> List["MemoryItem"]:
+        """
+        Retrieve shared memories from a namespace.
+
+        Args:
+            namespace: Shared memory namespace
+            limit: Maximum number of memories to return
+            tags: Optional tag filter
+
+        Returns:
+            List of shared memory items
+        """
+        shared_agent_id = f"shared_{namespace}"
+        if shared_agent_id not in self._agent_memories:
+            self.initialize_agent_memory(shared_agent_id)
+        return self.retrieve_memories(
+            shared_agent_id, memory_type="semantic", tags=tags, limit=limit
+        )
+
+    def search_shared_memory(
+        self,
+        namespace: str,
+        query: str,
+        limit: int = 10,
+    ) -> List["MemoryItem"]:
+        """
+        Search shared memories semantically.
+
+        Args:
+            namespace: Shared memory namespace
+            query: Search query
+            limit: Maximum results
+
+        Returns:
+            List of matching shared memory items
+        """
+        shared_agent_id = f"shared_{namespace}"
+        if shared_agent_id not in self._agent_memories:
+            self.initialize_agent_memory(shared_agent_id)
+        return self.search_similar(
+            shared_agent_id, query, memory_type="semantic", limit=limit
+        )

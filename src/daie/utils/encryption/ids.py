@@ -6,6 +6,7 @@ import os
 import time
 import random
 import string
+import secrets
 from typing import Optional
 
 
@@ -59,9 +60,8 @@ def generate_id() -> str:
 
 def secure_random_string(length: int = 32) -> str:
     """Generate a cryptographically secure random string"""
-    # Uses os.urandom for secure random choice
     chars = string.ascii_letters + string.digits
-    return "".join(chars[b % len(chars)] for b in os.urandom(length))
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 
 def generate_api_key(prefix: str = "daie_") -> str:

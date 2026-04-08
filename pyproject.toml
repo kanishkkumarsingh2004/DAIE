@@ -52,6 +52,29 @@ vector = [
     "sentence-transformers>=2.2.0",
 ]
 
+faiss = [
+    "faiss-cpu>=1.7.0",
+    "sentence-transformers>=2.2.0",
+]
+
+search = [
+    "duckduckgo-search>=6.0.0",
+]
+
+playwright = [
+    "playwright>=1.40.0",
+]
+
+database = [
+    "aiosqlite>=0.19.0",
+    "asyncpg>=0.29.0",
+]
+
+email = [
+    "google-api-python-client>=2.0.0",
+    "icalendar>=5.0.0",
+]
+
 server = [
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.29.0",
@@ -73,7 +96,7 @@ docs = [
 ]
 
 all = [
-    "daie[audio,vision,vector,server]",
+    "daie[audio,vision,vector,faiss,search,playwright,database,email,server]",
 ]
 
 [project.scripts]

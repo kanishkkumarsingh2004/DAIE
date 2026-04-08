@@ -83,6 +83,12 @@ class SystemConfig:
     persistent_memory: bool = True
     """Whether to persist memory across restarts. If False, memory is in-memory only."""
 
+    enable_memory_summarization: bool = False
+    """Whether to enable automatic summarization of episodic memories."""
+
+    memory_summarization_threshold: int = 50
+    """Number of episodic memories to accumulate before triggering auto-summarization."""
+
     # Logging configuration
     enable_logging: bool = False
     """Whether to enable file logging (default: False)"""

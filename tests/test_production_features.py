@@ -6,6 +6,7 @@ from daie.core.resilience import CircuitBreaker, RetryPolicy, CircuitState
 from daie.core.tracing import TracerManager, TraceContextManager, trace_span
 from daie.agents.agent import Agent
 from daie.agents.config import AgentConfig
+from daie.agents.exceptions import TokenLimitExceeded, ToolCallLimitExceeded
 from daie.config import SystemConfig
 
 @pytest.mark.asyncio
@@ -73,9 +74,8 @@ async def test_agent_token_guardrail():
     agent._llm = mock_llm
     
     agent._is_running = True
-    result = await agent.execute_task("Do something")
-    
-    assert "Token limit exceeded" in str(result)
+    with pytest.raises(TokenLimitExceeded):
+        await agent.execute_task("Do something")
 
 @pytest.mark.asyncio
 async def test_agent_tool_call_guardrail():
@@ -99,8 +99,8 @@ async def test_agent_tool_call_guardrail():
     assert res1 == "done"
     
     # Second call fails
-    res2 = await agent._run_tool("dummy", {})
-    assert "Tool call limit reached" in res2
+    with pytest.raises(ToolCallLimitExceeded):
+        await agent._run_tool("dummy", {})
 
 def test_tracing_graceful_failure():
     # Verify tracing doesn't break

@@ -29,8 +29,33 @@ These tests ensure that agents can automate Chrome browser interactions, enablin
 import os
 
 import pytest
+from unittest.mock import MagicMock, patch
 
 from daie.tools import SeleniumChromeTool
+
+
+
+@pytest.fixture(autouse=True)
+def mock_selenium_driver():
+    """Mock Selenium components to prevent real browser initialization"""
+    with patch("selenium.webdriver.Chrome") as mock_chrome, \
+         patch("webdriver_manager.chrome.ChromeDriverManager") as mock_manager, \
+         patch("selenium.webdriver.chrome.service.Service") as mock_service, \
+         patch("selenium.webdriver.chrome.options.Options") as mock_options, \
+         patch("selenium.webdriver.support.ui.WebDriverWait") as mock_wait:
+        
+        # Setup mock manager return value
+        mock_manager.return_value.install.return_value = "/mock/chromedriver"
+        
+        # Setup mock behavior
+        mock_driver = MagicMock()
+        mock_chrome.return_value = mock_driver
+        
+        yield {
+            "driver": mock_driver,
+            "chrome": mock_chrome,
+            "wait": mock_wait
+        }
 
 
 class TestSeleniumChromeTool:
@@ -57,15 +82,17 @@ class TestSeleniumChromeTool:
         # Check required parameters
         params = {p["name"]: p for p in metadata["parameters"]}
         assert "action" in params
-        assert params["action"]["required"] is True
+        assert params["action"]["required"] is False
 
     @pytest.mark.asyncio
     async def test_initialization_failure(self):
         """Test tool initialization failure handling"""
-        with pytest.raises(Exception):
-            # This should fail if Chrome driver is not available
-            tool = SeleniumChromeTool()
-            await tool.execute({"action": "open_url", "url": "https://example.com"})
+        # Mocking a failure specifically for this test
+        with patch("selenium.webdriver.Chrome", side_effect=Exception("Driver failure")):
+            with pytest.raises(Exception) as excinfo:
+                tool = SeleniumChromeTool()
+                await tool.execute({"action": "open_url", "url": "https://example.com"})
+            assert "Chrome driver initialization failed" in str(excinfo.value)
 
     def test_screenshot_creation(self, tmp_path):
         """Test if screenshot file is created (mocked test)"""

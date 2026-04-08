@@ -9,6 +9,14 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from daie.agents.config import AgentConfig, AgentRole
+from daie.agents.exceptions import (
+    LLMInvocationError,
+    ReActLoopError,
+    TokenLimitExceeded,
+    ToolCallLimitExceeded,
+    ToolExecutionError,
+    ToolNotFoundError,
+)
 from daie.agents.message import AgentMessage
 from daie.rag import RAGEngine
 from daie.tools import ToolRegistry
@@ -154,6 +162,7 @@ class Agent:
         self._llm = None
         self.rag_engine: Optional[RAGEngine] = None
         self._pending_responses: Dict[str, asyncio.Future] = {}
+        self._cached_system_prompt: Optional[str] = None
 
         # Task-level usage tracking
         self._current_task_tokens = 0
@@ -214,6 +223,7 @@ class Agent:
     def add_tool(self, tool: Any) -> "Agent":
         if hasattr(tool, "name"):
             self.tools[tool.name] = tool
+            self._cached_system_prompt = None  # Invalidate cache
             logger.info(f"Tool '{tool.name}' added to agent '{self.name}'")
         else:
             logger.warning("Tool must have a 'name' attribute")
@@ -222,6 +232,7 @@ class Agent:
     def remove_tool(self, tool_name: str) -> "Agent":
         if tool_name in self.tools:
             del self.tools[tool_name]
+            self._cached_system_prompt = None  # Invalidate cache
             logger.info(f"Tool '{tool_name}' removed from agent '{self.name}'")
         return self
 
@@ -401,13 +412,13 @@ class Agent:
 
         if self._current_task_tool_calls >= max_calls:
             logger.warning(f"Agent '{self.name}' reached max_tool_calls_per_task: {max_calls}")
-            return f"Error: Tool call limit reached ({max_calls})."
+            raise ToolCallLimitExceeded(self._current_task_tool_calls, max_calls)
 
         self._current_task_tool_calls += 1
         # -----------------------------
         tool = self.get_tool(tool_name)
         if tool is None:
-            return f"Error: tool '{tool_name}' not found. Available: {list(self.tools.keys())}"
+            raise ToolNotFoundError(tool_name, list(self.tools.keys()))
 
         try:
             if hasattr(tool, "execute"):
@@ -419,16 +430,18 @@ class Agent:
                     await tool(**params) if inspect.iscoroutinefunction(tool) else tool(**params)
                 )
             else:
-                return f"Error: tool '{tool_name}' is not executable"
+                raise ToolExecutionError(tool_name, "tool is not executable")
 
             # Compact JSON for the LLM context
             if isinstance(result, (dict, list)):
                 return json.dumps(result, ensure_ascii=False, default=str)
             return str(result)
 
+        except (ToolExecutionError, ToolNotFoundError, ToolCallLimitExceeded):
+            raise
         except Exception as exc:
             logger.error(f"Tool '{tool_name}' raised: {exc}", exc_info=True)
-            return f"Error executing '{tool_name}': {exc}"
+            raise ToolExecutionError(tool_name, str(exc), original_error=exc)
 
     def _stream_final_answer(self, answer: str) -> None:
         """
@@ -496,6 +509,37 @@ class Agent:
 
         return await _execute()
 
+    async def arun(self, task: str) -> str:
+        """
+        Convenience shorthand: auto-start + execute_task.
+
+        Example:
+            >>> result = await agent.arun("List files in /tmp")
+        """
+        if not self._is_running:
+            await self.start()
+        return await self.execute_task(task)
+
+    def run(self, task: str) -> str:
+        """
+        Synchronous wrapper around arun() for scripts and notebooks.
+
+        Example:
+            >>> result = agent.run("List files in /tmp")
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # We're inside an existing async context — use nest_asyncio or thread
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, self.arun(task)).result()
+        return asyncio.run(self.arun(task))
+
     async def _execute_task_internal(self, task_input: Union[str, Dict[str, Any]]) -> Any:
         """
         Execute a task using a ReAct-style loop.
@@ -554,17 +598,20 @@ class Agent:
                     + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
                 )
 
-            # Invoke LLM — always non-streaming for the ReAct reasoning loop.
-            # Streaming the reasoning loop would print raw JSON to stdout and
-            # break tool-call parsing. Streaming is only for send_message() chat.
-            from daie.core.llm_manager import get_llm_config
-
-            raw = self.llm.invoke(
-                full_prompt,
-                stream=False,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-            ).strip()
+            # Invoke LLM via asyncio.to_thread to avoid blocking the event loop.
+            # Always non-streaming for the ReAct reasoning loop.
+            try:
+                raw = await asyncio.to_thread(
+                    self.llm.invoke,
+                    full_prompt,
+                    stream=False,
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens,
+                )
+                raw = raw.strip()
+            except Exception as exc:
+                logger.error(f"LLM invocation failed at iteration {iteration}: {exc}")
+                raise LLMInvocationError(str(exc), original_error=exc)
 
             # --- Usage Tracking & Guardrails ---
             if hasattr(self.llm, "last_usage"):
@@ -584,7 +631,7 @@ class Agent:
                 logger.warning(
                     f"Agent '{self.name}' [ID: {self.id}] exceeded max_tokens_per_task: {self._current_task_tokens} > {max_tokens}"
                 )
-                return f"Error: Task aborted. Token limit exceeded ({self._current_task_tokens} tokens)."
+                raise TokenLimitExceeded(self._current_task_tokens, max_tokens)
             # ------------------------------------
 
             logger.debug(f"[iter {iteration}] LLM raw: {raw[:300]}")
@@ -634,25 +681,45 @@ class Agent:
             history.append(f"Assistant thought: {thought}")
             history.append(f"Called tool: {tool_name}({json.dumps(params)})")
 
-            tool_result = await self._run_tool(tool_name, params)
-            logger.info(f"Tool '{tool_name}' result: {tool_result[:200]}")
-            history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result))
+            try:
+                tool_result = await self._run_tool(tool_name, params)
+                logger.info(f"Tool '{tool_name}' result: {tool_result[:200]}")
+                history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result))
+            except ToolCallLimitExceeded:
+                history.append("Tool call limit reached. Cannot call more tools.")
+                break
+            except ToolNotFoundError as e:
+                error_msg = str(e)
+                logger.warning(error_msg)
+                history.append(f"Tool error: {error_msg}")
+                # Let the LLM see the error and try another approach
+            except ToolExecutionError as e:
+                error_msg = str(e)
+                logger.warning(f"Tool execution failed: {error_msg}")
+                history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=f"Error: {error_msg}"))
 
         # Iteration limit reached — ask LLM for a final answer with what we have
-        summary_prompt = (
-            system_prompt
-            + "\n\n"
-            + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
-            + "\n\nNote: You have reached the maximum number of tool calls allowed for this task. "
-            "Based on all the information gathered so far, provide a comprehensive final answer. "
-            "Summarise what was accomplished and what the outcome is."
-        )
-        raw = self.llm.invoke(
-            summary_prompt,
-            stream=False,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
-        ).strip()
+        try:
+            summary_prompt = (
+                system_prompt
+                + "\n\n"
+                + _TOOL_TURN.format(history="\n".join(history), user_input=user_input)
+                + "\n\nNote: You have reached the maximum number of tool calls allowed for this task. "
+                "Based on all the information gathered so far, provide a comprehensive final answer. "
+                "Summarise what was accomplished and what the outcome is."
+            )
+            raw = await asyncio.to_thread(
+                self.llm.invoke,
+                summary_prompt,
+                stream=False,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+            )
+            raw = raw.strip()
+        except Exception as exc:
+            logger.error(f"LLM summary invocation failed: {exc}")
+            raise LLMInvocationError(str(exc), original_error=exc)
+
         parsed = self._parse_llm_json(raw)
         answer = (parsed or {}).get("answer", raw)
         if not isinstance(answer, str):

@@ -570,7 +570,13 @@ class CommunicationManager:
             ws_url = network_url.replace("http://", "ws://").replace("https://", "wss://")
             endpoint = f"{ws_url.rstrip('/')}/ws/a2a/message"
 
-            async with websockets.connect(endpoint, open_timeout=5) as websocket:
+            # Use timeout for the entire connection and message exchange
+            # getattr for flexibility in config
+            timeout = getattr(self.config, "comm_timeout", 10.0)
+
+            async with websockets.connect(
+                endpoint, open_timeout=timeout, close_timeout=2.0
+            ) as websocket:
                 msg_dict = {
                     "sender_id": message.sender_id,
                     "receiver_id": message.receiver_id,
@@ -579,10 +585,12 @@ class CommunicationManager:
                     "metadata": message.metadata,
                     "auth_token": token,
                 }
-                await websocket.send(json.dumps(msg_dict))
+                
+                # Send with timeout
+                await asyncio.wait_for(websocket.send(json.dumps(msg_dict)), timeout=timeout)
 
-                # Wait for acknowledgment
-                response = await websocket.recv()
+                # Wait for acknowledgment with timeout
+                response = await asyncio.wait_for(websocket.recv(), timeout=timeout)
                 response_data = json.loads(response)
 
                 if "error" in response_data:

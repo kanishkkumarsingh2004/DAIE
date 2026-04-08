@@ -158,7 +158,7 @@ class VectorDatabaseStorage(StorageBackend):
 
         try:
             # Load each memory type
-            for memory_type in ["working", "semantic", "episodic"]:
+            for memory_type in ["working", "semantic", "episodic", "long_term"]:
                 collection_name = f"{agent_id}_{memory_type}"
 
                 try:
@@ -210,7 +210,7 @@ class VectorDatabaseStorage(StorageBackend):
             raise RuntimeError("Storage not initialized")
 
         try:
-            for memory_type in ["working", "semantic", "episodic"]:
+            for memory_type in ["working", "semantic", "episodic", "long_term"]:
                 collection_name = f"{agent_id}_{memory_type}"
                 try:
                     self._client.delete_collection(collection_name)
@@ -323,6 +323,17 @@ class VectorDatabaseStorage(StorageBackend):
             logger.error(f"Failed to search similar memories: {e}")
             return []
 
+    def get_shared_collection(self, namespace: str):
+        """Get or create a shared memory collection for cross-agent communication."""
+        if not self._client:
+            raise RuntimeError("Storage not initialized")
+        collection_name = f"shared_{namespace}"
+        if collection_name not in self._collections:
+            self._collections[collection_name] = self._client.get_or_create_collection(
+                name=collection_name, metadata={"hnsw:space": "cosine"}
+            )
+        return self._collections[collection_name]
+
 
 class BinaryFileStorage(StorageBackend):
     """
@@ -403,7 +414,7 @@ class BinaryFileStorage(StorageBackend):
         memory_file = self._get_memory_file(agent_id)
 
         if not os.path.exists(memory_file):
-            return {"working": [], "semantic": [], "episodic": []}
+            return {"working": [], "semantic": [], "episodic": [], "long_term": []}
 
         try:
             with open(memory_file, "rb") as f:

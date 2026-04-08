@@ -1,49 +1,52 @@
 """
 RAG (Retrieval-Augmented Generation) Engine.
 
-Provides document chunking, TF-IDF indexing, and cosine-similarity retrieval
-using only numpy (no external ML dependencies required).
+Unified entry point for document chunking, indexing, and retrieval.
+Supports pluggable backends (tfidf, chroma, faiss) and chunking
+strategies (fixed, sentence, recursive, semantic).
+
+Example:
+    >>> engine = RAGEngine("/path/to/docs")  # default: tfidf + fixed
+    >>> engine.load()
+    >>> context = engine.build_context("What is DAIE?")
+
+    >>> engine = RAGEngine("/path/to/docs", backend="chroma", chunking_strategy="recursive")
+    >>> engine.load()
+    >>> results = engine.retrieve("query", top_k=5, filters={"source": "*.pdf"})
 """
 
+import asyncio
 import logging
-import math
-import re
-from collections import Counter
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
-
+from daie.rag.backends import RAGBackend, create_backend
+from daie.rag.chunking import Chunk, ChunkingStrategy, create_chunker
 from daie.rag.document_loader import Document, load_directory
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Chunk:
-    """A chunk of text extracted from a document."""
-
-    text: str
-    """The text content of the chunk."""
-
-    source: str
-    """Source file path."""
-
-    chunk_index: int
-    """Index of this chunk within the source document."""
 
 
 class RAGEngine:
     """
     Retrieval-Augmented Generation engine.
 
-    Loads documents, chunks them, builds a TF-IDF index, and retrieves
-    the most relevant chunks for a given query using cosine similarity.
+    Loads documents, chunks them using a configurable strategy, indexes
+    them with a pluggable backend, and retrieves the most relevant
+    chunks for a given query.
 
-    Uses only numpy — no heavy ML dependencies needed.
+    Backends:
+        - ``"tfidf"`` — Pure numpy TF-IDF (default, zero ML deps)
+        - ``"chroma"`` — ChromaDB + sentence-transformers
+        - ``"faiss"`` — FAISS + sentence-transformers
+
+    Chunking strategies:
+        - ``"fixed"`` — fixed-size with overlap (default)
+        - ``"sentence"`` — sentence-boundary grouping
+        - ``"recursive"`` — hierarchical paragraph→sentence→word
+        - ``"semantic"`` — embedding-similarity based
 
     Example:
-        >>> engine = RAGEngine("/path/to/docs")
+        >>> engine = RAGEngine("/path/to/docs", backend="tfidf")
         >>> engine.load()
         >>> context = engine.build_context("What is DAIE?")
     """
@@ -51,23 +54,42 @@ class RAGEngine:
     def __init__(
         self,
         document_path: str,
+        backend: str = "tfidf",
+        chunking_strategy: str = "fixed",
         chunk_size: int = 500,
         chunk_overlap: int = 50,
+        recursive: bool = False,
+        **kwargs,
     ):
         """
         Args:
             document_path: Path to directory containing documents.
+            backend: Backend engine — ``"tfidf"``, ``"chroma"``, or ``"faiss"``.
+            chunking_strategy: Chunking strategy — ``"fixed"``, ``"sentence"``,
+                ``"recursive"``, or ``"semantic"``.
             chunk_size: Maximum number of characters per chunk.
             chunk_overlap: Number of overlapping characters between chunks.
+            recursive: If True, load documents from subdirectories too.
+            **kwargs: Additional backend/chunker-specific options:
+                - ``embedding_model``: Model name for vector backends (default: ``"all-MiniLM-L6-v2"``)
+                - ``collection_name``: ChromaDB collection name
+                - ``persist_directory``: ChromaDB persistence directory
+                - ``index_type``: FAISS index type (``"flat"`` or ``"ivf"``)
+                - ``similarity_threshold``: For semantic chunking (default: 0.5)
         """
         self.document_path = document_path
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.recursive = recursive
 
+        self._backend: RAGBackend = create_backend(backend, **kwargs)
+        self._chunker: ChunkingStrategy = create_chunker(
+            strategy=chunking_strategy,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            **kwargs,
+        )
         self._chunks: List[Chunk] = []
-        self._vocabulary: Dict[str, int] = {}  # word -> index
-        self._idf: Optional[np.ndarray] = None  # IDF weights
-        self._tfidf_matrix: Optional[np.ndarray] = None  # (num_chunks, vocab_size)
         self._loaded = False
 
     @property
@@ -82,74 +104,83 @@ class RAGEngine:
 
     def load(self) -> int:
         """
-        Load documents, chunk them, and build the TF-IDF index.
+        Load documents, chunk them, and build the search index.
 
         Returns:
             Number of chunks created.
         """
-        documents = load_directory(self.document_path)
+        documents = load_directory(self.document_path, recursive=self.recursive)
         if not documents:
             logger.warning(f"No documents found in '{self.document_path}'")
             self._loaded = True
             return 0
 
-        self._chunks = self._chunk_documents(documents)
+        # Chunk all documents
+        self._chunks = []
+        for doc in documents:
+            self._chunks.extend(self._chunker.chunk(doc))
+
         if not self._chunks:
             logger.warning("No chunks were created from documents")
             self._loaded = True
             return 0
 
-        self._build_index()
+        # Index chunks with the backend
+        self._backend.index(self._chunks)
         self._loaded = True
+
         logger.info(
             f"RAG engine loaded: {len(documents)} doc(s), "
             f"{len(self._chunks)} chunk(s), "
-            f"{len(self._vocabulary)} unique terms"
+            f"backend={type(self._backend).__name__}"
         )
         return len(self._chunks)
 
-    def retrieve(self, query: str, top_k: int = 3) -> List[Tuple[Chunk, float]]:
+    async def aload(self) -> int:
+        """Async variant of load() — runs in a thread to avoid blocking."""
+        return await asyncio.to_thread(self.load)
+
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 3,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Tuple[Chunk, float]]:
         """
         Retrieve the most relevant chunks for a query.
 
         Args:
             query: The search query string.
             top_k: Number of top results to return.
+            filters: Optional metadata filters, e.g. ``{"source": "*.pdf"}``.
 
         Returns:
             List of (Chunk, similarity_score) tuples, highest score first.
         """
-        if not self._loaded or self._tfidf_matrix is None:
+        if not self._loaded:
             logger.warning("RAG engine not loaded. Call load() first.")
             return []
 
         if not self._chunks:
             return []
 
-        query_vec = self._text_to_tfidf(query)
+        return self._backend.search(query, top_k=top_k, filters=filters)
 
-        # Cosine similarity: dot(query, chunk) / (||query|| * ||chunk||)
-        query_norm = np.linalg.norm(query_vec)
-        if query_norm == 0:
-            return []
+    async def aretrieve(
+        self,
+        query: str,
+        top_k: int = 3,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Tuple[Chunk, float]]:
+        """Async variant of retrieve()."""
+        return await asyncio.to_thread(self.retrieve, query, top_k, filters)
 
-        chunk_norms = np.linalg.norm(self._tfidf_matrix, axis=1)
-        # Avoid division by zero
-        chunk_norms = np.where(chunk_norms == 0, 1.0, chunk_norms)
-
-        similarities = self._tfidf_matrix.dot(query_vec) / (chunk_norms * query_norm)
-
-        # Get top-k indices
-        top_indices = np.argsort(similarities)[::-1][:top_k]
-
-        results = []
-        for idx in top_indices:
-            score = float(similarities[idx])
-            if score > 0.05:  # Minimal threshold
-                results.append((self._chunks[idx], score))
-        return results
-
-    def build_context(self, query: str, top_k: int = 3) -> str:
+    def build_context(
+        self,
+        query: str,
+        top_k: int = 3,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
         Retrieve relevant chunks and format them as a context string
         suitable for injection into an LLM prompt.
@@ -157,11 +188,12 @@ class RAGEngine:
         Args:
             query: The user's query.
             top_k: Number of chunks to include.
+            filters: Optional metadata filters.
 
         Returns:
             Formatted context string, or empty string if no matches.
         """
-        results = self.retrieve(query, top_k=top_k)
+        results = self.retrieve(query, top_k=top_k, filters=filters)
         if not results:
             return ""
 
@@ -171,172 +203,17 @@ class RAGEngine:
 
         return "\n\n".join(context_parts)
 
-    # ── chunking ──────────────────────────────────────────────────────────
+    async def abuild_context(
+        self,
+        query: str,
+        top_k: int = 3,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Async variant of build_context()."""
+        return await asyncio.to_thread(self.build_context, query, top_k, filters)
 
-    def _chunk_documents(self, documents: List[Document]) -> List[Chunk]:
-        """Split documents into overlapping chunks."""
-        chunks: List[Chunk] = []
-
-        for doc in documents:
-            text = doc.content
-            if len(text) <= self.chunk_size:
-                chunks.append(Chunk(text=text, source=doc.source, chunk_index=0))
-                continue
-
-            start = 0
-            chunk_idx = 0
-            while start < len(text):
-                end = start + self.chunk_size
-
-                # Try to break at a sentence or paragraph boundary
-                if end < len(text):
-                    # Look for paragraph break
-                    para_break = text.rfind("\n\n", start, end)
-                    if para_break > start + self.chunk_size // 2:
-                        end = para_break + 2
-                    else:
-                        # Look for sentence break
-                        sent_break = text.rfind(". ", start, end)
-                        if sent_break > start + self.chunk_size // 2:
-                            end = sent_break + 2
-
-                chunk_text = text[start:end].strip()
-                if chunk_text:
-                    chunks.append(Chunk(text=chunk_text, source=doc.source, chunk_index=chunk_idx))
-                    chunk_idx += 1
-
-                start = end - self.chunk_overlap
-                if start >= len(text):
-                    break
-
-        return chunks
-
-    # ── TF-IDF indexing ───────────────────────────────────────────────────
-
-    @staticmethod
-    def _tokenize(text: str) -> List[str]:
-        """Simple whitespace + punctuation tokenizer with lowercasing."""
-        text = text.lower()
-        # Split on non-alphanumeric characters
-        tokens = re.findall(r"[a-z0-9]+", text)
-        # Remove very short tokens and common stop words
-        stop_words = {
-            "a",
-            "an",
-            "the",
-            "is",
-            "it",
-            "in",
-            "on",
-            "at",
-            "to",
-            "for",
-            "of",
-            "and",
-            "or",
-            "but",
-            "not",
-            "with",
-            "by",
-            "from",
-            "as",
-            "this",
-            "that",
-            "be",
-            "are",
-            "was",
-            "were",
-            "been",
-            "has",
-            "have",
-            "had",
-            "do",
-            "does",
-            "did",
-            "will",
-            "would",
-            "could",
-            "should",
-            "may",
-            "can",
-            "i",
-            "you",
-            "he",
-            "she",
-            "we",
-            "they",
-            "over",
-            "under",
-            "again",
-            "further",
-            "then",
-            "once",
-            "what",
-            "where",
-            "how",
-            "when",
-            "why",
-            "who",
-            "which",
-        }
-        return [t for t in tokens if len(t) > 1 and t not in stop_words]
-
-    def _build_index(self) -> None:
-        """Build vocabulary and TF-IDF matrix from chunks."""
-        # Build vocabulary
-        vocab: Dict[str, int] = {}
-        chunk_token_lists: List[List[str]] = []
-
-        for chunk in self._chunks:
-            tokens = self._tokenize(chunk.text)
-            chunk_token_lists.append(tokens)
-            for token in set(tokens):  # unique tokens per chunk for DF
-                if token not in vocab:
-                    vocab[token] = len(vocab)
-
-        self._vocabulary = vocab
-        vocab_size = len(vocab)
-        num_chunks = len(self._chunks)
-
-        if vocab_size == 0:
-            self._tfidf_matrix = np.zeros((num_chunks, 1))
-            self._idf = np.zeros(1)
-            return
-
-        # Compute IDF: log(N / df) where df = number of chunks containing the term
-        df = np.zeros(vocab_size)
-        for tokens in chunk_token_lists:
-            for token in set(tokens):
-                if token in vocab:
-                    df[vocab[token]] += 1
-
-        self._idf = np.log((num_chunks + 1) / (df + 1)) + 1  # smoothed IDF
-
-        # Compute TF-IDF matrix
-        self._tfidf_matrix = np.zeros((num_chunks, vocab_size))
-        for i, tokens in enumerate(chunk_token_lists):
-            if not tokens:
-                continue
-            tf = Counter(tokens)
-            for token, count in tf.items():
-                if token in vocab:
-                    j = vocab[token]
-                    # TF: log(1 + count) for sublinear scaling
-                    self._tfidf_matrix[i, j] = math.log(1 + count) * self._idf[j]
-
-    def _text_to_tfidf(self, text: str) -> np.ndarray:
-        """Convert a text string to a TF-IDF vector using the existing vocabulary."""
-        vocab_size = len(self._vocabulary)
-        if vocab_size == 0:
-            return np.zeros(1)
-
-        vec = np.zeros(vocab_size)
-        tokens = self._tokenize(text)
-        tf = Counter(tokens)
-
-        for token, count in tf.items():
-            if token in self._vocabulary:
-                j = self._vocabulary[token]
-                vec[j] = math.log(1 + count) * self._idf[j]
-
-        return vec
+    def clear(self) -> None:
+        """Clear all indexed data."""
+        self._backend.clear()
+        self._chunks = []
+        self._loaded = False

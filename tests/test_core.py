@@ -177,8 +177,8 @@ class TestDecentralizedAISystem:
         mock_comm_instance.stop = AsyncMock()
         
         mock_memory_instance = mock_memory_manager.return_value
-        mock_memory_instance.start = AsyncMock()
-        mock_memory_instance.stop = AsyncMock()
+        mock_memory_instance.start = Mock()
+        mock_memory_instance.stop = Mock()
 
         system = DecentralizedAISystem()
 

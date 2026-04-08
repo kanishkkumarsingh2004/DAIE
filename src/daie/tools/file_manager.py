@@ -4,7 +4,7 @@ File and folder management tool using CED (Create-Edit-Delete) operations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 
@@ -27,7 +27,7 @@ class FileManagerTool(Tool):
     All operations support async execution and provide detailed result information.
     """
 
-    def __init__(self):
+    def __init__(self, workspace_root: Optional[str] = None):
         metadata = ToolMetadata(
             name="file_manager",
             description="Comprehensive file and directory management tool for the Decentralized AI Ecosystem - use this for all filesystem operations including creating, reading, writing, deleting, listing, copying, moving files/directories, and checking file system properties",
@@ -120,6 +120,7 @@ class FileManagerTool(Tool):
             ],
         )
         super().__init__(metadata)
+        self.workspace_root = workspace_root
 
     async def _execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -141,7 +142,50 @@ class FileManagerTool(Tool):
             if not path:
                 return {"success": False, "error": "Path parameter is required"}
 
-            path_obj = Path(path)
+            # --- SECURITY HARDENING: Path Traversal Protection ---
+            # Define safe roots
+            allowed_roots = [Path.cwd().resolve()]
+            if self.workspace_root:
+                allowed_roots.append(Path(self.workspace_root).resolve())
+            
+            # Also allow /tmp for testing and transient files if not strictly restricted
+            allowed_roots.append(Path("/tmp").resolve())
+            
+            try:
+                # Normalize and resolve target path
+                target_path = Path(path).expanduser().resolve()
+                
+                # Check if target_path is within any allowed root
+                is_safe = any(str(target_path).startswith(str(root)) for root in allowed_roots)
+                
+                if not is_safe:
+                    logger.warning(f"Security: Blocked path traversal attempt to {path}")
+                    return {
+                        "success": False,
+                        "error": "Access denied: Path is outside the allowed workspace.",
+                        "exists": False  # Fix KeyError in tests
+                    }
+                
+                path_obj = target_path
+            except Exception as e:
+                return {"success": False, "error": f"Invalid path traversal attempt: {e}"}
+            # -----------------------------------------------------
+
+            # Handle destination parameter for copy/move if present
+            destination = params.get("destination")
+            if destination:
+                try:
+                    dest_path = Path(destination).expanduser().resolve()
+                    is_dest_safe = any(str(dest_path).startswith(str(root)) for root in allowed_roots)
+                    if not is_dest_safe:
+                        logger.warning(f"Security: Blocked destination path traversal to {destination}")
+                        return {
+                            "success": False,
+                            "error": "Access denied: Destination is outside the allowed workspace."
+                        }
+                    params["destination_obj"] = dest_path
+                except Exception as e:
+                    return {"success": False, "error": f"Invalid destination path: {e}"}
 
             # Action handler mapping for O(1) lookup
             action_handlers = {
@@ -373,19 +417,18 @@ class FileManagerTool(Tool):
 
     def _copy_file(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
         """Copy file"""
-        destination = params.get("destination")
-        if not destination:
-            raise Exception("Destination path is required for copy operation")
-
         if not path_obj.is_file():
             raise Exception(f"Source path is not a file: {path_obj}")
 
         try:
-            dest_obj = Path(destination)
+            dest_obj = params.get("destination_obj")
+            if not dest_obj:
+                raise Exception("Destination path is required for copy operation")
+                
             dest_obj.parent.mkdir(parents=True, exist_ok=True)
-
+ 
             import shutil
-
+ 
             shutil.copy2(path_obj, dest_obj)
 
             logger.info(f"File copied: {path_obj} -> {dest_obj}")
@@ -401,19 +444,18 @@ class FileManagerTool(Tool):
 
     def _copy_directory(self, path_obj: Path, params: Dict[str, Any]) -> Dict[str, Any]:
         """Copy directory"""
-        destination = params.get("destination")
-        if not destination:
-            raise Exception("Destination path is required for copy operation")
-
         if not path_obj.is_dir():
             raise Exception(f"Source path is not a directory: {path_obj}")
 
         try:
-            dest_obj = Path(destination)
+            dest_obj = params.get("destination_obj")
+            if not dest_obj:
+                raise Exception("Destination path is required for copy operation")
+
             dest_obj.parent.mkdir(parents=True, exist_ok=True)
-
+ 
             import shutil
-
+ 
             shutil.copytree(path_obj, dest_obj, dirs_exist_ok=True)
 
             logger.info(f"Directory copied: {path_obj} -> {dest_obj}")

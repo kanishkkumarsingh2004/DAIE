@@ -137,10 +137,19 @@ def memoize(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        key = str(args) + str(kwargs)
-        if key not in cache:
-            cache[key] = func(*args, **kwargs)
-        return cache[key]
+        # Stable key: (args, sorted_kwargs)
+        key = (args, tuple(sorted(kwargs.items())))
+        try:
+            # Try using it as a direct key (requires all parts to be hashable)
+            if key not in cache:
+                cache[key] = func(*args, **kwargs)
+            return cache[key]
+        except TypeError:
+            # Fallback for unhashable arguments
+            key_str = f"UNHASHABLE:{str(key)}"
+            if key_str not in cache:
+                cache[key_str] = func(*args, **kwargs)
+            return cache[key_str]
 
     return wrapper
 

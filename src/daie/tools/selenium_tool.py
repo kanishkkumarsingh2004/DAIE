@@ -51,7 +51,7 @@ class SeleniumChromeTool(Tool):
                     name="action",
                     type="string",
                     description="Action to perform",
-                    required=True,
+                    required=False,
                     default="open_url",
                     choices=[
                         "open_url",
@@ -261,6 +261,14 @@ class SeleniumChromeTool(Tool):
                 "Browser automation requires selenium and webdriver-manager. "
                 "Install with: pip install 'daie[browser]'"
             )
+
+    def is_available(self) -> bool:
+        """Check if the tool is available (selenium installed and driver check)."""
+        try:
+            self._check_selenium()
+            return True
+        except ImportError:
+            return False
 
     def _initialize_driver(self, params: Dict[str, Any]) -> None:
         """Initialize Chrome webdriver."""

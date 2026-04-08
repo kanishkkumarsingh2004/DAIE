@@ -128,6 +128,12 @@ class AgentConfig:
     persistent_memory: bool = False
     """Whether to persist memory across restarts. If False, memory is in-memory only."""
 
+    enable_memory_summarization: bool = False
+    """Whether to enable automatic summarization of episodic memories."""
+
+    memory_summarization_threshold: int = 50
+    """Number of episodic memories to accumulate before triggering auto-summarization."""
+
     # Behavior and Personality settings
     gender: Literal["male", "female"] | None = None
     """Agent gender (only 'male' or 'female')"""

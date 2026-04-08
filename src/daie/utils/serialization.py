@@ -4,7 +4,7 @@ Serialization and deserialization utility functions
 
 import json
 import pickle
-from typing import Any
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -41,6 +41,98 @@ def from_json(text: str) -> Any:
         return json.loads(text)
     except Exception as e:
         raise Exception(f"JSON deserialization failed: {e}")
+
+
+def extract_json(text: str) -> Any:
+    """
+    Robustly extract the first valid JSON object from a string.
+    Handles code fences, leading/trailing prose, and partial wrapping.
+    """
+    import re
+    if not text:
+        return None
+
+    # Clean up text - strip leading/trailing whitespace and code fences
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?", "", text)
+    text = re.sub(r"```$", "", text)
+    text = text.strip()
+
+    def try_parse(s):
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            return None
+
+    # Try the whole string first
+    res = try_parse(text)
+    if res:
+        return res
+
+    # Try finding the largest block between { and }
+    first_bracket = text.find("{")
+    last_bracket = text.rfind("}")
+    
+    if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
+        candidate = text[first_bracket : last_bracket + 1]
+        res = try_parse(candidate)
+        if res:
+            return res
+
+    # Fallback: iterative search from start
+    search_from = 0
+    while True:
+        start = text.find("{", search_from)
+        if start == -1:
+            break
+
+        depth = 0
+        for i in range(start, len(text)):
+            ch = text[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start : i + 1]
+                    res = try_parse(candidate)
+                    if res:
+                        return res
+                    break
+        search_from = start + 1
+
+    return None
+
+
+def extract_conversational_response(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Fallback for when models emit "Thought: ... Answer: ..." instead of JSON.
+    """
+    import re
+    if not text:
+        return None
+
+    # Try JSON extraction first
+    json_res = extract_json(text)
+    if json_res:
+        return json_res
+
+    # Fallback: parse plain-text "Thought: ... Answer: ..." or "Answer: ..." formats
+    answer_match = re.search(
+        r"(?:^|\n)\s*(?:Answer|ANSWER|Response|RESPONSE)\s*[:\-]\s*(.+)", text, re.DOTALL
+    )
+    if answer_match:
+        answer_text = answer_match.group(1).strip()
+        # Try to find thought if it exists before answer
+        thought_match = re.search(
+            r"(?:^|\n)\s*(?:Thought|THOUGHT|Thinking|Reasoning)\s*[:\-]\s*(.+?)(?:\n\s*(?:Answer|ANSWER|Response|RESPONSE))",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
+        thought_text = thought_match.group(1).strip() if thought_match else ""
+        return {"thought": thought_text, "answer": answer_text}
+
+    return None
 
 
 def to_yaml(obj: Any, indent: int = 2) -> str:

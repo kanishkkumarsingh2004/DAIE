@@ -19,6 +19,7 @@ import pytest
 
 from daie.agents.agent import Agent
 from daie.agents.config import AgentConfig, AgentRole
+from daie.agents.exceptions import ToolExecutionError, ToolNotFoundError
 from daie.tools.file_manager import FileManagerTool
 from daie.tools.tool import (Tool, ToolCategory, ToolMetadata, ToolParameter,
                              tool)
@@ -174,10 +175,10 @@ class TestRunTool:
         assert "hello" in result
 
     @pytest.mark.asyncio
-    async def test_run_unknown_tool_returns_error_string(self):
+    async def test_run_unknown_tool_raises_error(self):
         agent = make_agent()
-        result = await agent._run_tool("nonexistent", {})
-        assert "not found" in result.lower()
+        with pytest.raises(ToolNotFoundError, match="not found"):
+            await agent._run_tool("nonexistent", {})
 
     @pytest.mark.asyncio
     async def test_run_tool_decorator(self):
@@ -190,7 +191,7 @@ class TestRunTool:
         assert "7" in result
 
     @pytest.mark.asyncio
-    async def test_run_tool_exception_returns_error_string(self):
+    async def test_run_tool_exception_raises_tool_execution_error(self):
         class BrokenTool(Tool):
             def __init__(self):
                 super().__init__(ToolMetadata(name="broken", description="always fails", category=ToolCategory.GENERAL))
@@ -199,8 +200,8 @@ class TestRunTool:
                 raise RuntimeError("boom")
 
         agent = make_agent(tools=[BrokenTool()])
-        result = await agent._run_tool("broken", {})
-        assert "Error" in result
+        with pytest.raises(ToolExecutionError, match="boom"):
+            await agent._run_tool("broken", {})
 
 
 # ── execute_task — ReAct loop ─────────────────────────────────────────────────

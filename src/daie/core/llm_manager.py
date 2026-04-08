@@ -652,40 +652,47 @@ class LLMManager:
                     return self._invoke_non_stream(prompt, **kwargs)
 
             def _invoke_non_stream(self, prompt: str, **kwargs) -> str:
-                """Non-streaming invocation"""
+                """Non-streaming invocation using Google Gemini API"""
                 try:
-                    pass
-
-                    # This is a simplified version - Google's API is more complex
-                    logger.warning("Google LLM support is experimental")
-                    return f"Google LLM response to: {prompt[:50]}..."
-
+                    from daie.utils import http_client as requests
+                    
+                    # Gemini API endpoint
+                    api_key = self.config.api_key
+                    model = self.config.model_name or "gemini-pro"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                    
+                    headers = {"Content-Type": "application/json"}
+                    payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "temperature": self.config.temperature,
+                            "maxOutputTokens": self.config.max_tokens or 2048,
+                        }
+                    }
+                    
+                    response = requests.post(url, headers=headers, json=payload)
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    
+                    # Extract text from Gemini response structure
+                    if "candidates" in data and data["candidates"]:
+                        candidate = data["candidates"][0]
+                        if "content" in candidate and "parts" in candidate["content"]:
+                            return candidate["content"]["parts"][0]["text"]
+                    
+                    logger.error(f"Google API returned unexpected format: {data}")
+                    return "Error: Failed to parse Google Gemini response"
+                    
                 except Exception as e:
                     logger.error(f"Google LLM error: {e}")
                     return f"Error: {e}"
 
             def _invoke_stream(self, prompt: str, **kwargs) -> str:
-                """Streaming invocation with token-by-token display"""
-                try:
-                    import sys
-
-                    # This is a simplified version - Google's API is more complex
-                    logger.warning("Google LLM support is experimental")
-
-                    response = f"Google LLM streaming response to: {prompt[:50]}..."
-                    # Simulate streaming for demonstration
-                    for char in response:
-                        sys.stdout.write(char)
-                        sys.stdout.flush()
-                        import time
-
-                        time.sleep(0.05)
-
-                    return response
-
-                except Exception as e:
-                    logger.error(f"Google LLM error: {e}")
-                    return f"Error: {e}"
+                """Streaming invocation (simulated for now as Gemini stream is different)"""
+                # For now, fallback to non-stream but log it
+                logger.debug("Google Gemini streaming is handled as non-streaming in this version")
+                return self._invoke_non_stream(prompt, **kwargs)
 
         return GoogleLLM(self.config)
 

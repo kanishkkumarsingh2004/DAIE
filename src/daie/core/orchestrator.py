@@ -145,6 +145,36 @@ class Orchestrator:
         # The main agent's execute_task has the ReAct loop and A2A tools
         return await self.main_agent.execute_task(task)
 
+    async def arun(self, task: str) -> Any:
+        """
+        Convenience shorthand: auto-start + execute_task.
+
+        Example:
+            >>> result = await orchestrator.arun("Analyze the dataset")
+        """
+        if not self._is_running:
+            await self.start()
+        return await self.execute_task(task)
+
+    def run(self, task: str) -> Any:
+        """
+        Synchronous wrapper around arun() for scripts and notebooks.
+
+        Example:
+            >>> result = orchestrator.run("Analyze the dataset")
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, self.arun(task)).result()
+        return asyncio.run(self.arun(task))
+
     def set_parent(self, parent_orchestrator_id: str) -> "Orchestrator":
         """
         Set a parent orchestrator for this orchestrator.

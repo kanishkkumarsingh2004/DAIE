@@ -263,9 +263,20 @@ class LLMManager:
                         "stream": False,  # Disable streaming for simpler parsing
                     }
 
-                    # Add max_tokens if supported
+                    # Add max_tokens and Phase 3 acceleration options
+                    options = {}
                     if self.config.max_tokens:
-                        payload["options"] = {"num_predict": self.config.max_tokens}
+                        options["num_predict"] = self.config.max_tokens
+                    
+                    from daie.config import SystemConfig
+                    sys_cfg = SystemConfig()
+                    if sys_cfg.gpu_layers > 0:
+                        options["num_gpu"] = sys_cfg.gpu_layers
+                    if sys_cfg.num_threads > 0:
+                        options["num_thread"] = sys_cfg.num_threads
+                        
+                    if options:
+                        payload["options"] = options
 
                     # Call ollama API
                     response = session.post(

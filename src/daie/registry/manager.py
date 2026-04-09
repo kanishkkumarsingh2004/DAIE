@@ -11,7 +11,10 @@ import logging
 import os
 import socket
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from daie.config.system import SystemConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +49,22 @@ class NodeRegistry:
 
     def __init__(
         self,
+        config: Optional["SystemConfig"] = None,
         registry_file: str = None,
         enable_mdns: bool = True,
         enable_dht: bool = False,
         dht_port: int = 8468,
     ):
         # Use None to disable file persistence by default (in-memory only)
+        self.config = config
         self.registry_file = registry_file
         self._nodes: Dict[str, Dict[str, Any]] = {}
+
+        # Default to config values if provided
+        if self.config:
+            enable_dht = getattr(self.config, "enable_dht", enable_dht)
+            dht_port = getattr(self.config, "dht_port", dht_port)
+            enable_mdns = getattr(self.config, "enable_mdns", enable_mdns)
 
         # mDNS support
         self._enable_mdns = enable_mdns and MDNS_AVAILABLE
@@ -180,9 +191,51 @@ class NodeRegistry:
             self._dht_server = Server()
             await self._dht_server.listen(self._dht_port)
             logger.info(f"DHT service started on port {self._dht_port}")
+
+            # Bootstrap DHT if nodes are provided
+            if self.config and self.config.bootstrap_nodes:
+                await self._bootstrap_dht(self.config.bootstrap_nodes)
+
+            # Start periodic refresh task
+            self._track_task(asyncio.create_task(self._periodic_dht_refresh()))
         except Exception as e:
             logger.error(f"Failed to start DHT: {e}")
             self._enable_dht = False
+
+    async def _bootstrap_dht(self, bootstrap_nodes: List[str]):
+        """Connect to DHT bootstrap nodes"""
+        if not self._dht_server:
+            return
+        
+        nodes = []
+        for node in bootstrap_nodes:
+            try:
+                host, port = node.split(":")
+                nodes.append((host, int(port)))
+            except ValueError:
+                logger.warning(f"Invalid bootstrap node format: {node}. Expected host:port")
+        
+        if nodes:
+            await self._dht_server.bootstrap(nodes)
+            logger.info(f"Bootstrapped DHT with {len(nodes)} nodes")
+
+    async def _periodic_dht_refresh(self):
+        """Periodically republish local nodes to DHT"""
+        while self._enable_dht and self._dht_server:
+            try:
+                for agent_id, node_data in self._nodes.items():
+                    if node_data.get("status") == "active":
+                        await self._publish_dht_node(
+                            agent_id,
+                            node_data.get("network_url", ""),
+                            node_data.get("capabilities", {})
+                        )
+                await asyncio.sleep(600)  # Refresh every 10 minutes
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in periodic DHT refresh: {e}")
+                await asyncio.sleep(60)
 
     async def _stop_mdns(self):
         """Stop mDNS service"""
@@ -312,7 +365,21 @@ class NodeRegistry:
             }
 
             await self._dht_server.set(agent_id, json.dumps(node_data))
-            logger.info(f"Published DHT node for agent {agent_id}")
+            
+            # Index by capabilities for distributed search
+            tools = capabilities.get("tools", [])
+            for tool in tools:
+                cap_key = f"cap:{tool}"
+                try:
+                    existing = await self._dht_server.get(cap_key)
+                    ids = json.loads(existing) if existing else []
+                    if agent_id not in ids:
+                        ids.append(agent_id)
+                        await self._dht_server.set(cap_key, json.dumps(ids))
+                except Exception as e:
+                    logger.debug(f"Failed to index capability {tool} in DHT: {e}")
+
+            logger.info(f"Published DHT node for agent {agent_id} with {len(tools)} capabilities")
         except Exception as e:
             logger.error(f"Failed to publish DHT node for {agent_id}: {e}")
 
@@ -335,6 +402,7 @@ class NodeRegistry:
         capabilities: Dict[str, Any],
         network_url: Optional[str] = None,
         network_connections: Optional[Dict[str, str]] = None,
+        public_key: Optional[str] = None,
     ) -> bool:
         """
         Register a new node (agent) with its capabilities into the network pool.
@@ -345,6 +413,7 @@ class NodeRegistry:
             capabilities: Dictionary of agent capabilities
             network_url: Base URL where THIS agent is hosted (others use this to reach it)
             network_connections: Dictionary of peer_id -> network_url for agents THIS agent can directly reach
+            public_key: Optional base64 encoded public key for E2EE
         """
         self._nodes[agent_id] = {
             "capabilities": capabilities,
@@ -352,6 +421,7 @@ class NodeRegistry:
             "network_connections": network_connections or {},
             "last_seen": time.time(),
             "status": "active",
+            "public_key": public_key,
         }
         self._save_registry()
 
@@ -427,8 +497,11 @@ class NodeRegistry:
         # Filter for active nodes
         active_nodes = {k: v for k, v in self._nodes.items() if v.get("status") == "active"}
 
+        # Prune inactive nodes before returning results
+        self.prune_nodes()
+
+        # Return all active nodes if no specific query
         if not capability_query:
-            # Return all active nodes if no specific query
             for k, v in active_nodes.items():
                 results.append({"agent_id": k, **v})
             return results
@@ -551,6 +624,25 @@ class NodeRegistry:
 
         return results
 
+    async def search_by_capability_dht(self, capability: str) -> List[Dict[str, Any]]:
+        """
+        Search the DHT for agents possessing a specific capability.
+        """
+        if not self._enable_dht or not self._dht_server:
+            return []
+
+        try:
+            cap_key = f"cap:{capability}"
+            existing = await self._dht_server.get(cap_key)
+            if not existing:
+                return []
+            
+            agent_ids = json.loads(existing)
+            return await self.discover_agents_dht(agent_ids)
+        except Exception as e:
+            logger.error(f"DHT capability search failed for {capability}: {e}")
+            return []
+
     def get_node(self, agent_id: str) -> Optional[Dict[str, Any]]:
         """Fetch a specific node's metadata."""
         return self._nodes.get(agent_id)
@@ -570,6 +662,7 @@ class NodeRegistry:
                     "network_url": node_data.get("network_url"),
                     "capabilities": node_data.get("capabilities", {}),
                     "connections": node_data.get("network_connections", {}),
+                    "public_key": node_data.get("public_key"),
                 }
                 # Add bidirectional connections
                 for peer_id, peer_url in node_data.get("network_connections", {}).items():
@@ -653,6 +746,30 @@ class NodeRegistry:
         self._save_registry()
         logger.info(f"Updated connections for node {agent_id}: {len(connections)} connections")
         return True
+
+    def prune_nodes(self, threshold_seconds: float = 300.0):
+        """
+        Remove or mark nodes as inactive if they haven't been seen recently.
+        
+        Args:
+            threshold_seconds: Time in seconds before a node is considered inactive.
+        """
+        current_time = time.time()
+        nodes_to_prune = []
+        
+        for agent_id, node_data in self._nodes.items():
+            last_seen = node_data.get("last_seen", 0)
+            if current_time - last_seen > threshold_seconds:
+                nodes_to_prune.append(agent_id)
+        
+        for agent_id in nodes_to_prune:
+            # Instead of deleting, just mark as inactive to preserve history/topology
+            if self._nodes[agent_id].get("status") != "inactive":
+                self._nodes[agent_id]["status"] = "inactive"
+                logger.info(f"Node {agent_id} marked as inactive (last seen {current_time - self._nodes[agent_id]['last_seen']:.1f}s ago)")
+        
+        if nodes_to_prune:
+            self._save_registry()
 
     def cleanup(self):
         """Cleanup resources and stop discovery services (sync)"""

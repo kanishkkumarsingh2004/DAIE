@@ -287,6 +287,43 @@ agent2 = Agent(config=AgentConfig(
 
 ---
 
+## Security & Hardening
+
+DAIE includes built-in security features for production-ready decentralized environments.
+
+### End-to-End Encryption (E2EE)
+
+All agent-to-agent communication can be encrypted using X25519 key exchange and XSalsa20-Poly1305 symmetric encryption.
+
+To enable E2EE, set `enable_e2e_encryption=True` in your `SystemConfig`:
+
+```python
+from daie.config import SystemConfig, AgentConfig
+from daie import Agent
+
+config = SystemConfig(enable_e2e_encryption=True)
+agent = Agent(config=AgentConfig(name="SecureAgent"))
+# Agents automatically generate X25519 keypairs on startup if not provided
+```
+
+### Inbound Rate Limiting
+
+Protect your agents from message flooding by enabling rate limiting in `SystemConfig`:
+
+```python
+config = SystemConfig(
+    enable_rate_limiting=True,
+    rate_limit_max_messages=100,  # Max messages
+    rate_limit_window=60.0        # Per 60 seconds
+)
+```
+
+### Adaptive Reconnection
+
+Nodes automatically attempt to reconnect to the network with an exponential backoff if the connection is lost. You can configure the heartbeat interval in your environment or via `SystemConfig`.
+
+---
+
 ## Next Steps
 
 - [Agents](agents.md) — Agent configuration and the ReAct loop

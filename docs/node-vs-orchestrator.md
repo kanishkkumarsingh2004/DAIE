@@ -2460,3 +2460,95 @@ analysis_node.connect("research-lab")
 - [`examples/classroom_demo.py`](../examples/classroom_demo.py) — Orchestrator classroom example
 - [`examples/courtroom_demo.py`](../examples/courtroom_demo.py) — Orchestrator courtroom example
 - [`examples/03_p2p_networking.py`](../examples/03_p2p_networking.py) — P2P networking with agents
+---
+
+## Advanced Scalable Architectures
+
+For production-grade decentralized AI, DAIE supports advanced multi-node patterns optimized for high availability, observability, and scale.
+
+### 1. High-Availability Research Cluster (5 Nodes)
+
+This pattern uses NATS JetStream for persistent messaging and automated heartbeats for health monitoring.
+
+```python
+from daie import Agent, AgentConfig, SystemConfig
+from daie.core.hybrid import HybridOrchestratorNode
+
+# Distributed configuration with NATS
+config = SystemConfig(
+    nats_url="nats://coordinator:4222",
+    heartbeat_interval=5.0,
+    enable_e2e_encryption=True
+)
+
+# 1. Orchestrator Node (The Brain)
+brain_node = HybridOrchestratorNode(
+    node_id="brain-01", 
+    node_name="Central Coordinator",
+    config=config
+)
+
+# 2. Compute Nodes (The Brawn) x 3
+worker_nodes = []
+for i in range(3):
+    node = HybridOrchestratorNode(
+        node_id=f"worker-{i:02d}",
+        node_name=f"GPU Worker {i+1}",
+        config=config
+    )
+    worker_nodes.append(node)
+
+# 3. Discovery & Registry Node
+# (Nodes automatically find each other via NATS and Kademlia DHT)
+
+# Start all nodes
+await brain_node.start()
+for w in worker_nodes:
+    await w.start()
+
+# Health check (Stale nodes are automatically pruned after 300s)
+topology = brain_node.comm_manager.get_network_topology()
+print(f"Active Nodes in Cluster: {len(topology['nodes'])}")
+```
+
+### 2. Distributed Enterprise AI Ecosystem (10+ Nodes)
+
+In a large-scale setup, nodes are partitioned by domain (e.g., Sales, Engineering, Legal) and use a shared **Identity & Registry Backbone**.
+
+| Node Type | Count | Responsibility |
+|-----------|-------|----------------|
+| **Gateway Node** | 2 | Handles external requests, rate limiting, and global routing. |
+| **Domain Nodes** | 6 | Specialized clusters for specific departments (Marketing, Finance). |
+| **Storage Nodes** | 2 | RAG-specific nodes with high-speed vector database access. |
+
+#### Observability & Tracing
+Every request in an enterprise cluster is traced using `trace_id` propagated across nodes.
+
+```python
+from daie.core.tracing import TracerManager
+
+# In an enterprise environment, enable full tracing
+TracerManager().setup(service_name="daie-cluster", enabled=True)
+
+# Every agent execution now logs structured context:
+# [agent-id | trace-id] Performing task...
+```
+
+#### Metrics Monitoring
+Expose a `/metrics` endpoint for Prometheus to monitor cluster health in real-time.
+
+```python
+from daie.core.metrics import metrics
+
+# Automatically tracked:
+# - agent_task_started_total
+# - agent_tool_calls_total
+# - llm_invocation_errors_total
+```
+
+### Summary of Scalability Best Practices
+
+1. **Use NATS for Backbone**: Reliable, persistent, and supports offline queueing.
+2. **Enable Heartbeats**: Crucial for detecting node failures in P2P networks.
+3. **Structured Tracing**: Essential for debugging distributed agent workflows.
+4. **Domain Partitioning**: Group agents into domain-specific hybrid nodes for better resource management.

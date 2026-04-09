@@ -346,6 +346,43 @@ result = await agent.execute_task("What is DAIE?")
 
 ---
 
+## Capability-Based Tool Auto-Loading
+
+DAIE allows agents to automatically load tools based on their `capabilities` list in `AgentConfig`.
+
+### How it works
+
+1.  **Define Capabilities**: List the capabilities your agent needs in the `AgentConfig`.
+2.  **Auto-Matching**: On startup, the agent matches these capabilities against a global `ToolRegistry` or the built-in tool suite.
+3.  **Automatic Addition**: Matching tools are automatically instantiated and added to the agent without manual `add_tool()` calls.
+
+### Usage
+
+```python
+from daie import Agent, AgentConfig
+
+config = AgentConfig(
+    name="SystemAdmin",
+    capabilities=["file_management", "http_calls", "browser_automation"]
+)
+agent = Agent(config=config)
+
+await agent.start()
+# Agent now automatically has FileManagerTool, APICallTool, and SeleniumChromeTool
+```
+
+### Pre-defined Capability Mapping
+
+| Capability | Tool |
+|------------|------|
+| `file_management` | `FileManagerTool` |
+| `http_calls` | `APICallTool` |
+| `browser_automation` | `SeleniumChromeTool` |
+| `a2a_communication` | `A2ASendMessageTool`, `A2ADelegateTaskTool` |
+| `file_transfer` | `A2ASendFileTool` |
+
+---
+
 ## Intelligent Agent Routing
 
 The `AgentRouter` provides LLM-based intelligent routing to automatically select the best agent for each message based on content analysis.

@@ -8,19 +8,28 @@ import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from daie.config import SystemConfig
+    from daie.agents import Agent
 
 from daie.agents.message import AgentMessage
 from daie.config import SystemConfig
 from daie.core.resilience import CircuitBreaker, RetryPolicy
-from daie.core.tracing import TraceContextManager, inject_trace_context, trace_span
+from daie.core.tracing import TraceContextManager, inject_trace_context, trace_span, extract_trace_context
+from daie.utils.encryption import encrypt_data, decrypt_data, generate_encryption_key
+from daie.utils.encryption.ciphers import derive_shared_secret
+import base64
 from daie.registry.manager import NodeRegistry
-from daie.utils.encryption import decrypt_data, encrypt_data, generate_encryption_key
+from daie.communication.nats_provider import NatsProvider
+from daie.core.metrics import metrics, MetricsServer
 
 if TYPE_CHECKING:
     from daie.agents import Agent
 
-logger = logging.getLogger(__name__)
+from daie.core.tracing import get_logger
+logger = get_logger(__name__)
 
 # Audit logger for A2A communications
 audit_logger = logging.getLogger("daie.audit")
@@ -80,13 +89,18 @@ class CommunicationManager:
         """
         self.config = config or SystemConfig()
         self._is_running = False
+        self._listen_task: Optional[asyncio.Task] = None
+        self._discover_task: Optional[asyncio.Task] = None
+        self._heartbeat_task: Optional[asyncio.Task] = None
+        self._reconnect_task: Optional[asyncio.Task] = None
+        self._last_heartbeat_sent: float = 0
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._agents: Dict[str, "Agent"] = {}
         self._peers: Dict[str, PeerInfo] = {}
         self._message_handlers: Dict[str, Callable] = {}
         self._connection: Optional[any] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
-        self.registry = NodeRegistry()
+        self.registry = NodeRegistry(config=self.config)
 
         # End-to-end encryption support
         self._encryption_keys: Dict[str, bytes] = {}  # agent_id -> encryption key
@@ -108,6 +122,16 @@ class CommunicationManager:
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}  # peer_url -> CircuitBreaker
 
         self._background_tasks = set()
+        self._heartbeat_task: Optional[asyncio.Task] = None
+        self._last_heartbeat_sent: float = 0.0
+        
+        # Metrics server
+        self.metrics_server = None
+        self._enable_metrics = getattr(self.config, "enable_metrics", True)
+        self._metrics_port = getattr(self.config, "prometheus_port", 9090)
+
+        # NATS provider for P2P and Group messaging
+        self.nats = NatsProvider(config=self.config)
 
         logger.info("Communication manager initialized")
 
@@ -159,9 +183,22 @@ class CommunicationManager:
             ),
             "tools": agent.config.capabilities,
         }
+        public_key = getattr(agent.config, "public_key", None)
         self.registry.register_node(
-            agent.id, capabilities, network_url=network_url, network_connections=network_connections
+            agent.id,
+            capabilities,
+            network_url=network_url,
+            network_connections=network_connections,
+            public_key=public_key,
         )
+
+        # Subscribe to NATS if connected
+        if self.nats and self.nats.nc:
+            self._track_task(
+                asyncio.create_task(
+                    self.nats.subscribe_agent(agent.id, self._handle_message)
+                )
+            )
 
         return self
 
@@ -186,6 +223,34 @@ class CommunicationManager:
         logger.info(f"Agent {agent.name} (ID: {agent_id}) deregistered from communication")
 
         return self
+
+    async def join_group(self, agent_id: str, group_id: str):
+        """Join an agent to a group for swarm messaging"""
+        if agent_id not in self._agents:
+            return False
+        
+        if self.nats and self.nats.nc:
+            await self.nats.subscribe_group(
+                group_id,
+                agent_id,
+                lambda msg: self._handle_message(agent_id, msg)
+            )
+            logger.info(f"Agent {agent_id} joined group {group_id}")
+            return True
+        return False
+
+    async def leave_group(self, agent_id: str, group_id: str):
+        """Remove an agent from a group"""
+        if self.nats and self.nats.nc:
+            await self.nats.unsubscribe_group(group_id, agent_id)
+            logger.info(f"Agent {agent_id} left group {group_id}")
+            return True
+        return False
+
+    async def send_group_message(self, group_id: str, message: AgentMessage):
+        """Send a message to all agents in a group"""
+        message.receiver_id = f"group:{group_id}"
+        await self.send_message(message)
 
     def get_agent(self, agent_id: str) -> Optional["Agent"]:
         """
@@ -293,6 +358,17 @@ class CommunicationManager:
             # Inject trace context into message metadata for propagation
             message.metadata = inject_trace_context(message.metadata)
 
+            # Try NATS first if available (provides queuing and persistence)
+            if self.nats and self.nats.is_connected:
+                start_time = time.time()
+                success = await self.nats.publish(message)
+                if success:
+                    latency = time.time() - start_time
+                    metrics.observe("daie_comm_p2p_latency_seconds", latency, labels={"method": "nats"})
+                    metrics.increment("daie_comm_messages_sent_total", labels={"agent_id": message.sender_id})
+                    return True
+                logger.warning("NATS publish failed, falling back to direct communication")
+
             # Handle broadcast messages
             if message.receiver_id == "*":
                 await self.broadcast_message(message)
@@ -307,9 +383,36 @@ class CommunicationManager:
             self._audit_log("MESSAGE_SEND_ERROR", message, str(e))
             return False
 
+    def _get_shared_key(self, sender_private_key_b64: str, receiver_id: str) -> Optional[bytes]:
+        """Derive or retrieve shared key for E2EE"""
+        try:
+            # Check cache first
+            cache_key = f"{receiver_id}_shared"
+            if cache_key in self._encryption_keys:
+                return self._encryption_keys[cache_key]
+
+            # Get receiver's public key from registry
+            topology = self.registry.get_network_topology()
+            receiver_data = topology.get("nodes", {}).get(receiver_id)
+            if not receiver_data or not receiver_data.get("public_key"):
+                logger.warning(f"No public key found for receiver {receiver_id}")
+                return None
+
+            # Derive shared secret
+            priv = base64.b64decode(sender_private_key_b64)
+            pub = base64.b64decode(receiver_data["public_key"])
+            shared_key = derive_shared_secret(priv, pub)
+            
+            # Cache for future use
+            self._encryption_keys[cache_key] = shared_key
+            return shared_key
+        except Exception as e:
+            logger.error(f"Failed to derive shared key for {receiver_id}: {e}")
+            return None
+
     def _encrypt_message(self, message: AgentMessage) -> AgentMessage:
         """
-        Encrypt message content for end-to-end encryption
+        Encrypt message content for end-to-end encryption using X25519
 
         Args:
             message: Message to encrypt
@@ -318,11 +421,16 @@ class CommunicationManager:
             Encrypted message
         """
         try:
-            # Get or generate encryption key for receiver
-            if message.receiver_id not in self._encryption_keys:
-                self._encryption_keys[message.receiver_id] = generate_encryption_key()
+            # Get sender agent to access its private key
+            sender = self._agents.get(message.sender_id)
+            if not sender or not sender.config.private_key:
+                logger.warning(f"Sender {message.sender_id} has no private key for E2EE")
+                return message
 
-            key = self._encryption_keys[message.receiver_id]
+            # Derive shared key
+            key = self._get_shared_key(sender.config.private_key, message.receiver_id)
+            if not key:
+                return message
 
             # Encrypt message content
             encrypted_content = encrypt_data(message.content, key)
@@ -349,7 +457,7 @@ class CommunicationManager:
 
     def _decrypt_message(self, message: AgentMessage) -> AgentMessage:
         """
-        Decrypt message content for end-to-end encryption
+        Decrypt message content for end-to-end encryption using X25519
 
         Args:
             message: Message to decrypt
@@ -362,12 +470,18 @@ class CommunicationManager:
             if not message.metadata.get("encrypted", False):
                 return message
 
-            key_id = message.metadata.get("encryption_key_id")
-            if not key_id or key_id not in self._encryption_keys:
-                logger.warning(f"No decryption key found for message {message.id}")
+            # Get self (receiver) to access private key
+            receiver = self._agents.get(message.receiver_id)
+            if not receiver or not receiver.config.private_key:
+                logger.warning(f"Receiver {message.receiver_id} has no private key for decryption")
                 return message
 
-            key = self._encryption_keys[key_id]
+            # Derive shared key (using sender's public key)
+            # For simplicity, we use the same cache mechanism but reverse roles
+            key = self._get_shared_key(receiver.config.private_key, message.sender_id)
+            if not key:
+                logger.warning(f"Failed to derive decryption key for message from {message.sender_id}")
+                return message
 
             # Decrypt message content
             decrypted_content = decrypt_data(message.content, key)
@@ -478,10 +592,12 @@ class CommunicationManager:
 
             # Audit log for message receive
             self._audit_log("MESSAGE_RECEIVE", message)
+            metrics.increment("daie_comm_messages_received_total", labels={"agent_id": message.receiver_id})
 
-            result = receiver._handle_message(message)
-            if asyncio.iscoroutine(result):
-                await result
+            with TraceContextManager(message.metadata):
+                result = receiver._handle_message(message)
+                if asyncio.iscoroutine(result):
+                    await result
         else:
             # Try to dispatch over the network via P2P HTTP
             sender_node = self.registry.get_node(message.sender_id)
@@ -611,15 +727,15 @@ class CommunicationManager:
     async def broadcast_message(self, message: AgentMessage) -> int:
         """
         Broadcast a message to all registered agents except the sender.
-
-        Args:
-            message: Message to broadcast
-
-        Returns:
-            Number of agents that received the message
         """
-        count = 0
+        # If NATS is available, use it for efficient broadcasting
+        if self.nats and self.nats.nc and self.nats.nc.is_connected:
+            message.receiver_id = "*"
+            if await self.nats.publish(message):
+                # We consider all agents reached via NATS broadcast
+                return len(self._agents) - 1
 
+        count = 0
         for agent_id, agent in self._agents.items():
             if agent_id == message.sender_id:
                 continue
@@ -641,12 +757,38 @@ class CommunicationManager:
         return count
 
     def _handle_message(self, agent_id: str, message: AgentMessage):
-        """Handle incoming messages with routing support"""
-        if agent_id not in self._agents:
-            logger.warning(f"Received message for unknown agent: {agent_id}")
-            return
-
+        """
+        Handle an incoming message for a specific agent.
+        This includes decryption and routing.
+        """
         try:
+            # Incoming Rate Limiting: Prevent DoS from specific peers
+            if not self._check_rate_limit(message.sender_id):
+                logger.warning(f"Rate limit exceeded for sender {message.sender_id}. Dropping message.")
+                return
+
+            # Check if agent exists locally
+            if agent_id not in self._agents:
+                logger.warning(f"Received message for unknown agent: {agent_id}")
+                return
+
+            # Update last seen for the sender if it's a known peer
+            if message.sender_id in self._peers:
+                self._peers[message.sender_id].last_seen = time.time()
+                self._peers[message.sender_id].is_connected = True
+
+            # Special handling for heartbeats
+            if message.message_type == "heartbeat":
+                logger.debug(f"Received heartbeat from {message.sender_id}")
+                return
+
+            # Decrypt message if encrypted
+            if self._enable_encryption and message.metadata.get("encrypted", False):
+                message = self._decrypt_message(message)
+
+            # Audit log for message receive
+            self._audit_log("MESSAGE_RECEIVE", message)
+
             # Check if this message is being routed through this node
             final_destination = message.metadata.get("final_destination")
             if final_destination and final_destination != agent_id:
@@ -659,18 +801,9 @@ class CommunicationManager:
                 self._track_task(asyncio.create_task(self.send_message(message)))
                 return
 
-            # Decrypt message if encrypted
-            if self._enable_encryption and message.metadata.get("encrypted", False):
-                message = self._decrypt_message(message)
-
-            # Audit log for message receive
-            self._audit_log("MESSAGE_RECEIVE", message)
-
             with TraceContextManager(message.metadata):
                 agent = self._agents[agent_id]
                 # Always schedule via create_task — agent._handle_message is async
-                # and handles task vs non-task internally (task messages are awaited
-                # directly inside _handle_message to ensure timely reply)
                 self._track_task(asyncio.create_task(agent._handle_message(message)))
         except Exception as e:
             logger.error(f"Error handling message for agent {agent_id}: {e}")
@@ -704,8 +837,28 @@ class CommunicationManager:
             # Start peer discovery
             self._discover_task = self._loop.create_task(self._discover_peers())
 
+            # Connect to NATS if URL is provided
+            if self.config.nats_url:
+                try:
+                    await self.nats.connect()
+                except Exception as e:
+                    logger.warning(f"NATS connection failed (offline mode): {e}")
+
+            # Start heartbeat loop if enabled
+            heartbeat_interval = getattr(self.config, "heartbeat_interval", 10)
+            if heartbeat_interval > 0:
+                self._heartbeat_task = self._loop.create_task(self._heartbeat_loop())
+
+            # Start reconnection monitor loop
+            self._reconnect_task = self._loop.create_task(self._reconnect_loop())
+
+            # Start metrics server if enabled
+            if self._enable_metrics:
+                self.metrics_server = MetricsServer(metrics, self._metrics_port)
+                self._track_task(self._loop.create_task(self.metrics_server.start()))
+
             self._is_running = True
-            logger.info("Communication manager started successfully")
+            logger.info(f"Communication manager started successfully (Metrics: {self._metrics_port if self._enable_metrics else 'Off'})")
 
         except Exception as e:
             logger.error(f"Failed to start communication manager: {e}")
@@ -732,6 +885,14 @@ class CommunicationManager:
                 self._listen_task.cancel()
             if hasattr(self, "_discover_task") and not self._discover_task.done():
                 self._discover_task.cancel()
+            if self._heartbeat_task and not self._heartbeat_task.done():
+                self._heartbeat_task.cancel()
+            if self._reconnect_task and not self._reconnect_task.done():
+                self._reconnect_task.cancel()
+
+            # Disconnect NATS
+            if self.nats:
+                await self.nats.disconnect()
 
             # Close connection
             if self._connection:
@@ -764,8 +925,75 @@ class CommunicationManager:
     async def _discover_peers(self):
         """Discover peers (mock implementation)"""
         while self._is_running:
-            await asyncio.sleep(10)  # Discover peers every 10 seconds
+            await asyncio.sleep(getattr(self.config, "discovery_interval", 60))
             logger.debug("Discovering peers...")
+
+    async def _reconnect_loop(self):
+        """Monitor NATS connection and reconnect with exponential backoff if lost"""
+        if not self.config.nats_url:
+            return
+
+        retry_delay = 2
+        max_delay = 60
+
+        while self._is_running:
+            try:
+                if not self.nats.is_connected:
+                    logger.warning(
+                        f"NATS connection lost, attempting to reconnect in {retry_delay}s..."
+                    )
+                    try:
+                        await self.nats.connect()
+                        logger.info("Successfully reconnected to NATS")
+                        retry_delay = 2  # Reset delay on success
+                    except Exception as e:
+                        logger.error(f"Reconnection attempt failed: {e}")
+                        retry_delay = min(retry_delay * 2, max_delay)
+                else:
+                    # Connection is healthy, check again in 30s
+                    retry_delay = 2
+            except Exception as e:
+                logger.error(f"Error in reconnection loop: {e}")
+
+            # Ensure we don't crash the loop if self.nats is missing (though it shouldn't be)
+            connected = False
+            if hasattr(self, "nats") and self.nats:
+                connected = self.nats.is_connected
+
+            await asyncio.sleep(30 if connected else retry_delay)
+
+    async def _heartbeat_loop(self):
+        """Periodically send heartbeats to all connected peers"""
+        interval = getattr(self.config, "heartbeat_interval", 10)
+        while self._is_running:
+            try:
+                await self._send_heartbeats()
+            except Exception as e:
+                logger.error(f"Error in heartbeat loop: {e}")
+            await asyncio.sleep(interval)
+
+    async def _send_heartbeats(self):
+        """Send heartbeats to all registered agents and connected peers"""
+        self._last_heartbeat_sent = time.time()
+        
+        # In a real P2P system, we'd broadcast this or send to known neighbor nodes
+        # For now, we'll mark this node as active in the registry
+        for agent_id, agent in self._agents.items():
+            heartbeat_msg = AgentMessage(
+                sender_id=agent_id,
+                receiver_id="*",  # Broadcast heartbeat
+                content="hb",
+                message_type="heartbeat"
+            )
+            # We don't use broadcast_message here to avoid recursion,
+            # we just want to notify the registry and peers.
+            self.registry.register_node(
+                agent_id,
+                {"role": str(getattr(agent, "role", "unknown")), "tools": agent.config.capabilities},
+                network_url=getattr(agent.config, "network_url", None)
+            )
+        
+        logger.debug(f"Sent heartbeats for {len(self._agents)} agents")
 
     def on_message_received(self, agent_id: str, handler: Callable[[AgentMessage], None]):
         """

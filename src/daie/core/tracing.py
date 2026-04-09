@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Global context for tracing using contextvars for async safety
 _current_span_var = contextvars.ContextVar("_current_span", default=None)
+_agent_id_var = contextvars.ContextVar("_agent_id", default=None)
 
 
 class Span:
@@ -216,3 +217,27 @@ class TraceContextManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.span:
             self.span.__exit__(exc_type, exc_val, exc_tb)
+
+
+def set_agent_context(agent_id: str):
+    """Set the current agent context for logging."""
+    return _agent_id_var.set(agent_id)
+
+
+class TracingLoggerAdapter(logging.LoggerAdapter):
+    """
+    Logger adapter that automatically injects trace_id and agent_id into logs.
+    """
+
+    def process(self, msg: str, kwargs: Any) -> tuple[str, Any]:
+        span = TracerManager().get_current_span()
+        trace_id = span.trace_id if span else "no-trace"
+        agent_id = _agent_id_var.get() or "no-agent"
+        
+        prefix = f"[{agent_id} | {trace_id}]"
+        return f"{prefix} {msg}", kwargs
+
+
+def get_logger(name: str) -> TracingLoggerAdapter:
+    """Get a logger wrapped with TracingLoggerAdapter."""
+    return TracingLoggerAdapter(logging.getLogger(name), {})

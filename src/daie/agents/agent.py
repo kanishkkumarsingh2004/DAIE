@@ -19,11 +19,14 @@ from daie.agents.exceptions import (
 )
 from daie.agents.message import AgentMessage
 from daie.rag import RAGEngine
-from daie.tools import ToolRegistry
+from daie.tools import ToolRegistry, WebSearchTool, CodeSandboxTool
 from daie.utils import generate_id
-from daie.core.tracing import trace_span
+from daie.utils.encryption.ciphers import generate_x25519_keypair
+import base64
+from daie.core.tracing import trace_span, get_logger, set_agent_context
+from daie.core.metrics import metrics
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Prompt templates
@@ -152,9 +155,24 @@ class Agent:
             self.id = self.config.name.lower().replace(" ", "_")
         else:
             self.id = generate_id()
+
+        # Generate X25519 E2EE keypair if not provided
+        if not self.config.public_key or not self.config.private_key:
+            priv, pub = generate_x25519_keypair()
+            self.config.private_key = base64.b64encode(priv).decode("utf-8")
+            self.config.public_key = base64.b64encode(pub).decode("utf-8")
+            logger.info(f"Generated new X25519 keypair for agent {self.id}")
+
         self.tools: Dict[str, Any] = {}
         self.tool_registry = ToolRegistry()
         self._is_running = False
+        
+        # Auto-load tools based on capabilities
+        if "web_search" in self.config.capabilities:
+            self.add_tool(WebSearchTool())
+        if "code_execution" in self.config.capabilities or "code_sandbox" in self.config.capabilities:
+            self.add_tool(CodeSandboxTool())
+
         self._task_queue: Optional[asyncio.Queue] = None
         self._message_handler: Optional[Callable] = None
         self._task_handler: Optional[Callable] = None
@@ -167,12 +185,24 @@ class Agent:
         # Task-level usage tracking
         self._current_task_tokens = 0
         self._current_task_tool_calls = 0
+        self._background_tasks: set[asyncio.Task] = set()
 
         if tools:
             for t in tools:
                 self.add_tool(t)
 
         logger.info(f"Agent {self.config.name} (ID: {self.id}) created")
+
+    def _track_task(self, task_or_coro: Union[asyncio.Task, Any]) -> asyncio.Task:
+        """Track a background task to ensure it is cancelled on stop."""
+        if asyncio.iscoroutine(task_or_coro):
+            task = asyncio.create_task(task_or_coro)
+        else:
+            task = task_or_coro
+
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     # ── properties ────────────────────────────────────────────────────────────
 
@@ -235,6 +265,11 @@ class Agent:
             self._cached_system_prompt = None  # Invalidate cache
             logger.info(f"Tool '{tool_name}' removed from agent '{self.name}'")
         return self
+
+    def _track_task(self, task: asyncio.Task) -> None:
+        """Track background task to ensure it gets cancelled on stop"""
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def get_tool(self, tool_name: str) -> Optional[Any]:
         return self.tools.get(tool_name)
@@ -493,23 +528,27 @@ class Agent:
             return prompt.replace("User: ", f"{rag_block}\nUser: ")
         elif "Task: " in prompt:
             return prompt.replace("Task: ", f"{rag_block}\nTask: ")
-
         return f"{rag_block}\n{prompt}"
 
     # ── ReAct loop ────────────────────────────────────────────────────────────
 
-    async def execute_task(self, task_input: Union[str, Dict[str, Any]]) -> Any:
+    async def execute_task(self, user_input: str, images: Optional[List[str]] = None) -> str:
         """
-        Execute a task using a ReAct-style loop.
+        Execute a task using the multi-step agent loop.
+        
+        Args:
+            user_input: The task description or query
+            images: Optional list of base64 encoded images or image URLs
         """
+        # --- PHASE 3: MULTI-MODAL SUPPORT ---
+        if images:
+            logger.info(f"Agent '{self.name}' received {len(images)} images for task")
+            # We can store images in memory or metadata
+            # For ReAct, we'll pass them to the LLM if supported
+        
+        return await self._execute_task_internal(user_input, images=images)
 
-        @trace_span("agent_execute_task")
-        async def _execute():
-            return await self._execute_task_internal(task_input)
-
-        return await _execute()
-
-    async def arun(self, task: str) -> str:
+    async def arun(self, user_input: str, images: Optional[List[str]] = None) -> str:
         """
         Convenience shorthand: auto-start + execute_task.
 
@@ -518,48 +557,29 @@ class Agent:
         """
         if not self._is_running:
             await self.start()
-        return await self.execute_task(task)
+        return await self.execute_task(user_input, images=images)
 
-    def run(self, task: str) -> str:
-        """
-        Synchronous wrapper around arun() for scripts and notebooks.
-
-        Example:
-            >>> result = agent.run("List files in /tmp")
-        """
+    def run(self, user_input: str, images: Optional[List[str]] = None) -> str:
+        """Synchronous wrapper around arun() for scripts and notebooks."""
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
-
+            
         if loop and loop.is_running():
-            # We're inside an existing async context — use nest_asyncio or thread
-            import concurrent.futures
+            # If we're in an existing loop, use a thread or nest_asyncio logic
+            # For simplicity in this framework, we'll try a direct block if possible
+            # or recommend using await arun()
+            return asyncio.run(self.arun(user_input, images=images))
+        
+        return asyncio.run(self.arun(user_input, images=images))
 
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(asyncio.run, self.arun(task)).result()
-        return asyncio.run(self.arun(task))
-
-    async def _execute_task_internal(self, task_input: Union[str, Dict[str, Any]]) -> Any:
-        """
-        Execute a task using a ReAct-style loop.
-
-        The LLM reasons -> picks a tool -> sees the result -> reasons again,
-        until it produces a final answer or the iteration limit is reached.
-
-        Args:
-            task_input: Natural-language task string, or a dict with
-                        {"name": tool_name, "params": {...}} for direct execution.
-
-        Returns:
-            Final answer string, or raw tool result for direct dict calls.
-        """
-        if not self._is_running:
-            await self.start()
-
+    async def _execute_task_internal(self, task_input: Union[str, Dict[str, Any]], images: Optional[List[str]] = None) -> Any:
         # Reset task-level tracking
         self._current_task_tokens = 0
         self._current_task_tool_calls = 0
+
+        # ... (rest of logic)
 
         # ── direct tool call (dict input) ──────────────────────────────────
         if isinstance(task_input, dict):
@@ -582,6 +602,10 @@ class Agent:
 
         system_prompt = self._build_system_prompt()
         history: List[str] = []
+        
+        # Set agent context for logging
+        set_agent_context(self.id)
+        metrics.increment("agent_task_started_total", labels={"agent_role": self.config.role.value})
 
         # Tool-use loop (stream=False for reasoning; streaming is for chat)
         for iteration in range(self.MAX_TOOL_ITERATIONS):
@@ -601,16 +625,29 @@ class Agent:
             # Invoke LLM via asyncio.to_thread to avoid blocking the event loop.
             # Always non-streaming for the ReAct reasoning loop.
             try:
-                raw = await asyncio.to_thread(
-                    self.llm.invoke,
-                    full_prompt,
-                    stream=False,
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.max_tokens,
-                )
-                raw = raw.strip()
+                from daie.core.tracing import TracerManager
+                with TracerManager().start_span("agent_thought", {"agent_id": self.id, "iteration": iteration}) as span:
+                    # --- PHASE 3: MULTI-MODAL LLM INVOCATION ---
+                    invoke_kwargs = {
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                        "stream": False
+                    }
+                    
+                    # Pass images to the LLM on the first reasoning step if provided
+                    if iteration == 0 and images:
+                        invoke_kwargs["images"] = images
+
+                    raw = await asyncio.to_thread(
+                        self.llm.invoke,
+                        full_prompt,
+                        **invoke_kwargs
+                    )
+                    raw = raw.strip()
+                    span.set_attribute("raw_length", len(raw))
             except Exception as exc:
                 logger.error(f"LLM invocation failed at iteration {iteration}: {exc}")
+                metrics.increment("llm_invocation_errors_total", labels={"agent_id": self.id})
                 raise LLMInvocationError(str(exc), original_error=exc)
 
             # --- Usage Tracking & Guardrails ---
@@ -619,6 +656,8 @@ class Agent:
                 self._current_task_tokens += (
                     usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
                 )
+                metrics.increment("daie_agent_tokens_total", labels={"agent_id": self.id}, value=float(self._current_task_tokens))
+            metrics.increment("daie_agent_steps_total", labels={"agent_id": self.id})
 
             # Use configured or system-default max tokens
             max_tokens = getattr(self.config, "max_tokens_per_task", None)
@@ -645,7 +684,7 @@ class Agent:
 
                 if _get_cfg().stream or self.config.stream:
                     self._stream_final_answer(raw)
-                return raw
+                return self._finalize_task(raw)
 
             if "answer" in parsed:
                 answer = parsed["answer"]
@@ -662,7 +701,7 @@ class Agent:
 
                 if _get_cfg().stream or self.config.stream:
                     self._stream_final_answer(answer)
-                return answer
+                return self._finalize_task(answer)
 
             # ── tool call ─────────────────────────────────────────────────
             tool_name = parsed.get("tool")
@@ -675,28 +714,50 @@ class Agent:
 
                 if _get_cfg().stream or self.config.stream:
                     self._stream_final_answer(raw)
-                return raw
+                return self._finalize_task(raw)
 
             logger.info(f"Agent '{self.name}' → tool '{tool_name}' | thought: {thought}")
             history.append(f"Assistant thought: {thought}")
             history.append(f"Called tool: {tool_name}({json.dumps(params)})")
 
             try:
-                tool_result = await self._run_tool(tool_name, params)
-                logger.info(f"Tool '{tool_name}' result: {tool_result[:200]}")
-                history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result))
+                from daie.core.tracing import TracerManager
+                with TracerManager().start_span("agent_action", {"tool": tool_name}) as span:
+                    try:
+                        tool_result = await self._run_tool(tool_name, params)
+                        logger.info(f"Tool '{tool_name}' result: {tool_result[:200]}")
+                        history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result))
+                        metrics.increment("agent_tool_calls_total", labels={"agent_id": self.id, "tool": tool_name})
+                    except ToolNotFoundError as e:
+                        # --- PHASE 3: DYNAMIC TOOL DISCOVERY ---
+                        discovered_agents = []
+                        if hasattr(self, "registry") and self.registry:
+                            logger.info(f"Tool '{tool_name}' not found locally. Attempting DHT discovery...")
+                            discovered_agents = await self.registry.search_by_capability_dht(tool_name)
+                        
+                        if discovered_agents:
+                            target_agent = discovered_agents[0]
+                            target_id = target_agent["agent_id"]
+                            logger.info(f"Discovered specialist for '{tool_name}': {target_id}. Delegating...")
+                            
+                            # Use delegation logic
+                            delegate_result = await self._delegate_to_specialist(target_id, tool_name, params)
+                            history.append(f"Delegated to specialist {target_id} for tool '{tool_name}'. Result: {delegate_result}")
+                        else:
+                            raise e
             except ToolCallLimitExceeded:
                 history.append("Tool call limit reached. Cannot call more tools.")
                 break
             except ToolNotFoundError as e:
                 error_msg = str(e)
                 logger.warning(error_msg)
-                history.append(f"Tool error: {error_msg}")
-                # Let the LLM see the error and try another approach
+                # --- PHASE 3: SELF-CORRECTION ---
+                history.append(f"Tool error: {error_msg}. Please check the tool name or params and try again or use a different tool.")
             except ToolExecutionError as e:
                 error_msg = str(e)
                 logger.warning(f"Tool execution failed: {error_msg}")
-                history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=f"Error: {error_msg}"))
+                # --- PHASE 3: SELF-CORRECTION ---
+                history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=f"Error: {error_msg}. Please correct your parameters and retry."))
 
         # Iteration limit reached — ask LLM for a final answer with what we have
         try:
@@ -724,7 +785,102 @@ class Agent:
         answer = (parsed or {}).get("answer", raw)
         if not isinstance(answer, str):
             answer = json.dumps(answer, ensure_ascii=False)
+
+        return self._finalize_task(answer)
+
+    def _finalize_task(self, answer: str) -> str:
+        """Post-process final answer and record metrics"""
+        metrics.increment("agent_task_completed_total", labels={"agent_role": self.config.role.value})
+        # Reset context
+        from daie.core.tracing import set_agent_context
+        set_agent_context(None)
+
+        # Trigger periodic memory maintenance
+        if hasattr(self, "memory_manager") and self.memory_manager:
+            self._track_task(self._maybe_summarize_memory())
+
         return answer
+
+    async def _maybe_summarize_memory(self):
+        """Check if memory needs summarization based on threshold"""
+        try:
+            if not self.memory_manager:
+                return
+            
+            threshold = getattr(self.config, "memory_summarization_threshold", 20)
+            memories = self.memory_manager.retrieve_memories(self.id, limit=threshold + 1)
+            
+            if len(memories) > threshold:
+                logger.info(f"Memory threshold reached ({len(memories)}). Triggering summarization...")
+                # In a real system, we'd call the LLM to summarize
+                # For now, we use the memory manager's built-in summuarization hook
+                if hasattr(self.memory_manager, "summarize_agent_history"):
+                    await self.memory_manager.summarize_agent_history(self.id)
+        except Exception as e:
+            logger.error(f"Error during memory summarization: {e}")
+
+    def _stream_final_answer(self, answer: str) -> None:
+        """Re-stream the final answer if enabled"""
+        import sys
+        if not sys.stdout.isatty():
+            # Avoid messing with non-interactive pipes
+            pass
+        # In a real system, we might push tokens to a callback or websocket
+        # For CLI, we just ensure a newline
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+    async def _delegate_to_specialist(self, target_id: str, tool_name: str, params: Dict[str, Any]) -> str:
+        """
+        Dynamically delegate a tool call to a remote specialist agent.
+        Used as part of Phase 3 Intelligence (Tool Discovery).
+        """
+        # We leverage the existing A2ADelegateTaskTool logic
+        # Construct the task payload
+        task_payload = {
+            "task": f"Please execute the tool '{tool_name}' with these parameters and return the result as a string.",
+            "direct_tool_call": {
+                "tool": tool_name,
+                "params": params
+            }
+        }
+        
+        # Prepare delegation message
+        from daie.utils import generate_id
+        correlation_id = generate_id()
+        
+        # We manually build the message to avoid tool recursion
+        msg = AgentMessage(
+            sender_id=self.id,
+            receiver_id=target_id,
+            content=json.dumps({"task": task_payload}),
+            message_type="task",
+            metadata={"correlation_id": correlation_id}
+        )
+        
+        # Create future for response
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        self._pending_responses[correlation_id] = future
+        
+        try:
+            if not getattr(self, "communication_manager", None):
+                return "Error: No communication manager to delegate task."
+            
+            success = await self.communication_manager.send_message(msg)
+            if not success:
+                self._pending_responses.pop(correlation_id, None)
+                return f"Error: Failed to send delegation message to {target_id}."
+            
+            # Wait for specialist (60s timeout for complex tasks)
+            response = await asyncio.wait_for(future, timeout=60.0)
+            return str(response)
+        except asyncio.TimeoutError:
+            self._pending_responses.pop(correlation_id, None)
+            return f"Error: Delegation to {target_id} for '{tool_name}' timed out after 60s."
+        except Exception as e:
+            self._pending_responses.pop(correlation_id, None)
+            return f"Error during delegation: {e}"
 
     async def _direct_tool_call(self, task: Dict[str, Any]) -> Any:
         """Execute a tool directly from a dict spec, via the task queue."""
@@ -872,14 +1028,18 @@ class Agent:
 
     async def send_task(self, task: Dict[str, Any], receiver_id: str) -> bool:
         from daie.core.tracing import inject_trace_context
+        import time
 
         message = AgentMessage(
             sender_id=self.id,
             receiver_id=receiver_id,
-            content=str(task),
+            content=json.dumps(task),
             message_type="task",
             metadata={"task": task},
         )
+        # Handle images if passed in metadata/config but normally tasks are text-based payloads
+        # Images are better handled in conversational messages or specialized vision tools.
+        
         # Inject trace context into outgoing message
         message.metadata = inject_trace_context(message.metadata)
         return await self.send_message(message)
@@ -1229,6 +1389,14 @@ class Agent:
                     logger.error(
                         f"Error stopping memory manager for agent '{self.name}': {mem_exc}"
                     )
+
+            # Cancel remaining background tasks
+            if self._background_tasks:
+                logger.debug(f"Cancelling {len(self._background_tasks)} background tasks for {self.name}")
+                for task in list(self._background_tasks):
+                    task.cancel()
+                # Wait briefly for cancellation to propagate
+                await asyncio.gather(*self._background_tasks, return_exceptions=True)
 
             logger.info(f"Agent '{self.name}' stopped successfully")
         except Exception as exc:

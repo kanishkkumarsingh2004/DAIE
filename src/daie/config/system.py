@@ -3,7 +3,7 @@ System configuration module
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -139,6 +139,12 @@ class SystemConfig:
     connection_retries: int = 5
     """Maximum number of connection retries"""
 
+    bootstrap_nodes: List[str] = field(default_factory=list)
+    """List of bootstrap nodes (IP:port) for DHT discovery"""
+
+    dht_port: int = 8468
+    """Port for Kademlia DHT server"""
+
     # Database configuration
     database_url: str = "sqlite:///:memory:"
     """Database connection URL"""
@@ -160,8 +166,13 @@ class SystemConfig:
     enable_metrics: bool = True
     """Whether to enable metrics collection"""
 
-    prometheus_port: int = 3333
+    prometheus_port: int = 9090
     """Prometheus metrics port"""
+
+    # --- PHASE 3: HARDWARE ACCELERATION ---
+    acceleration_backend: Optional[str] = None  # llama.cpp, vllm, tensorrt
+    gpu_layers: int = 0  # Number of layers to offload to GPU
+    num_threads: int = 4  # CPU threads for local inference
 
     enable_tracing: bool = False
     """Whether to enable distributed tracing"""
@@ -228,6 +239,19 @@ class SystemConfig:
 
         if os.getenv("CENTRAL_CORE_URL"):
             config.central_core_url = os.getenv("CENTRAL_CORE_URL")
+
+        if os.getenv("BOOTSTRAP_NODES"):
+            # Phase 3: Hardware Acceleration
+            config.acceleration_backend = os.getenv("DAIE_ACCELERATION", config.acceleration_backend)
+            config.gpu_layers = int(os.getenv("DAIE_GPU_LAYERS", str(config.gpu_layers)))
+            config.num_threads = int(os.getenv("DAIE_THREADS", str(config.num_threads)))
+            config.bootstrap_nodes = os.getenv("BOOTSTRAP_NODES").split(",")
+
+        if os.getenv("DHT_PORT"):
+            try:
+                config.dht_port = int(os.getenv("DHT_PORT"))
+            except ValueError:
+                pass
 
         if os.getenv("WEBSOCKET_URL"):
             config.websocket_url = os.getenv("WEBSOCKET_URL")

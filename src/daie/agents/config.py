@@ -160,6 +160,12 @@ class AgentConfig:
     verify_signatures: bool = True
     """Whether to verify message signatures"""
 
+    public_key: Optional[str] = None
+    """Base64 encoded X25519 public key for E2EE"""
+
+    private_key: Optional[str] = None
+    """Base64 encoded X25519 private key for E2EE (should be kept secret)"""
+
     # Performance settings
     enable_caching: bool = True
     """Whether to enable response caching"""

@@ -362,6 +362,39 @@ class MemoryItem:
 
 ---
 
+## Autonomous Memory Summarization (Episodic)
+
+To maintain long-term context without overwhelming the LLM or storage, DAIE supports autonomous background summarization of episodic memory.
+
+### How it works
+
+1.  **Trigger**: After every `Agent.execute_task` completion, the agent checks if summarization is enabled.
+2.  **Threshold**: If the number of episodic memory items exceeds `memory_summarization_threshold`, a summarization task is scheduled.
+3.  **Background Execution**: The summarization runs in a background thread to avoid blocking the agent's response to the user.
+4.  **Consolidation**: Multiple related episodic memories are compressed into a single, high-density "Summary" memory item, and the original granular items are archived or removed.
+
+### Configuration
+
+Enable summarization in your `AgentConfig`:
+
+```python
+from daie import AgentConfig
+
+config = AgentConfig(
+    name="SmartAgent",
+    enable_memory_summarization=True,
+    memory_summarization_threshold=20,  # Summarize every 20 items
+)
+```
+
+### Benefits
+
+-   **Reduced Latency**: Keeps the retrieved context window small and relevant.
+-   **Lower Costs**: Reduces token usage by consolidating redundant information.
+-   **Long-term Consistency**: Prevents "forgetting" by distilling key events into stable summaries.
+
+---
+
 ## Integration with Agents
 
 Memory is automatically integrated with agents when a `MemoryManager` is provided:

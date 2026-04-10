@@ -11,7 +11,7 @@ from daie.agents import Parliament
 
 # Ensure the mock or real LLM is set
 from daie.core import set_llm
-set_llm("ollama", model="llama3.2", base_url="http://localhost:11434")
+set_llm(ollama_llm="llama3.2")
 
 # Initialize four agents with different perspectives
 # Setting temperature lower prevents total creative hallucination during facts

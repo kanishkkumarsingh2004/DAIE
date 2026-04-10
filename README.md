@@ -18,7 +18,7 @@
 | **Vision Support** | ✅ Camera + vision models | ⚠️ Limited | ❌ No |
 | **Streaming** | ✅ Library-level | ⚠️ Per-call | ❌ No |
 | **Custom Tools** | ✅ `@tool` decorator | ⚠️ Complex | ⚠️ Complex |
-| **Multi-Agent** | ✅ Orchestrator pattern | ⚠️ Chains | ✅ Crews |
+| **Multi-Agent** | ✅ Parliament & Orchestrator | ⚠️ Chains | ✅ Crews |
 | **Dependencies** | 🪶 Ultra-lightweight | 📦📦📦 Heavy | 📦📦 Medium |
 | **Philosophy** | ✅ Zero-dependency core | ❌ Dependency heavy | ❌ Dependency heavy |
 
@@ -53,8 +53,8 @@
 │           │                │                │               │
 │           ▼                ▼                ▼               │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              ORCHESTRATOR (Multi-Agent)             │    │
-│  │  • Task delegation  • Sub-agent coordination        │    │
+│  │       ORCHESTRATOR & PARLIAMENT (Multi-Agent)       │    │
+│  │  • Task delegation  • Peer-Review & Consensus       │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                            │                                │
 │                            ▼                                │
@@ -90,6 +90,7 @@
 
 ### 🤖 AI Agents
 - **ReAct agent loop** — LLM reasons → picks a tool → sees the result → iterates until it gives a final answer
+- **Parliament Architecture** — A "Mixture-of-Agents" peer-review mechanism where sub-agents independently answer, review each other without self-bias, and synthesize a mathematically robust consensus.
 - **Multi-Agent Orchestration** — Coordinate main agents and sub-agents for complex goals (e.g. Research Lab, Courtroom)
 - **Intelligent Agent Router** — LLM-based routing that automatically selects the best agent for each message based on content analysis
 - **Agent persona** — configure `gender`, `personality`, and `behavior` traits injected directly into the LLM prompt
@@ -129,6 +130,7 @@ For detailed documentation, see the [docs](docs/) folder:
 
 ### 🤖 AI Agents
 - [Agents](docs/agents.md) — Agent creation, configuration, and the ReAct loop
+- [Parliament](docs/parliament.md) — Mixture-of-Agents deliberation, peer review, and consensus synthesis
 - [Orchestrator](docs/orchestrator.md) — Multi-agent coordination and task delegation
 - [Memory](docs/memory.md) — Agent memory management (working, semantic, episodic)
 - [Agent Router](docs/agents.md#intelligent-agent-routing) — LLM-based intelligent agent routing
@@ -150,6 +152,7 @@ For detailed documentation, see the [docs](docs/) folder:
 - [Chat Configs](docs/chat-configs.md) — Pre-configured chat loops for agents, nodes, orchestrators, and hybrid systems
 
 ### 🏗️ Architecture Patterns
+- **Parliament Pattern**: Strict peer-reviewed consensus engine dramatically reducing hallucination rates
 - **Node Architecture**: Distributed infrastructure for multi-location systems
 - **Orchestrator Pattern**: Hierarchical workflow coordination for complex tasks
 - **Hybrid Architecture**: Combine Node + Orchestrator for enterprise-scale systems

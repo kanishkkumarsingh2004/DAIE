@@ -10,6 +10,7 @@ The module includes four main configurations:
 2. **NodeChatConfig** - Advanced chat for single node with orchestrator
 3. **OrchestratorChatConfig** - Advanced chat for multi-node systems
 4. **HybridChatConfig** - Simple chat loop for hybrid systems
+5. **ParliamentChatConfig** - Specialized chat loop for multi-agent deliberation
 
 All configs accept pre-created objects externally and provide a simple `run()` method to start the interactive session.
 
@@ -42,7 +43,8 @@ src/daie/chat/
 ├── chat_loop_config.py            # ChatLoopConfig implementation
 ├── node_chat_config.py            # NodeChatConfig implementation
 ├── orchestrator_chat_config.py    # OrchestratorChatConfig implementation
-└── hybrid_chat_config.py          # HybridChatConfig implementation
+├── hybrid_chat_config.py          # HybridChatConfig implementation
+└── parliament_chat_config.py      # ParliamentChatConfig implementation
 ```
 
 ### Dependencies
@@ -51,6 +53,7 @@ src/daie/chat/
 - **NodeChatConfig**: Depends on `daie.core.hybrid.HybridOrchestratorNode`
 - **OrchestratorChatConfig**: Depends on `daie.core.hybrid.MultiNodeHybridSystem`
 - **HybridChatConfig**: Depends on both `HybridOrchestratorNode` and `MultiNodeHybridSystem`
+- **ParliamentChatConfig**: Depends on `daie.agents.parliament.Parliament`
 
 All configs are independent of each other and can be used separately or together.
 
@@ -411,17 +414,67 @@ HybridChatConfig.quick_start(hybrid_system=hybrid).run()
 
 ---
 
+## ParliamentChatConfig
+
+Specialized interface for engaging with a `Parliament`. Handles starting the entire assembly, waiting for parallel answers and peer reviews, and streaming back the synthesized result without exposing the internal async flow to the user.
+
+### Features
+
+- Accepts a pre-created `Parliament` instance.
+- Built-in multi-turn loop supporting complex JSON and text parsing from the synthesizer.
+- Wait-state management since parliament deliberation can take longer than single LLM generation.
+- Graceful `start_parliament` and `stop_parliament` hooks to preserve memory.
+
+### Usage
+
+```python
+from daie import Agent, AgentConfig, AgentRole
+from daie.agents import Parliament
+from daie.chat import ParliamentChatConfig
+
+agents = [
+    Agent(config=AgentConfig(name="Economist", role=AgentRole.DATA_ANALYST)),
+    Agent(config=AgentConfig(name="Lawyer", role=AgentRole.SECURITY_AUDITOR))
+]
+
+parliament = Parliament(sub_agents=agents, speaker=agents[0])
+
+# Start the interactive debate loop!
+config = ParliamentChatConfig(parliament=parliament)
+config.run()
+```
+
+### Quick Start
+
+```python
+ParliamentChatConfig.quick_start(parliament=parliament).run()
+```
+
+### Configuration Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `parliament` | Parliament | Required | The parliament instance to deliberate with |
+| `welcome_message` | str | "... Type your topic for debate ..." | Welcome message displayed when chat starts |
+| `exit_commands` | List[str] | ["exit", "quit", "bye", "goodbye"] | Commands that will exit the chat loop |
+| `prompt_prefix` | str | "Topic: " | Prefix displayed before user input |
+| `start_parliament` | bool | True | Whether to automatically call `start()` on the parliament |
+| `stop_parliament` | bool | True | Whether to automatically call `stop()` on the parliament |
+| `show_errors` | bool | True | Whether to show error messages to user |
+
+---
+
 ## Comparison
 
-| Feature | ChatLoopConfig | NodeChatConfig | OrchestratorChatConfig | HybridChatConfig |
-|----------|----------------|----------------|------------------------|------------------|
-| **Target** | Simple Agent | Single Node | Multi-Node System | Hybrid System |
-| **Complexity** | Simple | Advanced | Advanced | Simple |
-| **Command Parsing** | No | Yes | Yes | No |
-| **Use Case** | Basic chat | Research lab | Multi-node collaboration | Simple hybrid chat |
-| **Lifecycle Management** | Agent start/stop | Node start/stop | System start/stop | System start/stop |
-| **Error Handling** | Retry logic | Retry logic | Retry logic | Retry logic |
-| **Callbacks** | on_start, on_exit, on_error | on_start, on_exit, on_error | on_start, on_exit, on_error | on_start, on_exit, on_error |
+| Feature | ChatLoopConfig | NodeChatConfig | OrchestratorChatConfig | HybridChatConfig | ParliamentChatConfig |
+|----------|----------------|----------------|------------------------|------------------|----------------------|
+| **Target** | Simple Agent | Single Node | Multi-Node System | Hybrid System | Multi-Agent Parliament |
+| **Complexity** | Simple | Advanced | Advanced | Simple | Advanced (Internal) |
+| **Command Parsing** | No | Yes | Yes | No | No (Takes topics) |
+| **Use Case** | Basic chat | Research lab | Multi-node collaboration | Simple hybrid chat | Debate / Peer-review Synthesis |
+| **Lifecycle Management** | Agent start/stop | Node start/stop | System start/stop | System start/stop | Parliament start/stop |
+| **Error Handling** | Retry logic | Retry logic | Retry logic | Retry logic | Retry logic |
+| **Callbacks** | on_start, on_exit... | on_start, on_exit... | on_start, on_exit... | on_start, on_exit... | on_start, on_exit... |
 
 ---
 
@@ -436,6 +489,7 @@ HybridChatConfig.quick_start(hybrid_system=hybrid).run()
    - NodeChatConfig for single node with advanced commands
    - OrchestratorChatConfig for multi-node systems
    - HybridChatConfig for simple hybrid chat
+   - ParliamentChatConfig for high-quality peer-reviewed answers
 
 ---
 

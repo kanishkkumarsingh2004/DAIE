@@ -5,7 +5,7 @@ certifi==2026.2.25
 charset-normalizer==3.4.6
 click==8.3.1
 coverage==7.13.5
--e git+ssh://git@github.com/kanishkkumarsingh2004/decentralized-ai-ecosystem.git@224d9726318546282ef791cc2a408e2b53d1d1d5#egg=daie
+-e git+ssh://git@github.com/kanishkkumarsingh2004/decentralized-ai-ecosystem.git@5c358c9ef3c124b3ceee0fb0b526883d1c8b8efc#egg=daie
 flake8==7.3.0
 h11==0.16.0
 idna==3.11

@@ -172,7 +172,9 @@ class TestHardenedFeatures:
                 
                 assert mock_track.called
                 task = mock_track.call_args[0][0]
-                # Verify it's a task object (has __await__)
-                assert hasattr(task, "__await__") 
+                assert hasattr(task, "__await__")
+                
+                # Close the coroutine to prevent "never awaited" RuntimeWarning during GC
+                task.close()
             
             await agent.stop()

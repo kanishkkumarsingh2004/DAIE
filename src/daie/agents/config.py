@@ -17,6 +17,9 @@ class AgentRole(Enum):
     ANALYZER = "analyzer"  # Data and logic focused
     EXECUTOR = "executor"  # Action and tool focused
     ASSISTANT = "assistant"  # User-centric support (High friendliness)
+    DATA_ANALYST = "data-analyst"  # Economic / Financial analysis
+    SECURITY_AUDITOR = "security-auditor"  # Rules, logic, safety, and compliance
+    RESEARCHER = "researcher"  # Deep-dive literature and fact analysis
 
 
 @dataclass

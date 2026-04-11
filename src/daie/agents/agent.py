@@ -3,15 +3,14 @@ AI Agent implementation module
 """
 
 import asyncio
+import datetime
 import json
-import logging
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.exceptions import (
     LLMInvocationError,
-    ReActLoopError,
     TokenLimitExceeded,
     ToolCallLimitExceeded,
     ToolExecutionError,
@@ -166,11 +165,14 @@ class Agent:
         self.tools: Dict[str, Any] = {}
         self.tool_registry = ToolRegistry()
         self._is_running = False
-        
+
         # Auto-load tools based on capabilities
         if "web_search" in self.config.capabilities:
             self.add_tool(WebSearchTool())
-        if "code_execution" in self.config.capabilities or "code_sandbox" in self.config.capabilities:
+        if (
+            "code_execution" in self.config.capabilities
+            or "code_sandbox" in self.config.capabilities
+        ):
             self.add_tool(CodeSandboxTool())
 
         self._task_queue: Optional[asyncio.Queue] = None
@@ -352,11 +354,35 @@ class Agent:
         footer = "═" * 42
         return f"\n{header}\n" + "\n".join(parts) + f"\n{footer}"
 
+    def _build_system_info_block(self) -> str:
+        """Construct a block containing current system information like date and time."""
+        if not getattr(self.config, "include_datetime", True):
+            return ""
+
+        now = datetime.datetime.now()
+        # Include timezone if available, otherwise just use local time
+        tz_str = now.astimezone().tzname() if now.astimezone() else "Local Time"
+
+        info_parts = [
+            f"Current Date: {now.strftime('%Y-%m-%d')}",
+            f"Current Time: {now.strftime('%H:%M:%S')}",
+            f"Timezone    : {tz_str}",
+            f"Day of Week : {now.strftime('%A')}",
+        ]
+
+        header = "╔══════════════════════════════════════╗\n║      SYSTEM CONTEXT & TEMPORAL       ║\n╚══════════════════════════════════════╝"
+        footer = "═" * 42
+        return f"\n{header}\n" + "\n".join(info_parts) + f"\n{footer}"
+
     def _build_system_prompt(self) -> str:
         """Assemble the full system prompt with persona, instructions, and tool schema."""
         persona_context = self._build_persona_context()
+        system_info = self._build_system_info_block()
+
         base_sys_prompt = (
-            f"{persona_context}\n\n" f"Core Instructions:\n{self.config.system_prompt}"
+            f"{persona_context}\n"
+            f"{system_info}\n\n"
+            f"Core Instructions:\n{self.config.system_prompt}"
         )
 
         if self.tools:
@@ -408,7 +434,7 @@ class Agent:
                 elif ch == "}":
                     depth -= 1
                     if depth == 0:
-                        candidate = text[start : i + 1]
+                        candidate = text[start: i + 1]
                         res = try_parse(candidate)
                         if res:
                             return res
@@ -535,7 +561,7 @@ class Agent:
     async def execute_task(self, user_input: str, images: Optional[List[str]] = None) -> str:
         """
         Execute a task using the multi-step agent loop.
-        
+
         Args:
             user_input: The task description or query
             images: Optional list of base64 encoded images or image URLs
@@ -545,7 +571,7 @@ class Agent:
             logger.info(f"Agent '{self.name}' received {len(images)} images for task")
             # We can store images in memory or metadata
             # For ReAct, we'll pass them to the LLM if supported
-        
+
         return await self._execute_task_internal(user_input, images=images)
 
     async def arun(self, user_input: str, images: Optional[List[str]] = None) -> str:
@@ -565,16 +591,18 @@ class Agent:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
-            
+
         if loop and loop.is_running():
             # If we're in an existing loop, use a thread or nest_asyncio logic
             # For simplicity in this framework, we'll try a direct block if possible
             # or recommend using await arun()
             return asyncio.run(self.arun(user_input, images=images))
-        
+
         return asyncio.run(self.arun(user_input, images=images))
 
-    async def _execute_task_internal(self, task_input: Union[str, Dict[str, Any]], images: Optional[List[str]] = None) -> Any:
+    async def _execute_task_internal(
+        self, task_input: Union[str, Dict[str, Any]], images: Optional[List[str]] = None
+    ) -> Any:
         # Reset task-level tracking
         self._current_task_tokens = 0
         self._current_task_tool_calls = 0
@@ -602,7 +630,7 @@ class Agent:
 
         system_prompt = self._build_system_prompt()
         history: List[str] = []
-        
+
         # Set agent context for logging
         set_agent_context(self.id)
         metrics.increment("agent_task_started_total", labels={"agent_role": self.config.role.value})
@@ -626,23 +654,22 @@ class Agent:
             # Always non-streaming for the ReAct reasoning loop.
             try:
                 from daie.core.tracing import TracerManager
-                with TracerManager().start_span("agent_thought", {"agent_id": self.id, "iteration": iteration}) as span:
+
+                with TracerManager().start_span(
+                    "agent_thought", {"agent_id": self.id, "iteration": iteration}
+                ) as span:
                     # --- PHASE 3: MULTI-MODAL LLM INVOCATION ---
                     invoke_kwargs = {
                         "temperature": self.config.temperature,
                         "max_tokens": self.config.max_tokens,
-                        "stream": False
+                        "stream": False,
                     }
-                    
+
                     # Pass images to the LLM on the first reasoning step if provided
                     if iteration == 0 and images:
                         invoke_kwargs["images"] = images
 
-                    raw = await asyncio.to_thread(
-                        self.llm.invoke,
-                        full_prompt,
-                        **invoke_kwargs
-                    )
+                    raw = await asyncio.to_thread(self.llm.invoke, full_prompt, **invoke_kwargs)
                     raw = raw.strip()
                     span.set_attribute("raw_length", len(raw))
             except Exception as exc:
@@ -656,7 +683,11 @@ class Agent:
                 self._current_task_tokens += (
                     usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
                 )
-                metrics.increment("daie_agent_tokens_total", labels={"agent_id": self.id}, value=float(self._current_task_tokens))
+                metrics.increment(
+                    "daie_agent_tokens_total",
+                    labels={"agent_id": self.id},
+                    value=float(self._current_task_tokens),
+                )
             metrics.increment("daie_agent_steps_total", labels={"agent_id": self.id})
 
             # Use configured or system-default max tokens
@@ -722,27 +753,43 @@ class Agent:
 
             try:
                 from daie.core.tracing import TracerManager
+
                 with TracerManager().start_span("agent_action", {"tool": tool_name}) as span:
                     try:
                         tool_result = await self._run_tool(tool_name, params)
                         logger.info(f"Tool '{tool_name}' result: {tool_result[:200]}")
-                        history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result))
-                        metrics.increment("agent_tool_calls_total", labels={"agent_id": self.id, "tool": tool_name})
+                        history.append(
+                            _TOOL_RESULT_TURN.format(tool_name=tool_name, result=tool_result)
+                        )
+                        metrics.increment(
+                            "agent_tool_calls_total",
+                            labels={"agent_id": self.id, "tool": tool_name},
+                        )
                     except ToolNotFoundError as e:
                         # --- PHASE 3: DYNAMIC TOOL DISCOVERY ---
                         discovered_agents = []
                         if hasattr(self, "registry") and self.registry:
-                            logger.info(f"Tool '{tool_name}' not found locally. Attempting DHT discovery...")
-                            discovered_agents = await self.registry.search_by_capability_dht(tool_name)
-                        
+                            logger.info(
+                                f"Tool '{tool_name}' not found locally. Attempting DHT discovery..."
+                            )
+                            discovered_agents = await self.registry.search_by_capability_dht(
+                                tool_name
+                            )
+
                         if discovered_agents:
                             target_agent = discovered_agents[0]
                             target_id = target_agent["agent_id"]
-                            logger.info(f"Discovered specialist for '{tool_name}': {target_id}. Delegating...")
-                            
+                            logger.info(
+                                f"Discovered specialist for '{tool_name}': {target_id}. Delegating..."
+                            )
+
                             # Use delegation logic
-                            delegate_result = await self._delegate_to_specialist(target_id, tool_name, params)
-                            history.append(f"Delegated to specialist {target_id} for tool '{tool_name}'. Result: {delegate_result}")
+                            delegate_result = await self._delegate_to_specialist(
+                                target_id, tool_name, params
+                            )
+                            history.append(
+                                f"Delegated to specialist {target_id} for tool '{tool_name}'. Result: {delegate_result}"
+                            )
                         else:
                             raise e
             except ToolCallLimitExceeded:
@@ -752,12 +799,19 @@ class Agent:
                 error_msg = str(e)
                 logger.warning(error_msg)
                 # --- PHASE 3: SELF-CORRECTION ---
-                history.append(f"Tool error: {error_msg}. Please check the tool name or params and try again or use a different tool.")
+                history.append(
+                    f"Tool error: {error_msg}. Please check the tool name or params and try again or use a different tool."
+                )
             except ToolExecutionError as e:
                 error_msg = str(e)
                 logger.warning(f"Tool execution failed: {error_msg}")
                 # --- PHASE 3: SELF-CORRECTION ---
-                history.append(_TOOL_RESULT_TURN.format(tool_name=tool_name, result=f"Error: {error_msg}. Please correct your parameters and retry."))
+                history.append(
+                    _TOOL_RESULT_TURN.format(
+                        tool_name=tool_name,
+                        result=f"Error: {error_msg}. Please correct your parameters and retry.",
+                    )
+                )
 
         # Iteration limit reached — ask LLM for a final answer with what we have
         try:
@@ -790,9 +844,12 @@ class Agent:
 
     def _finalize_task(self, answer: str) -> str:
         """Post-process final answer and record metrics"""
-        metrics.increment("agent_task_completed_total", labels={"agent_role": self.config.role.value})
+        metrics.increment(
+            "agent_task_completed_total", labels={"agent_role": self.config.role.value}
+        )
         # Reset context
         from daie.core.tracing import set_agent_context
+
         set_agent_context(None)
 
         # Trigger periodic memory maintenance
@@ -806,12 +863,14 @@ class Agent:
         try:
             if not self.memory_manager:
                 return
-            
+
             threshold = getattr(self.config, "memory_summarization_threshold", 20)
             memories = self.memory_manager.retrieve_memories(self.id, limit=threshold + 1)
-            
+
             if len(memories) > threshold:
-                logger.info(f"Memory threshold reached ({len(memories)}). Triggering summarization...")
+                logger.info(
+                    f"Memory threshold reached ({len(memories)}). Triggering summarization..."
+                )
                 # In a real system, we'd call the LLM to summarize
                 # For now, we use the memory manager's built-in summuarization hook
                 if hasattr(self.memory_manager, "summarize_agent_history"):
@@ -822,6 +881,7 @@ class Agent:
     def _stream_final_answer(self, answer: str) -> None:
         """Re-stream the final answer if enabled"""
         import sys
+
         if not sys.stdout.isatty():
             # Avoid messing with non-interactive pipes
             pass
@@ -830,7 +890,9 @@ class Agent:
         sys.stdout.write("\n")
         sys.stdout.flush()
 
-    async def _delegate_to_specialist(self, target_id: str, tool_name: str, params: Dict[str, Any]) -> str:
+    async def _delegate_to_specialist(
+        self, target_id: str, tool_name: str, params: Dict[str, Any]
+    ) -> str:
         """
         Dynamically delegate a tool call to a remote specialist agent.
         Used as part of Phase 3 Intelligence (Tool Discovery).
@@ -839,39 +901,37 @@ class Agent:
         # Construct the task payload
         task_payload = {
             "task": f"Please execute the tool '{tool_name}' with these parameters and return the result as a string.",
-            "direct_tool_call": {
-                "tool": tool_name,
-                "params": params
-            }
+            "direct_tool_call": {"tool": tool_name, "params": params},
         }
-        
+
         # Prepare delegation message
         from daie.utils import generate_id
+
         correlation_id = generate_id()
-        
+
         # We manually build the message to avoid tool recursion
         msg = AgentMessage(
             sender_id=self.id,
             receiver_id=target_id,
             content=json.dumps({"task": task_payload}),
             message_type="task",
-            metadata={"correlation_id": correlation_id}
+            metadata={"correlation_id": correlation_id},
         )
-        
+
         # Create future for response
         loop = asyncio.get_running_loop()
         future = loop.create_future()
         self._pending_responses[correlation_id] = future
-        
+
         try:
             if not getattr(self, "communication_manager", None):
                 return "Error: No communication manager to delegate task."
-            
+
             success = await self.communication_manager.send_message(msg)
             if not success:
                 self._pending_responses.pop(correlation_id, None)
                 return f"Error: Failed to send delegation message to {target_id}."
-            
+
             # Wait for specialist (60s timeout for complex tasks)
             response = await asyncio.wait_for(future, timeout=60.0)
             return str(response)
@@ -989,20 +1049,22 @@ class Agent:
                     try:
                         # Store user message
                         self.memory_manager.store_memory(
-                            self.id,
-                            f"User: {message}",
+                            agent_id=self.id,
+                            content=f"User: {message}",
                             memory_type="working",
                             tags=["conversation", "user_message"],
+                            namespace=self.config.memory_namespace,
                         )
                         # Log user message to history.txt
                         self.memory_manager.log_chat_history(self.id, f"User: {message}")
 
                         # Store agent response
                         self.memory_manager.store_memory(
-                            self.id,
-                            f"{self.name}: {response}",
+                            agent_id=self.id,
+                            content=f"{self.name}: {response}",
                             memory_type="working",
                             tags=["conversation", "agent_response"],
+                            namespace=self.config.memory_namespace,
                         )
                         # Log agent response to history.txt
                         self.memory_manager.log_chat_history(self.id, f"{self.name}: {response}")
@@ -1028,7 +1090,6 @@ class Agent:
 
     async def send_task(self, task: Dict[str, Any], receiver_id: str) -> bool:
         from daie.core.tracing import inject_trace_context
-        import time
 
         message = AgentMessage(
             sender_id=self.id,
@@ -1039,7 +1100,7 @@ class Agent:
         )
         # Handle images if passed in metadata/config but normally tasks are text-based payloads
         # Images are better handled in conversational messages or specialized vision tools.
-        
+
         # Inject trace context into outgoing message
         message.metadata = inject_trace_context(message.metadata)
         return await self.send_message(message)
@@ -1116,10 +1177,11 @@ class Agent:
                         self.id, f"[Delegated task from {message.sender_id}]: {task_str}"
                     )
                     self.memory_manager.store_memory(
-                        self.id,
-                        f"Received task: {task_str}",
+                        agent_id=self.id,
+                        content=f"Received task: {task_str}",
                         memory_type="episodic",
                         tags=["task", "delegated"],
+                        namespace=self.config.memory_namespace,
                     )
 
                 # If streaming, show that this agent is starting
@@ -1134,10 +1196,11 @@ class Agent:
                 if hasattr(self, "memory_manager") and self.memory_manager:
                     self.memory_manager.log_chat_history(self.id, f"[Task result]: {result}")
                     self.memory_manager.store_memory(
-                        self.id,
-                        f"Task completed: {result}",
+                        agent_id=self.id,
+                        content=f"Task completed: {result}",
                         memory_type="episodic",
                         tags=["task", "result"],
+                        namespace=self.config.memory_namespace,
                     )
 
                 reply = AgentMessage(
@@ -1392,7 +1455,9 @@ class Agent:
 
             # Cancel remaining background tasks
             if self._background_tasks:
-                logger.debug(f"Cancelling {len(self._background_tasks)} background tasks for {self.name}")
+                logger.debug(
+                    f"Cancelling {len(self._background_tasks)} background tasks for {self.name}"
+                )
                 for task in list(self._background_tasks):
                     task.cancel()
                 # Wait briefly for cancellation to propagate

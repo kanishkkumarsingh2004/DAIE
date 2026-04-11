@@ -3,7 +3,7 @@ In-house SHA-256, HMAC, and PBKDF2 hashing implementations.
 """
 
 import struct
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 
 def _rotr(x: int, n: int) -> int:
@@ -148,7 +148,7 @@ class SHA256:
 
         h_orig = list(self._h)
         for i in range(0, len(m), 64):
-            self._process(m[i : i + 64])
+            self._process(m[i: i + 64])
 
         res = struct.pack(">8L", *self._h)
         self._h = h_orig

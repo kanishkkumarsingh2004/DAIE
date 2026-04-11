@@ -8,9 +8,8 @@ Vector RAG Engine — Convenience wrapper.
 
 import logging
 import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional
 
-from daie.rag.chunking import Chunk
 from daie.rag.rag_engine import RAGEngine
 
 logger = logging.getLogger(__name__)

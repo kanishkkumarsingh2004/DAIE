@@ -49,6 +49,7 @@ def extract_json(text: str) -> Any:
     Handles code fences, leading/trailing prose, and partial wrapping.
     """
     import re
+
     if not text:
         return None
 
@@ -72,9 +73,9 @@ def extract_json(text: str) -> Any:
     # Try finding the largest block between { and }
     first_bracket = text.find("{")
     last_bracket = text.rfind("}")
-    
+
     if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
-        candidate = text[first_bracket : last_bracket + 1]
+        candidate = text[first_bracket: last_bracket + 1]
         res = try_parse(candidate)
         if res:
             return res
@@ -94,7 +95,7 @@ def extract_json(text: str) -> Any:
             elif ch == "}":
                 depth -= 1
                 if depth == 0:
-                    candidate = text[start : i + 1]
+                    candidate = text[start: i + 1]
                     res = try_parse(candidate)
                     if res:
                         return res
@@ -109,6 +110,7 @@ def extract_conversational_response(text: str) -> Optional[Dict[str, Any]]:
     Fallback for when models emit "Thought: ... Answer: ..." instead of JSON.
     """
     import re
+
     if not text:
         return None
 

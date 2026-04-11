@@ -44,7 +44,9 @@ async def main():
     # The agent will auto-select the right tools to accomplish the goal!
     print("Agent executing task: 'Calculate 25 * 14 and save it to result.txt'")
 
-    answer = await agent.execute_task("Calculate 25 * 14 and save the result into a file called result.txt")
+    answer = await agent.execute_task(
+        "Calculate 25 * 14 and save the result into a file called result.txt"
+    )
     print("\nFinal LLM Answer:\n", answer)
 
     await agent.stop()

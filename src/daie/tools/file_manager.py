@@ -147,25 +147,25 @@ class FileManagerTool(Tool):
             allowed_roots = [Path.cwd().resolve()]
             if self.workspace_root:
                 allowed_roots.append(Path(self.workspace_root).resolve())
-            
+
             # Also allow /tmp for testing and transient files if not strictly restricted
             allowed_roots.append(Path("/tmp").resolve())
-            
+
             try:
                 # Normalize and resolve target path
                 target_path = Path(path).expanduser().resolve()
-                
+
                 # Check if target_path is within any allowed root
                 is_safe = any(str(target_path).startswith(str(root)) for root in allowed_roots)
-                
+
                 if not is_safe:
                     logger.warning(f"Security: Blocked path traversal attempt to {path}")
                     return {
                         "success": False,
                         "error": "Access denied: Path is outside the allowed workspace.",
-                        "exists": False  # Fix KeyError in tests
+                        "exists": False,  # Fix KeyError in tests
                     }
-                
+
                 path_obj = target_path
             except Exception as e:
                 return {"success": False, "error": f"Invalid path traversal attempt: {e}"}
@@ -176,12 +176,16 @@ class FileManagerTool(Tool):
             if destination:
                 try:
                     dest_path = Path(destination).expanduser().resolve()
-                    is_dest_safe = any(str(dest_path).startswith(str(root)) for root in allowed_roots)
+                    is_dest_safe = any(
+                        str(dest_path).startswith(str(root)) for root in allowed_roots
+                    )
                     if not is_dest_safe:
-                        logger.warning(f"Security: Blocked destination path traversal to {destination}")
+                        logger.warning(
+                            f"Security: Blocked destination path traversal to {destination}"
+                        )
                         return {
                             "success": False,
-                            "error": "Access denied: Destination is outside the allowed workspace."
+                            "error": "Access denied: Destination is outside the allowed workspace.",
                         }
                     params["destination_obj"] = dest_path
                 except Exception as e:
@@ -424,11 +428,11 @@ class FileManagerTool(Tool):
             dest_obj = params.get("destination_obj")
             if not dest_obj:
                 raise Exception("Destination path is required for copy operation")
-                
+
             dest_obj.parent.mkdir(parents=True, exist_ok=True)
- 
+
             import shutil
- 
+
             shutil.copy2(path_obj, dest_obj)
 
             logger.info(f"File copied: {path_obj} -> {dest_obj}")
@@ -453,9 +457,9 @@ class FileManagerTool(Tool):
                 raise Exception("Destination path is required for copy operation")
 
             dest_obj.parent.mkdir(parents=True, exist_ok=True)
- 
+
             import shutil
- 
+
             shutil.copytree(path_obj, dest_obj, dirs_exist_ok=True)
 
             logger.info(f"Directory copied: {path_obj} -> {dest_obj}")

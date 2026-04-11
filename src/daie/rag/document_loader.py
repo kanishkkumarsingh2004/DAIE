@@ -8,7 +8,7 @@ for use by the RAG engine.
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -137,10 +137,7 @@ def load_directory(
                 file_paths.append(os.path.join(root, filename))
         file_paths.sort()
     else:
-        file_paths = [
-            os.path.join(directory_path, f)
-            for f in sorted(os.listdir(directory_path))
-        ]
+        file_paths = [os.path.join(directory_path, f) for f in sorted(os.listdir(directory_path))]
 
     for file_path in file_paths:
         if not os.path.isfile(file_path):

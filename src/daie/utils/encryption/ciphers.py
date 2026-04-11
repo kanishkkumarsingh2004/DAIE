@@ -5,7 +5,6 @@ In-house ChaCha20 cipher implementation.
 import base64
 import os
 import struct
-from typing import Optional
 
 from daie.utils.encryption.hashes import constant_time_compare, hmac_sha256
 
@@ -56,7 +55,7 @@ def chacha20_crypt(data: bytes, key: bytes, nonce: bytes, counter: int = 0) -> b
     res = bytearray()
     for i in range(0, len(data), 64):
         keystream = _chacha20_block(key, counter + (i // 64), nonce)
-        block = data[i : i + 64]
+        block = data[i: i + 64]
         for j in range(len(block)):
             res.append(block[j] ^ keystream[j])
     return bytes(res)
@@ -115,7 +114,11 @@ P = 2**255 - 19
 
 
 def _fe_unserialize(bs: bytes) -> int:
-    return struct.unpack("<32B", bs)[0] if len(bs) == 1 else int.from_bytes(bs, "little") & ((1 << 255) - 1)
+    return (
+        struct.unpack("<32B", bs)[0]
+        if len(bs) == 1
+        else int.from_bytes(bs, "little") & ((1 << 255) - 1)
+    )
 
 
 def _fe_serialize(n: int) -> bytes:
@@ -126,13 +129,13 @@ def x25519_scalar_mult(scalar: bytes, u_coord: bytes) -> bytes:
     """X25519 scalar multiplication as defined in RFC 7748"""
     u = int.from_bytes(u_coord, "little") & ((1 << 255) - 1)
     k = int.from_bytes(scalar, "little")
-    
+
     # Montgomery ladder
     x_1 = u
     x_2, z_2 = 1, 0
     x_3, z_3 = u, 1
     swap = 0
-    
+
     for t in reversed(range(255)):
         k_t = (k >> t) & 1
         swap ^= k_t
@@ -140,7 +143,7 @@ def x25519_scalar_mult(scalar: bytes, u_coord: bytes) -> bytes:
             x_2, x_3 = x_3, x_2
             z_2, z_3 = z_3, z_2
         swap = k_t
-        
+
         A = (x_2 + z_2) % P
         AA = (A * A) % P
         B = (x_2 - z_2) % P
@@ -154,11 +157,11 @@ def x25519_scalar_mult(scalar: bytes, u_coord: bytes) -> bytes:
         z_3 = (x_1 * (DA - CB) ** 2) % P
         x_2 = (AA * BB) % P
         z_2 = (E * (AA + 121665 * E)) % P
-        
+
     if swap:
         x_2, x_3 = x_3, x_2
         z_2, z_3 = z_3, z_2
-        
+
     return _fe_serialize((x_2 * pow(z_2, P - 2, P)) % P)
 
 
@@ -171,7 +174,7 @@ def generate_x25519_keypair() -> tuple[bytes, bytes]:
     priv_list[31] &= 127
     priv_list[31] |= 64
     clamped_priv = bytes(priv_list)
-    
+
     # Base point is 9
     base_point = b"\x09" + b"\x00" * 31
     pub = x25519_scalar_mult(clamped_priv, base_point)
@@ -183,4 +186,5 @@ def derive_shared_secret(private_key: bytes, remote_public_key: bytes) -> bytes:
     secret = x25519_scalar_mult(private_key, remote_public_key)
     # Use SHA256 to derive the actual symmetric key from the shared secret
     from daie.utils.encryption.hashes import hmac_sha256
+
     return hmac_sha256(b"daie_secret_salt", secret)

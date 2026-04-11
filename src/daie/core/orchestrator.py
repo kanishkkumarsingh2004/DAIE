@@ -31,6 +31,7 @@ class Orchestrator:
         main_role: str = "Coordinator",
         sub_role: str = "Specialist",
         comm_manager: Optional[CommunicationManager] = None,
+        shared_namespace: Optional[str] = None,
     ):
         self.main_agent = main_agent
         self.sub_agents = sub_agents
@@ -38,6 +39,7 @@ class Orchestrator:
         self.main_role = main_role
         self.sub_role = sub_role
         self.comm_manager = comm_manager or CommunicationManager()
+        self.shared_namespace = shared_namespace
         self._is_running = False
         self._parent_orchestrator_id: Optional[str] = None
         self._child_orchestrator_ids: List[str] = []
@@ -118,6 +120,14 @@ class Orchestrator:
                 f"- Collaborate proactively with {self.main_agent.name} and your colleagues to achieve the best outcome."
             )
             sub_agent.config.system_prompt = sub_sys_prompt
+
+            # Inject shared memory namespace
+            if self.shared_namespace:
+                sub_agent.config.memory_namespace = self.shared_namespace
+
+        # Configure main agent namespace
+        if self.shared_namespace:
+            self.main_agent.config.memory_namespace = self.shared_namespace
 
         # Start main agent
         await self.main_agent.start(communication_manager=self.comm_manager)

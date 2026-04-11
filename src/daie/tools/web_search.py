@@ -1,58 +1,63 @@
-"""
-Web Search Tool — DuckDuckGo with Tavily fallback.
-
-Provides web search capabilities for agents using DuckDuckGo (no API key)
-with an optional Tavily fallback when TAVILY_API_KEY is set.
-"""
-
 import logging
 import os
-from typing import Any, Dict, List
+import json
+import asyncio
+from typing import Any, Dict
 
 from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 
 logger = logging.getLogger(__name__)
 
+# Common User-Agents to prevent blocking
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+]
+
 
 class WebSearchTool(Tool):
     """
-    Web search tool using DuckDuckGo (free, no API key required).
+    High-value Web Search tool using DuckDuckGo with Tavily fallback.
 
-    Falls back to Tavily if ``TAVILY_API_KEY`` environment variable is set.
+    Provides robust web searching with native async execution patterns.
+    - DuckDuckGo: Default, no API key required.
+    - Tavily: Fallback or primary if TAVILY_API_KEY is present.
 
     Example:
         >>> tool = WebSearchTool()
-        >>> result = await tool.execute({"query": "Python AI frameworks"})
+        >>> result = await tool.execute({"query": "Latest breakthroughs in fusion energy"})
     """
 
     def __init__(self):
         metadata = ToolMetadata(
             name="web_search",
-            description="Search the web for information. Returns titles, URLs, and snippets.",
+            description="Perform a web search to find latest information, news, and technical data.",
             category=ToolCategory.SEARCH,
-            version="1.0.0",
+            version="1.1.0",
             author="DAIE",
-            capabilities=["web_search", "information_retrieval"],
+            capabilities=["web_search", "information_retrieval", "news_lookup"],
             parameters=[
                 ToolParameter(
                     name="query",
                     type="string",
-                    description="Search query text",
+                    description="The search query to perform",
                     required=True,
                 ),
                 ToolParameter(
                     name="num_results",
                     type="integer",
-                    description="Number of results to return (default: 5)",
+                    description="Maximum number of results to return (default: 5, max: 20)",
                     required=False,
                     default=5,
                 ),
                 ToolParameter(
-                    name="region",
+                    name="search_depth",
                     type="string",
-                    description="Region code for localized results (e.g., 'us-en', 'uk-en')",
+                    description="Search depth: 'basic' or 'advanced' (mostly for Tavily)",
+                    choices=["basic", "advanced"],
                     required=False,
-                    default=None,
+                    default="basic",
                 ),
             ],
         )
@@ -60,98 +65,98 @@ class WebSearchTool(Tool):
 
     async def _execute(self, params: Dict[str, Any]) -> Any:
         query = params["query"]
-        num_results = params.get("num_results", 5)
-        region = params.get("region")
+        num_results = min(params.get("num_results", 5), 20)
+        search_depth = params.get("search_depth", "basic")
 
-        # Try Tavily first if API key is available
+        # Prioritize Tavily if API key is present for higher quality
         tavily_key = os.environ.get("TAVILY_API_KEY")
         if tavily_key:
             try:
-                return await self._search_tavily(query, num_results, tavily_key)
+                return await self._search_tavily(query, num_results, search_depth, tavily_key)
             except Exception as e:
-                logger.warning(f"Tavily search failed, falling back to DuckDuckGo: {e}")
+                logger.warning(f"Tavily search failed: {e}. Falling back to DuckDuckGo.")
 
-        # DuckDuckGo (default)
-        return await self._search_duckduckgo(query, num_results, region)
+        # Default to DuckDuckGo
+        return await self._search_duckduckgo(query, num_results)
 
-    async def _search_duckduckgo(
-        self, query: str, num_results: int, region: str = None
-    ) -> Dict[str, Any]:
-        """Search using DuckDuckGo."""
+    async def _search_duckduckgo(self, query: str, num_results: int) -> Dict[str, Any]:
+        """Async-wrapped DuckDuckGo search."""
         try:
-            from duckduckgo_search import DDGS
+            try:
+                from duckduckgo_search import DDGS
+            except ImportError:
+                from ddgs import DDGS
         except ImportError:
-            raise ImportError(
-                "duckduckgo-search not installed. "
-                "Install with: pip install duckduckgo-search"
-            )
+            raise ImportError("duckduckgo-search not installed. Run: pip install duckduckgo-search")
 
-        import asyncio
-
-        def _search():
+        def _sync_search():
             with DDGS() as ddgs:
-                kwargs = {"keywords": query, "max_results": num_results}
-                if region:
-                    kwargs["region"] = region
-                results = list(ddgs.text(**kwargs))
-                return results
+                return list(ddgs.text(query, max_results=num_results))
 
-        raw_results = await asyncio.to_thread(_search)
+        try:
+            raw_results = await asyncio.to_thread(_sync_search)
+            results = []
+            for r in raw_results:
+                results.append(
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("href", r.get("link", "")),
+                        "snippet": r.get("body", r.get("snippet", "")),
+                        "source": "duckduckgo",
+                    }
+                )
 
-        formatted = []
-        for r in raw_results:
-            formatted.append({
-                "title": r.get("title", ""),
-                "url": r.get("href", r.get("link", "")),
-                "snippet": r.get("body", r.get("snippet", "")),
-            })
-
-        return {
-            "query": query,
-            "provider": "duckduckgo",
-            "num_results": len(formatted),
-            "results": formatted,
-        }
+            return {"success": True, "query": query, "results": results, "provider": "duckduckgo"}
+        except Exception as e:
+            logger.error(f"DuckDuckGo search error: {e}")
+            return {"success": False, "error": str(e), "provider": "duckduckgo"}
 
     async def _search_tavily(
-        self, query: str, num_results: int, api_key: str
+        self, query: str, num_results: int, depth: str, api_key: str
     ) -> Dict[str, Any]:
-        """Search using Tavily API."""
-        import asyncio
-        import json
+        """Native async (via to_thread) Tavily API search."""
         import urllib.request
+        import random
 
-        def _search():
+        def _sync_post():
             url = "https://api.tavily.com/search"
-            payload = json.dumps({
-                "api_key": api_key,
+            payload = json.dumps(
+                {
+                    "api_key": api_key,
+                    "query": query,
+                    "max_results": num_results,
+                    "search_depth": depth,
+                    "include_answer": True,
+                }
+            ).encode("utf-8")
+
+            headers = {"Content-Type": "application/json", "User-Agent": random.choice(USER_AGENTS)}
+
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=15) as response:
+                return json.loads(response.read().decode())
+
+        try:
+            data = await asyncio.to_thread(_sync_post)
+            results = []
+            for r in data.get("results", []):
+                results.append(
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("url", ""),
+                        "snippet": r.get("content", ""),
+                        "score": r.get("score", 0.0),
+                        "source": "tavily",
+                    }
+                )
+
+            return {
+                "success": True,
                 "query": query,
-                "max_results": num_results,
-                "search_depth": "basic",
-            }).encode("utf-8")
-
-            req = urllib.request.Request(
-                url, data=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode())
-
-            return data
-
-        data = await asyncio.to_thread(_search)
-
-        formatted = []
-        for r in data.get("results", []):
-            formatted.append({
-                "title": r.get("title", ""),
-                "url": r.get("url", ""),
-                "snippet": r.get("content", ""),
-            })
-
-        return {
-            "query": query,
-            "provider": "tavily",
-            "num_results": len(formatted),
-            "results": formatted,
-        }
+                "results": results,
+                "answer": data.get("answer"),
+                "provider": "tavily",
+            }
+        except Exception as e:
+            logger.error(f"Tavily API error: {e}")
+            raise e

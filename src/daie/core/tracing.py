@@ -9,7 +9,7 @@ import functools
 import logging
 import time
 from daie.utils.encryption import uuid7
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def trace_span(name: Optional[str] = None, attributes: Optional[Dict[str, Any]] 
                 try:
                     result = await func(*args, **kwargs)
                     return result
-                except Exception as e:
+                except Exception:
                     # Exception is recorded by Span.__exit__
                     raise
 
@@ -164,7 +164,7 @@ def trace_span(name: Optional[str] = None, attributes: Optional[Dict[str, Any]] 
                 try:
                     result = func(*args, **kwargs)
                     return result
-                except Exception as e:
+                except Exception:
                     # Exception is recorded by Span.__exit__
                     raise
 
@@ -233,7 +233,7 @@ class TracingLoggerAdapter(logging.LoggerAdapter):
         span = TracerManager().get_current_span()
         trace_id = span.trace_id if span else "no-trace"
         agent_id = _agent_id_var.get() or "no-agent"
-        
+
         prefix = f"[{agent_id} | {trace_id}]"
         return f"{prefix} {msg}", kwargs
 

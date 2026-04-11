@@ -2,6 +2,7 @@
 Storage backends for agent memory management
 
 This module provides different storage backends for persistent memory storage:
+- SQLiteDatabaseStorage: Uses SQLite for relational persistence (standard)
 - VectorDatabaseStorage: Uses ChromaDB for semantic search capabilities
 - BinaryFileStorage: Uses pickle for fast binary serialization (default)
 """
@@ -487,7 +488,11 @@ def create_storage_backend(storage_type: str) -> StorageBackend:
     Returns:
         StorageBackend instance
     """
-    if storage_type == "vector":
+    if storage_type == "sqlite":
+        from daie.memory.sqlite_storage import SQLiteStorage
+
+        return SQLiteStorage()
+    elif storage_type == "vector":
         return VectorDatabaseStorage()
     elif storage_type == "binary":
         return BinaryFileStorage()

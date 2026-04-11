@@ -34,28 +34,25 @@ from unittest.mock import MagicMock, patch
 from daie.tools import SeleniumChromeTool
 
 
-
 @pytest.fixture(autouse=True)
 def mock_selenium_driver():
     """Mock Selenium components to prevent real browser initialization"""
-    with patch("selenium.webdriver.Chrome") as mock_chrome, \
-         patch("webdriver_manager.chrome.ChromeDriverManager") as mock_manager, \
-         patch("selenium.webdriver.chrome.service.Service") as mock_service, \
-         patch("selenium.webdriver.chrome.options.Options") as mock_options, \
-         patch("selenium.webdriver.support.ui.WebDriverWait") as mock_wait:
-        
+    with (
+        patch("selenium.webdriver.Chrome") as mock_chrome,
+        patch("webdriver_manager.chrome.ChromeDriverManager") as mock_manager,
+        patch("selenium.webdriver.chrome.service.Service") as mock_service,
+        patch("selenium.webdriver.chrome.options.Options") as mock_options,
+        patch("selenium.webdriver.support.ui.WebDriverWait") as mock_wait,
+    ):
+
         # Setup mock manager return value
         mock_manager.return_value.install.return_value = "/mock/chromedriver"
-        
+
         # Setup mock behavior
         mock_driver = MagicMock()
         mock_chrome.return_value = mock_driver
-        
-        yield {
-            "driver": mock_driver,
-            "chrome": mock_chrome,
-            "wait": mock_wait
-        }
+
+        yield {"driver": mock_driver, "chrome": mock_chrome, "wait": mock_wait}
 
 
 class TestSeleniumChromeTool:

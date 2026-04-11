@@ -71,7 +71,7 @@ async def main():
     print("4. Camera Manager Test:")
     camera_manager = CameraManager(config)
     if camera_manager.capture and camera_manager.capture.isOpened():
-        print(f"   - Camera Available: ✓ Yes")
+        print("   - Camera Available: ✓ Yes")
         if camera_info := camera_manager.get_camera_info():
             print(f"   - Resolution: {camera_info['width']}x{camera_info['height']}")
             print(f"   - FPS: {camera_info['fps']}")
@@ -93,7 +93,7 @@ async def main():
         await asyncio.sleep(0.5)
         await agent.stop()
 
-        print(f"   - Agent Lifecycle: ✓ Start/Stop Tested")
+        print("   - Agent Lifecycle: ✓ Start/Stop Tested")
 
     except Exception as e:
         print(f"   - Error: {e}")

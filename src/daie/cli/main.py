@@ -4,7 +4,6 @@ Replaces typer and rich dependencies
 """
 
 import argparse
-import sys
 from daie.cli.agent import register_agent_commands
 from daie.cli.core import register_core_commands
 from daie.utils.console import print_header, print_info
@@ -36,12 +35,8 @@ def cli():
     parser = argparse.ArgumentParser(
         prog="daie", description="Decentralized AI Ecosystem CLI", add_help=False
     )
-    parser.add_argument(
-        "--version", "-v", action="store_true", help="Show version information"
-    )
-    parser.add_argument(
-        "--help", "-h", action="store_true", help="Show help information"
-    )
+    parser.add_argument("--version", "-v", action="store_true", help="Show version information")
+    parser.add_argument("--help", "-h", action="store_true", help="Show help information")
 
     subparsers = parser.add_subparsers(dest="command")
 

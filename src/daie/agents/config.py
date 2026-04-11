@@ -137,6 +137,9 @@ class AgentConfig:
     memory_summarization_threshold: int = 50
     """Number of episodic memories to accumulate before triggering auto-summarization."""
 
+    memory_namespace: Optional[str] = None
+    """Optional shared memory namespace. If provided, the agent will share memories with others in the same namespace."""
+
     # Behavior and Personality settings
     gender: Literal["male", "female"] | None = None
     """Agent gender (only 'male' or 'female')"""
@@ -221,6 +224,10 @@ class AgentConfig:
 
     max_tool_calls_per_task: Optional[int] = None
     """Maximum number of tool calls allowed per individual task for this agent. Overrides system default."""
+
+    # Context and Knowledge
+    include_datetime: bool = True
+    """Whether to automatically inject the current date and time into the system prompt."""
 
     enable_logging: bool = True
     """Whether to enable detailed logging"""

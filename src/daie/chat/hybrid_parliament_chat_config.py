@@ -1,73 +1,44 @@
 """
-OrchestratorChatConfig Module
+HybridParliamentChatConfig Module
 
-Provides a simple chat loop for a single Orchestrator (main agent + sub-agents)
-so users don't need to write the full boilerplate code. Simply pass the
-orchestrator and run!
-
-This focuses on simple task orchestration interaction - just like
-ChatLoopConfig but for multi-agent orchestrators.
+Provides a simple chat loop for the HybridParliamentOrchestrator architecture so users don't need
+to write the full boilerplate code. Simply pass the hybrid pipeline instance and run!
 """
 
 import asyncio
-import re
 import logging
-import json
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Any, Dict
+from typing import Callable, List, Optional
 
-from daie.core.orchestrator import Orchestrator
+from daie.agents.hybrid_parliament import HybridParliamentOrchestrator
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class OrchestratorChatConfig:
+class HybridParliamentChatConfig:
     """
-    Configuration for a simple chat loop with a single Orchestrator.
+    Configuration for a simple chat loop with a HybridParliamentOrchestrator.
 
-    This class provides a simple way to run a chat loop with an Orchestrator
-    instance without writing the full boilerplate code. Just pass the
-    orchestrator and call run()!
-
-    Features:
-    - Accepts a single Orchestrator instance
-    - Simple chat loop for task-oriented multi-agent work
-    - Automatic error handling and recovery
-    - Graceful shutdown on interrupts
-    - Configurable prompts and messages
-
-    Example:
-    >>> from daie import Agent, AgentConfig
-    >>> from daie.core.orchestrator import Orchestrator
-    >>> from daie.chat import OrchestratorChatConfig
-    >>>
-    >>> # Create your agents
-    >>> main_agent = Agent(config=AgentConfig(name="Manager", ...))
-    >>> sub_agent1 = Agent(config=AgentConfig(name="Researcher", ...))
-    >>>
-    >>> # Create orchestrator
-    >>> orch = Orchestrator(main_agent=main_agent, sub_agents=[sub_agent1])
-    >>>
-    >>> # Run simple chat loop!
-    >>> config = OrchestratorChatConfig(orchestrator=orch)
-    >>> config.run()
+    This class provides a simple way to run a chat loop with a Hybrid pipeline
+    instance without writing the full boilerplate code. Just pass the pipeline
+    and call run()!
     """
 
-    # Required: The orchestrator to use for chat
-    orchestrator: Orchestrator
-    """The Orchestrator instance to use for identifying and delegating tasks"""
+    # Required: The hybrid pipeline to use for chat
+    hybrid_pipeline: HybridParliamentOrchestrator
+    """The HybridParliamentOrchestrator instance to use for deliberative peer review and execution"""
 
     # Chat loop behavior settings
     welcome_message: str = (
-        "=== Orchestrator Chat Loop ===\nType your task for the orchestrator (or 'exit' to quit)\n"
+        "=== Hybrid Parliament + Orchestrator Chat Loop ===\nType your task for strategic roadmap delegation (or 'exit' to quit)\n"
     )
     """Welcome message displayed when chat starts"""
 
     exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit", "bye", "goodbye"])
     """Commands that will exit the chat loop"""
 
-    prompt_prefix: str = "You: "
+    prompt_prefix: str = "Task: "
     """Prefix displayed before user input"""
 
     # Error handling settings
@@ -77,18 +48,18 @@ class OrchestratorChatConfig:
     show_errors: bool = True
     """Whether to show error messages to user"""
 
-    max_retries: int = 3
+    max_retries: int = 2
     """Maximum number of retries on error before giving up"""
 
     retry_delay: float = 1.0
     """Delay in seconds between retries"""
 
     # Advanced settings
-    start_orchestrator: bool = True
-    """Whether to start the orchestrator automatically (default: True)"""
+    start_pipeline: bool = True
+    """Whether to start the pipeline agents automatically (default: True)"""
 
-    stop_orchestrator: bool = True
-    """Whether to stop the orchestrator automatically on exit (default: True)"""
+    stop_pipeline: bool = True
+    """Whether to stop the pipeline agents automatically on exit (default: True)"""
 
     clear_screen_on_start: bool = False
     """Whether to clear screen when chat starts"""
@@ -96,7 +67,7 @@ class OrchestratorChatConfig:
     show_goodbye: bool = True
     """Whether to show goodbye message on exit"""
 
-    goodbye_message: str = "\nGoodbye! Orchestration session ended."
+    goodbye_message: str = "\nGoodbye! Hybrid pipeline session ended."
     """Goodbye message displayed when chat ends"""
 
     # Callback hooks
@@ -131,14 +102,15 @@ class OrchestratorChatConfig:
                 except Exception as e:
                     print(f"Warning: on_start callback failed: {e}")
 
-            # Start the orchestrator if configured
-            if self.start_orchestrator:
+            # Start the pipeline if configured
+            if self.start_pipeline:
                 try:
-                    print(f"\n[*] Starting {self.orchestrator.context_name}...")
-                    await self.orchestrator.start()
-                    print(f"[+] Orchestrator '{self.orchestrator.main_agent.name}' is ready.")
+                    print("\n[*] Starting Hybrid Pipeline Assemblies...")
+                    await self.hybrid_pipeline.parliament.start()
+                    await self.hybrid_pipeline.orchestrator.start()
+                    print("[+] Hybrid Pipeline (Parliament Assembly + Orchestrator) is ready.")
                 except Exception as e:
-                    print(f"{self.error_prefix}Failed to start orchestrator: {e}")
+                    print(f"{self.error_prefix}Failed to start pipeline: {e}")
                     if self.on_error:
                         self.on_error(e)
                     return
@@ -162,28 +134,19 @@ class OrchestratorChatConfig:
                         continue
 
                     # Send message and get response with retry logic
+                    print(
+                        "[*] Hybrid Pipeline Delegating... (this may take a moment due to assembly limits)"
+                    )
                     response = await self._send_message_with_retry(user_input)
 
-                    # Robustly parse the response if it contains JSON
-                    final_display = response
-                    if response:
-                        parsed = self._extract_json(response)
-                        if parsed and isinstance(parsed, dict) and "answer" in parsed:
-                            ans = parsed["answer"]
-                            # answer must be a string — convert if LLM returned a list/dict
-                            final_display = (
-                                ans if isinstance(ans, str) else json.dumps(ans, ensure_ascii=False)
-                            )
+                    final_display = str(response)
 
-                    # When stream=True the agent already printed the answer via
-                    # _stream_final_answer() inside execute_task. Only print here
-                    # when stream=False.
                     if final_display:
                         from daie.core.llm_manager import get_llm_config
 
                         cfg = get_llm_config()
-                        if not cfg.stream:
-                            print(f"\n{final_display}\n")
+                        if not getattr(cfg, "stream", False):
+                            print(f"\n[HYBRID PIPELINE FINAL RESULT]\n{final_display}\n")
 
                     # Reset retry count on successful interaction
                     retry_count = 0
@@ -225,13 +188,14 @@ class OrchestratorChatConfig:
                 except Exception as e:
                     print(f"Warning: on_exit callback failed: {e}")
 
-            # Stop the orchestrator if configured
-            if self.stop_orchestrator:
+            # Stop the pipeline if configured
+            if self.stop_pipeline:
                 try:
-                    print(f"\n[*] Shutting down {self.orchestrator.context_name}...")
-                    await self.orchestrator.stop()
+                    print("\n[*] Adjourning Hybrid Assemblies...")
+                    await self.hybrid_pipeline.parliament.stop()
+                    await self.hybrid_pipeline.orchestrator.stop()
                 except Exception as e:
-                    print(f"{self.error_prefix}Failed to stop orchestrator: {e}")
+                    print(f"{self.error_prefix}Failed to adjourn pipeline: {e}")
 
             # Show goodbye message if configured
             if self.show_goodbye:
@@ -239,16 +203,16 @@ class OrchestratorChatConfig:
 
     async def _send_message_with_retry(self, user_input: str) -> str:
         """
-        Send message to orchestrator with retry logic.
+        Send message to pipeline with retry logic.
         """
         last_error = None
 
         for attempt in range(self.max_retries):
             try:
-                # Use execute_task for Orchestrator
-                response = await self.orchestrator.execute_task(user_input)
+                # Use deliberate for Hybrid Parliament
+                response = await self.hybrid_pipeline.execute(user_input)
 
-                # Handle error responses
+                # Handle error responses if parsing absolutely failed to string
                 if isinstance(response, str) and response.startswith("Error:"):
                     if self.show_errors:
                         print(f"{self.error_prefix}{response}")
@@ -262,46 +226,9 @@ class OrchestratorChatConfig:
                     await asyncio.sleep(self.retry_delay)
 
         # All retries failed
-        raise last_error
-
-    def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
-        """Extract the first valid JSON object from text."""
-        import json
-
-        # Strip code fences
-        text = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
-
-        def try_parse(s):
-            try:
-                return json.loads(s)
-            except Exception:
-                return None
-
-        # Try whole string
-        res = try_parse(text)
-        if res:
-            return res
-
-        # Search for first { } block
-        search_from = 0
-        while True:
-            start = text.find("{", search_from)
-            if start == -1:
-                break
-            depth = 0
-            for i in range(start, len(text)):
-                if text[i] == "{":
-                    depth += 1
-                elif text[i] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        candidate = text[start: i + 1]
-                        res = try_parse(candidate)
-                        if res:
-                            return res
-                        break
-            search_from = start + 1
-        return None
+        if last_error:
+            raise last_error
+        return ""
 
     def run(self) -> None:
         """
@@ -318,8 +245,10 @@ class OrchestratorChatConfig:
             sys.exit(1)
 
     @classmethod
-    def quick_start(cls, orchestrator: Orchestrator, **kwargs) -> "OrchestratorChatConfig":
+    def quick_start(
+        cls, hybrid_pipeline: HybridParliamentOrchestrator, **kwargs
+    ) -> "HybridParliamentChatConfig":
         """
         Quick start method for simple use cases.
         """
-        return cls(orchestrator=orchestrator, **kwargs)
+        return cls(hybrid_pipeline=hybrid_pipeline, **kwargs)

@@ -1,20 +1,14 @@
 import pytest
-import base64
-import time
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from daie.utils.encryption.ciphers import (
-    generate_x25519_keypair,
-    derive_shared_secret,
-    encrypt_data,
-    decrypt_data
-)
+from daie.utils.encryption.ciphers import generate_x25519_keypair, derive_shared_secret
 from daie.communication.manager import CommunicationManager
 from daie.agents.message import AgentMessage
 from daie.agents.agent import Agent
 from daie.agents.config import AgentConfig
 from daie.config import SystemConfig
+
 
 class TestHardenedFeatures:
     """Integration and unit tests for hardened security and reliability features."""
@@ -38,7 +32,7 @@ class TestHardenedFeatures:
         """Test End-to-End Encryption between two nodes using CommunicationManager."""
         config = SystemConfig()
         config.enable_e2e_encryption = True
-        
+
         # Mock nats to avoid real network calls
         with patch("daie.communication.manager.NatsProvider") as mock_nats_class:
             mock_nats = mock_nats_class.return_value
@@ -49,19 +43,23 @@ class TestHardenedFeatures:
             mock_nats.nc = MagicMock()
             mock_nats.nc.is_connected = True
             mock_nats.is_connected = True
-            
+
             manager = CommunicationManager(config=config)
-            
+
             # Setup agents with keypairs
             agent1 = Agent(config=AgentConfig(name="Agent1"))
             agent2 = Agent(config=AgentConfig(name="Agent2"))
-            
+
             manager.register_agent(agent1)
             manager.register_agent(agent2)
 
             # Registry update with public keys
-            manager.registry.register_node(agent1.id, {"role": "test"}, public_key=agent1.config.public_key)
-            manager.registry.register_node(agent2.id, {"role": "test"}, public_key=agent2.config.public_key)
+            manager.registry.register_node(
+                agent1.id, {"role": "test"}, public_key=agent1.config.public_key
+            )
+            manager.registry.register_node(
+                agent2.id, {"role": "test"}, public_key=agent2.config.public_key
+            )
 
             # Mock MetricsServer to avoid port conflicts
             with patch("daie.communication.manager.MetricsServer") as mock_metrics_class:
@@ -82,7 +80,7 @@ class TestHardenedFeatures:
 
                 # Manually trigger the inbound handler logic (which decrypts)
                 manager._handle_message(agent2.id, msg)
-                
+
                 # Give a slice to the event loop
                 await asyncio.sleep(0.5)
 
@@ -100,7 +98,7 @@ class TestHardenedFeatures:
         config.enable_rate_limiting = True
         config.rate_limit_max_messages = 2
         config.rate_limit_window = 1.0
-        
+
         # Mock nats completely
         with patch("daie.communication.manager.NatsProvider") as mock_nats_class:
             mock_nats = mock_nats_class.return_value
@@ -110,34 +108,34 @@ class TestHardenedFeatures:
             mock_nats.nc = MagicMock()
             mock_nats.nc.is_connected = True
             mock_nats.is_connected = True
-            
+
             manager = CommunicationManager(config=config)
-            
+
             agent = Agent(config=AgentConfig(name="Target"))
             manager.register_agent(agent)
 
             sender_id = "attacker"
             msg = AgentMessage(sender_id=sender_id, receiver_id=agent.id, content="flood")
-            
+
             # Mock MetricsServer
             with patch("daie.communication.manager.MetricsServer") as mock_metrics_class:
                 mock_metrics = mock_metrics_class.return_value
                 mock_metrics.start = AsyncMock()
                 mock_metrics.stop = AsyncMock()
-                
+
                 await manager.start()
-            
+
             with patch.object(Agent, "_handle_message", new_callable=AsyncMock) as mock_handle:
                 # Message 1 & 2: Success
                 manager._handle_message(agent.id, msg)
                 manager._handle_message(agent.id, msg)
-                
+
                 # Message 3: Should be dropped (rate limited)
                 manager._handle_message(agent.id, msg)
-                
+
                 await asyncio.sleep(0.5)
                 assert mock_handle.call_count == 2
-            
+
             await manager.stop()
 
     @pytest.mark.asyncio
@@ -147,11 +145,11 @@ class TestHardenedFeatures:
             name="Memo",
             enable_memory_summarization=True,
             memory_summarization_threshold=5,
-            stream=False
+            stream=False,
         )
         agent = Agent(config=config)
         agent.memory_manager = MagicMock()
-        
+
         # Mock LLM and parser to return successfully
         mock_llm = MagicMock()
         mock_llm.invoke = MagicMock(return_value='{"answer": "Done"}')
@@ -163,18 +161,18 @@ class TestHardenedFeatures:
             instance = mock_metrics_server.return_value
             instance.start = AsyncMock()
             instance.stop = AsyncMock()
-            
+
             await agent.start()
-            
+
             # Verify _track_task was called for the summarization task
             with patch.object(agent, "_track_task") as mock_track:
                 await agent.execute_task("Do something")
-                
+
                 assert mock_track.called
                 task = mock_track.call_args[0][0]
                 assert hasattr(task, "__await__")
-                
+
                 # Close the coroutine to prevent "never awaited" RuntimeWarning during GC
                 task.close()
-            
+
             await agent.stop()

@@ -233,7 +233,9 @@ class TestFileManagerTool:
         with open(src_path, "w", encoding="utf-8") as f:
             f.write("Content to copy")
 
-        result = await tool.execute({"action": "copy_file", "path": src_path, "destination": dest_path})
+        result = await tool.execute(
+            {"action": "copy_file", "path": src_path, "destination": dest_path}
+        )
 
         assert result["success"] is True
         assert os.path.exists(dest_path)
@@ -252,7 +254,9 @@ class TestFileManagerTool:
         with open(os.path.join(src_dir, "file.txt"), "w", encoding="utf-8") as f:
             f.write("Test file")
 
-        result = await tool.execute({"action": "copy_directory", "path": src_dir, "destination": dest_dir})
+        result = await tool.execute(
+            {"action": "copy_directory", "path": src_dir, "destination": dest_dir}
+        )
 
         assert result["success"] is True
         assert os.path.exists(dest_dir)
@@ -268,7 +272,9 @@ class TestFileManagerTool:
         with open(src_path, "w", encoding="utf-8") as f:
             f.write("Content to move")
 
-        result = await tool.execute({"action": "move_file", "path": src_path, "destination": dest_path})
+        result = await tool.execute(
+            {"action": "move_file", "path": src_path, "destination": dest_path}
+        )
 
         assert result["success"] is True
         assert not os.path.exists(src_path)
@@ -286,7 +292,9 @@ class TestFileManagerTool:
 
         existing_result = await tool.execute({"action": "file_exists", "path": existing_path})
 
-        non_existing_result = await tool.execute({"action": "file_exists", "path": non_existing_path})
+        non_existing_result = await tool.execute(
+            {"action": "file_exists", "path": non_existing_path}
+        )
 
         assert existing_result["exists"] is True
         assert non_existing_result["exists"] is False
@@ -302,7 +310,9 @@ class TestFileManagerTool:
 
         existing_result = await tool.execute({"action": "directory_exists", "path": existing_path})
 
-        non_existing_result = await tool.execute({"action": "directory_exists", "path": non_existing_path})
+        non_existing_result = await tool.execute(
+            {"action": "directory_exists", "path": non_existing_path}
+        )
 
         assert existing_result["exists"] is True
         assert non_existing_result["exists"] is False
@@ -406,7 +416,9 @@ class TestFileManagerTool:
         with open(os.path.join(subdir_path, "file2.txt"), "w", encoding="utf-8") as f:
             f.write("File 2")
 
-        delete_result = await tool.execute({"action": "delete_directory", "path": dir_path, "recursive": True})
+        delete_result = await tool.execute(
+            {"action": "delete_directory", "path": dir_path, "recursive": True}
+        )
 
         assert delete_result["success"] is True
         assert not os.path.exists(dir_path)

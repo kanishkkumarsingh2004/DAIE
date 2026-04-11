@@ -12,7 +12,9 @@ async def test_orchestrator_initialization():
     sub1 = Agent(config=AgentConfig(name="Sub1"))
     sub2 = Agent(config=AgentConfig(name="Sub2"))
 
-    orch = Orchestrator(main, [sub1, sub2], context_name="TestContext", main_role="Leader", sub_role="Follower")
+    orch = Orchestrator(
+        main, [sub1, sub2], context_name="TestContext", main_role="Leader", sub_role="Follower"
+    )
 
     assert orch.main_agent == main
     assert len(orch.sub_agents) == 2
@@ -26,7 +28,9 @@ async def test_orchestrator_start_configures_prompts():
     judge = Agent(config=AgentConfig(name="Judge"))
     lawyer = Agent(config=AgentConfig(name="Lawyer"))
 
-    court = Orchestrator(judge, [lawyer], context_name="Courtroom", main_role="Judge", sub_role="Lawyer")
+    court = Orchestrator(
+        judge, [lawyer], context_name="Courtroom", main_role="Judge", sub_role="Lawyer"
+    )
 
     # Mock agent starts
     with patch.object(Agent, "start", new_callable=AsyncMock):

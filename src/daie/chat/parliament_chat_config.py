@@ -32,12 +32,12 @@ class ParliamentChatConfig:
     """The Parliament instance to use for deliberative peer review"""
 
     # Chat loop behavior settings
-    welcome_message: str = "=== Parliament Deliberative Chat Loop ===\nType your topic for debate (or 'exit' to quit)\n"
+    welcome_message: str = (
+        "=== Parliament Deliberative Chat Loop ===\nType your topic for debate (or 'exit' to quit)\n"
+    )
     """Welcome message displayed when chat starts"""
 
-    exit_commands: List[str] = field(
-        default_factory=lambda: ["exit", "quit", "bye", "goodbye"]
-    )
+    exit_commands: List[str] = field(default_factory=lambda: ["exit", "quit", "bye", "goodbye"])
     """Commands that will exit the chat loop"""
 
     prompt_prefix: str = "Topic: "
@@ -109,7 +109,9 @@ class ParliamentChatConfig:
                 try:
                     print("\n[*] Starting Parliament Assembly...")
                     await self.parliament.start()
-                    print(f"[+] Parliament with {len(self.parliament.sub_agents)} members is ready.")
+                    print(
+                        f"[+] Parliament with {len(self.parliament.sub_agents)} members is ready."
+                    )
                 except Exception as e:
                     print(f"{self.error_prefix}Failed to start parliament: {e}")
                     if self.on_error:
@@ -138,22 +140,29 @@ class ParliamentChatConfig:
                     print("[*] Deliberating... (this may take a moment)")
                     response = await self._send_message_with_retry(user_input)
 
-                    # Robustly parse the response if it contains JSON
-                    final_display = response
-                    if response:
+                    final_display = str(response)
+
+                    # Robustly parse and render the response if it's the structured dictionary
+                    if response and isinstance(response, dict):
+                        # Use our exact new structural keys
+                        ans = response.get("final_answer", "")
+                        conf = response.get("consensus_confidence", 0.0)
+                        reasoning = response.get("reasoning", "")
+
+                        final_display = f"{ans}\n\n[Consensus Confidence: {conf}%]\n[Synthesizer Reasoning: {reasoning}]"
+                    elif response and isinstance(response, str):
+                        # Fast fallback if it's still returning strings in weird states
                         parsed = self._extract_json(response)
-                        if parsed and isinstance(parsed, dict) and "answer" in parsed:
-                            ans = parsed["answer"]
-                            final_display = (
-                                ans
-                                if isinstance(ans, str)
-                                else json.dumps(ans, ensure_ascii=False)
-                            )
+                        if parsed and isinstance(parsed, dict):
+                            ans = parsed.get("final_answer", parsed.get("answer", response))
+                            conf = parsed.get("consensus_confidence", 0.0)
+                            final_display = f"{ans}\n[Consensus Confidence: {conf}%]"
 
                     if final_display:
                         from daie.core.llm_manager import get_llm_config
+
                         cfg = get_llm_config()
-                        if not getattr(cfg, 'stream', False):
+                        if not getattr(cfg, "stream", False):
                             print(f"\n[SPEAKER SYNTHESIS]\n{final_display}\n")
 
                     # Reset retry count on successful interaction
@@ -208,7 +217,7 @@ class ParliamentChatConfig:
             if self.show_goodbye:
                 print(self.goodbye_message)
 
-    async def _send_message_with_retry(self, user_input: str) -> str:
+    async def _send_message_with_retry(self, user_input: str) -> Any:
         """
         Send message to parliament with retry logic.
         """
@@ -216,16 +225,16 @@ class ParliamentChatConfig:
 
         for attempt in range(self.max_retries):
             try:
-                # Use deliberate for Parliament
+                # Use deliberate for Parliament (returns structured Dict)
                 response = await self.parliament.deliberate(user_input)
 
-                # Handle error responses
+                # Handle error responses if parsing absolutely failed to string
                 if isinstance(response, str) and response.startswith("Error:"):
                     if self.show_errors:
                         print(f"{self.error_prefix}{response}")
                     return ""
 
-                return str(response)
+                return response
 
             except Exception as e:
                 last_error = e
@@ -239,7 +248,6 @@ class ParliamentChatConfig:
 
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
         """Extract the first valid JSON object from text."""
-        import json
 
         # Strip code fences
         text = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
@@ -268,7 +276,7 @@ class ParliamentChatConfig:
                 elif text[i] == "}":
                     depth -= 1
                     if depth == 0:
-                        candidate = text[start : i + 1]
+                        candidate = text[start: i + 1]
                         res = try_parse(candidate)
                         if res:
                             return res
@@ -291,9 +299,7 @@ class ParliamentChatConfig:
             sys.exit(1)
 
     @classmethod
-    def quick_start(
-        cls, parliament: Parliament, **kwargs
-    ) -> "ParliamentChatConfig":
+    def quick_start(cls, parliament: Parliament, **kwargs) -> "ParliamentChatConfig":
         """
         Quick start method for simple use cases.
         """

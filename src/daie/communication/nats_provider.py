@@ -5,10 +5,10 @@ NATS JetStream provider for decentralized communication
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 import nats
-from nats.js.errors import BadRequestError, NotFoundError
+from nats.js.errors import BadRequestError
 
 from daie.agents.message import AgentMessage
 from daie.config import SystemConfig
@@ -37,13 +37,13 @@ class NatsProvider:
             self.nc = await nats.connect(
                 self.config.nats_url,
                 reconnect_time_wait=2,
-                max_reconnect_attempts=getattr(self.config, "connection_retries", 5)
+                max_reconnect_attempts=getattr(self.config, "connection_retries", 5),
             )
             self.js = self.nc.jetstream()
 
             # Ensure stream exists for persistent messaging
             await self._setup_stream()
-            
+
             self._is_connected = True
             logger.info(f"Connected to NATS at {self.config.nats_url}")
         except Exception as e:
@@ -55,7 +55,7 @@ class NatsProvider:
         """Setup JetStream stream if not exists"""
         if not self.js:
             return
-            
+
         try:
             # Enhanced stream config with retention limits
             await self.js.add_stream(
@@ -63,7 +63,7 @@ class NatsProvider:
                 subjects=self._subjects,
                 max_msgs=getattr(self.config, "nats_max_msgs", 100000),
                 max_bytes=getattr(self.config, "nats_max_bytes", 1024 * 1024 * 1024),  # 1GB
-                max_age=getattr(self.config, "nats_max_age", 3600 * 24 * 7)  # 7 days
+                max_age=getattr(self.config, "nats_max_age", 3600 * 24 * 7),  # 7 days
             )
             logger.debug(f"Created NATS stream: {self._stream_name}")
         except BadRequestError:
@@ -88,14 +88,16 @@ class NatsProvider:
                 subject,
                 durable=durable_name,
                 cb=lambda msg: self._on_message(msg, callback),
-                manual_ack=True
+                manual_ack=True,
             )
             self._subscriptions[agent_id] = sub
             logger.info(f"Subscribed agent {agent_id} to NATS subject {subject}")
         except Exception as e:
             logger.error(f"Failed to subscribe agent {agent_id}: {e}")
 
-    async def subscribe_group(self, group_id: str, agent_id: str, callback: Callable[[AgentMessage], Any]):
+    async def subscribe_group(
+        self, group_id: str, agent_id: str, callback: Callable[[AgentMessage], Any]
+    ):
         """Subscribe an agent to a group subject"""
         if not self.js:
             return
@@ -109,7 +111,7 @@ class NatsProvider:
                 subject,
                 durable=durable_name,
                 cb=lambda msg: self._on_message(msg, callback),
-                manual_ack=True
+                manual_ack=True,
             )
             subscription_key = f"group:{group_id}:{agent_id}"
             self._subscriptions[subscription_key] = sub
@@ -135,13 +137,13 @@ class NatsProvider:
         try:
             data = json.loads(nats_msg.data.decode())
             message = AgentMessage.from_dict(data)
-            
+
             # Call back to communication manager / agent
             if asyncio.iscoroutinefunction(callback):
                 await callback(message)
             else:
                 callback(message)
-                
+
             # Acknowledge message after successful processing
             await nats_msg.ack()
         except Exception as e:
@@ -155,8 +157,10 @@ class NatsProvider:
             logger.warning("NATS not connected, cannot publish")
             return False
 
-        subject = "daie.broadcast" if message.receiver_id == "*" else f"daie.agents.{message.receiver_id}"
-        
+        subject = (
+            "daie.broadcast" if message.receiver_id == "*" else f"daie.agents.{message.receiver_id}"
+        )
+
         try:
             payload = json.dumps(message.to_dict()).encode()
             await self.js.publish(subject, payload)

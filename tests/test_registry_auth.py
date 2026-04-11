@@ -64,11 +64,15 @@ async def test_auth():
     agent2.set_message_handler(lambda msg: received.append(msg))
 
     # Agent 1 sends to Agent 2 (Should succeed)
-    msg_valid = AgentMessage(sender_id="agent1", receiver_id="agent2", content="Hello from 1", message_type="text")
+    msg_valid = AgentMessage(
+        sender_id="agent1", receiver_id="agent2", content="Hello from 1", message_type="text"
+    )
     await comm.send_message(msg_valid)
 
     # Agent 3 sends to Agent 2 (Should fail/block)
-    msg_invalid = AgentMessage(sender_id="agent3", receiver_id="agent2", content="Hello from 3", message_type="text")
+    msg_invalid = AgentMessage(
+        sender_id="agent3", receiver_id="agent2", content="Hello from 3", message_type="text"
+    )
     await comm.send_message(msg_invalid)
 
     # Allow async handling to process
@@ -90,7 +94,9 @@ async def test_mdns_discovery():
     await registry.start()
 
     # Register agent with network URL
-    registry.register_node("agent_mdns", {"role": "test", "skills": ["mdns"]}, network_url="http://localhost:8000")
+    registry.register_node(
+        "agent_mdns", {"role": "test", "skills": ["mdns"]}, network_url="http://localhost:8000"
+    )
 
     # Discover via mDNS
     discovered = registry.discover_agents_mdns(timeout=1.0)
@@ -107,7 +113,9 @@ async def test_dht_discovery():
     await registry.start()
 
     # Register agent with network URL
-    registry.register_node("agent_dht", {"role": "test", "skills": ["dht"]}, network_url="http://localhost:8001")
+    registry.register_node(
+        "agent_dht", {"role": "test", "skills": ["dht"]}, network_url="http://localhost:8001"
+    )
 
     # Wait for DHT propagation
     await asyncio.sleep(1.0)

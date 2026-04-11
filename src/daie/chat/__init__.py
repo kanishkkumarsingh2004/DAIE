@@ -19,6 +19,7 @@ from .node_chat_config import NodeChatConfig
 from .orchestrator_chat_config import OrchestratorChatConfig
 from .multi_node_chat_config import MultiNodeChatConfig
 from .parliament_chat_config import ParliamentChatConfig
+from .hybrid_parliament_chat_config import HybridParliamentChatConfig
 
 __all__ = [
     "ChatLoopConfig",
@@ -27,4 +28,5 @@ __all__ = [
     "MultiNodeChatConfig",
     "HybridChatConfig",
     "ParliamentChatConfig",
+    "HybridParliamentChatConfig",
 ]

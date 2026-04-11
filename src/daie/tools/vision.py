@@ -2,7 +2,7 @@
 Vision-Language multi-modal tools for agent perception.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 
 
@@ -53,23 +53,22 @@ class VisionAnalyzeTool(Tool):
         try:
             # We use the agent's internal LLM invoke with image support
             from daie.core.llm_manager import get_llm_config
+
             cfg = get_llm_config()
-            
+
             # Construct a special prompt for vision analysis
             prompt = f"IMAGE ANALYSIS REQUEST:\n{query}\n\n(The attached image is provided via multi-modal payload)"
-            
+
             # Call LLM with image support
             # Note: We use the agent's configured LLM directly
             result = await self._agent_ref.llm.ainvoke(
-                prompt,
-                images=[image_data],
-                temperature=0.1  # Low temperature for factual analysis
+                prompt, images=[image_data], temperature=0.1  # Low temperature for factual analysis
             )
-            
+
             return {
                 "success": True,
                 "analysis": result.strip(),
-                "image_ref": image_data[:50] + "..." if len(image_data) > 50 else image_data
+                "image_ref": image_data[:50] + "..." if len(image_data) > 50 else image_data,
             }
         except Exception as e:
             return {"success": False, "error": f"Vision analysis failed: {str(e)}"}

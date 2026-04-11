@@ -116,13 +116,63 @@ class TFIDFBackend(RAGBackend):
     """
 
     _STOP_WORDS = {
-        "a", "an", "the", "is", "it", "in", "on", "at", "to", "for",
-        "of", "and", "or", "but", "not", "with", "by", "from", "as",
-        "this", "that", "be", "are", "was", "were", "been", "has",
-        "have", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "can", "i", "you", "he", "she", "we", "they",
-        "over", "under", "again", "further", "then", "once",
-        "what", "where", "how", "when", "why", "who", "which",
+        "a",
+        "an",
+        "the",
+        "is",
+        "it",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "and",
+        "or",
+        "but",
+        "not",
+        "with",
+        "by",
+        "from",
+        "as",
+        "this",
+        "that",
+        "be",
+        "are",
+        "was",
+        "were",
+        "been",
+        "has",
+        "have",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "can",
+        "i",
+        "you",
+        "he",
+        "she",
+        "we",
+        "they",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "what",
+        "where",
+        "how",
+        "when",
+        "why",
+        "who",
+        "which",
     }
 
     def __init__(self):
@@ -184,9 +234,7 @@ class TFIDFBackend(RAGBackend):
                     j = vocab[token]
                     self._tfidf_matrix[i, j] = math.log(1 + count) * self._idf[j]
 
-        logger.info(
-            f"TF-IDF index built: {num_chunks} chunks, {vocab_size} terms"
-        )
+        logger.info(f"TF-IDF index built: {num_chunks} chunks, {vocab_size} terms")
 
     def search(
         self,
@@ -279,9 +327,7 @@ class ChromaBackend(RAGBackend):
             import chromadb
             from chromadb.config import Settings
         except ImportError:
-            raise ImportError(
-                "ChromaDB not installed. Install with: pip install chromadb"
-            )
+            raise ImportError("ChromaDB not installed. Install with: pip install chromadb")
 
         try:
             from sentence_transformers import SentenceTransformer
@@ -300,9 +346,7 @@ class ChromaBackend(RAGBackend):
                 settings=Settings(anonymized_telemetry=False, allow_reset=True),
             )
         else:
-            self._client = chromadb.Client(
-                Settings(anonymized_telemetry=False)
-            )
+            self._client = chromadb.Client(Settings(anonymized_telemetry=False))
 
         self._collection = self._client.get_or_create_collection(
             name=self.collection_name,
@@ -318,7 +362,9 @@ class ChromaBackend(RAGBackend):
 
         # Skip if already indexed
         if self._collection.count() > 0:
-            logger.info(f"ChromaDB collection already has {self._collection.count()} docs, skipping")
+            logger.info(
+                f"ChromaDB collection already has {self._collection.count()} docs, skipping"
+            )
             return
 
         ids = [f"chunk_{i}" for i in range(len(chunks))]
@@ -355,7 +401,8 @@ class ChromaBackend(RAGBackend):
         if filters:
             # ChromaDB supports direct metadata filtering
             simple_filters = {
-                k: v for k, v in filters.items()
+                k: v
+                for k, v in filters.items()
                 if isinstance(v, str) and "*" not in v and "?" not in v
             }
             if simple_filters:
@@ -391,8 +438,7 @@ class ChromaBackend(RAGBackend):
         # Apply glob-style filters that ChromaDB can't handle natively
         if filters:
             glob_filters = {
-                k: v for k, v in filters.items()
-                if isinstance(v, str) and ("*" in v or "?" in v)
+                k: v for k, v in filters.items() if isinstance(v, str) and ("*" in v or "?" in v)
             }
             if glob_filters:
                 chunks_with_scores = self._apply_metadata_filters(chunks_with_scores, glob_filters)
@@ -446,9 +492,7 @@ class FAISSBackend(RAGBackend):
         try:
             import faiss  # noqa: F401
         except ImportError:
-            raise ImportError(
-                "faiss-cpu not installed. Install with: pip install faiss-cpu"
-            )
+            raise ImportError("faiss-cpu not installed. Install with: pip install faiss-cpu")
 
         try:
             from sentence_transformers import SentenceTransformer
@@ -556,8 +600,7 @@ def create_backend(
     cls = _BACKEND_REGISTRY.get(backend)
     if cls is None:
         raise ValueError(
-            f"Unknown RAG backend '{backend}'. "
-            f"Available: {list(_BACKEND_REGISTRY.keys())}"
+            f"Unknown RAG backend '{backend}'. " f"Available: {list(_BACKEND_REGISTRY.keys())}"
         )
 
     if backend == "tfidf":

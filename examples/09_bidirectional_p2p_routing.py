@@ -75,7 +75,9 @@ async def main():
         role=AgentRole.GENERAL_PURPOSE,
         system_prompt="You are NodeBravo, a worker agent connected to NodeAlfa.",
         network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
-        network_connections={agent_a.id: "http://localhost:8000"},  # B knows A's URL (can directly reach A)
+        network_connections={
+            agent_a.id: "http://localhost:8000"
+        },  # B knows A's URL (can directly reach A)
     )
     agent_b = Agent(config=config_b)
     await agent_b.start(communication_manager=comm)
@@ -90,7 +92,9 @@ async def main():
         role=AgentRole.GENERAL_PURPOSE,
         system_prompt="You are NodeCharlie, a worker agent connected to NodeAlfa.",
         network_url="http://localhost:8002",  # This agent is hosted on localhost:8002
-        network_connections={agent_a.id: "http://localhost:8000"},  # C knows A's URL (can directly reach A)
+        network_connections={
+            agent_a.id: "http://localhost:8000"
+        },  # C knows A's URL (can directly reach A)
     )
     agent_c = Agent(config=config_c)
     await agent_c.start(communication_manager=comm)

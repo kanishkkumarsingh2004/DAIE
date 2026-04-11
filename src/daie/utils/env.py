@@ -44,6 +44,6 @@ def load_dotenv(dotenv_path: Optional[str] = None) -> None:
                     # Standard dotenv behavior is to NOT overwrite existing env vars
                     if key not in os.environ:
                         os.environ[key] = value
-    except Exception as e:
+    except Exception:
         # Silently fail like python-dotenv often does, or log it
         pass

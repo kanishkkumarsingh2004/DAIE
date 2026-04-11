@@ -8,8 +8,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from daie.utils import http_client as requests
-
 logger = logging.getLogger(__name__)
 
 
@@ -267,14 +265,15 @@ class LLMManager:
                     options = {}
                     if self.config.max_tokens:
                         options["num_predict"] = self.config.max_tokens
-                    
+
                     from daie.config import SystemConfig
+
                     sys_cfg = SystemConfig()
                     if sys_cfg.gpu_layers > 0:
                         options["num_gpu"] = sys_cfg.gpu_layers
                     if sys_cfg.num_threads > 0:
                         options["num_thread"] = sys_cfg.num_threads
-                        
+
                     if options:
                         payload["options"] = options
 
@@ -666,35 +665,35 @@ class LLMManager:
                 """Non-streaming invocation using Google Gemini API"""
                 try:
                     from daie.utils import http_client as requests
-                    
+
                     # Gemini API endpoint
                     api_key = self.config.api_key
                     model = self.config.model_name or "gemini-pro"
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-                    
+
                     headers = {"Content-Type": "application/json"}
                     payload = {
                         "contents": [{"parts": [{"text": prompt}]}],
                         "generationConfig": {
                             "temperature": self.config.temperature,
                             "maxOutputTokens": self.config.max_tokens or 2048,
-                        }
+                        },
                     }
-                    
+
                     response = requests.post(url, headers=headers, json=payload)
                     response.raise_for_status()
-                    
+
                     data = response.json()
-                    
+
                     # Extract text from Gemini response structure
                     if "candidates" in data and data["candidates"]:
                         candidate = data["candidates"][0]
                         if "content" in candidate and "parts" in candidate["content"]:
                             return candidate["content"]["parts"][0]["text"]
-                    
+
                     logger.error(f"Google API returned unexpected format: {data}")
                     return "Error: Failed to parse Google Gemini response"
-                    
+
                 except Exception as e:
                     logger.error(f"Google LLM error: {e}")
                     return f"Error: {e}"
@@ -961,9 +960,12 @@ class LLMManager:
             LLM response
         """
         import asyncio
+        import functools
 
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.get_llm().invoke, prompt, **kwargs)
+        return await loop.run_in_executor(
+            None, functools.partial(self.get_llm().invoke, prompt, **kwargs)
+        )
 
 
 # Singleton instance

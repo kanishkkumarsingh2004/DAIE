@@ -7,7 +7,7 @@ import json
 import urllib.request
 import urllib.error
 import urllib.parse
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 try:
     import requests as _requests
@@ -75,7 +75,7 @@ class Response:
         if not self.content:
             return
         for i in range(0, len(self.content), chunk_size):
-            yield self.content[i : i + chunk_size]
+            yield self.content[i: i + chunk_size]
 
 
 def request(

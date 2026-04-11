@@ -198,7 +198,7 @@ async def main():
 
     # Display system status
     status = system.get_system_status()
-    print(f"\n[*] System Status:")
+    print("\n[*] System Status:")
     print(f"  Total Nodes: {status['total_nodes']}")
     print(f"  Running: {status['is_running']}")
 
@@ -240,7 +240,7 @@ async def main():
             # Handle status command
             if user_input.lower() == "status":
                 status = system.get_system_status()
-                print(f"\n\033[93mSystem Status:\033[0m")
+                print("\n\033[93mSystem Status:\033[0m")
                 print(f"  Running: {status['is_running']}")
                 print(f"  Total Nodes: {status['total_nodes']}")
                 for node_id, node_status in status["nodes"].items():
@@ -250,36 +250,36 @@ async def main():
             # Handle research command
             if user_input.lower().startswith("research "):
                 task = user_input[9:].strip()
-                print(f"\n\033[92mExecuting on Research Lab...\033[0m")
+                print("\n\033[92mExecuting on Research Lab...\033[0m")
                 result = await system.execute_task("research-lab", task)
-                print(f"\n\033[93mResearch Lab Result:\033[0m")
+                print("\n\033[93mResearch Lab Result:\033[0m")
                 print(f"{result}\n")
                 continue
 
             # Handle content command
             if user_input.lower().startswith("content "):
                 task = user_input[8:].strip()
-                print(f"\n\033[92mExecuting on Content Creation...\033[0m")
+                print("\n\033[92mExecuting on Content Creation...\033[0m")
                 result = await system.execute_task("content-creation", task)
-                print(f"\n\033[93mContent Creation Result:\033[0m")
+                print("\n\033[93mContent Creation Result:\033[0m")
                 print(f"{result}\n")
                 continue
 
             # Handle analysis command
             if user_input.lower().startswith("analysis "):
                 task = user_input[9:].strip()
-                print(f"\n\033[92mExecuting on Analysis Center...\033[0m")
+                print("\n\033[92mExecuting on Analysis Center...\033[0m")
                 result = await system.execute_task("analysis-center", task)
-                print(f"\n\033[93mAnalysis Center Result:\033[0m")
+                print("\n\033[93mAnalysis Center Result:\033[0m")
                 print(f"{result}\n")
                 continue
 
             # Handle broadcast command
             if user_input.lower().startswith("broadcast "):
                 task = user_input[10:].strip()
-                print(f"\n\033[92mBroadcasting to all nodes...\033[0m")
+                print("\n\033[92mBroadcasting to all nodes...\033[0m")
                 results = await system.broadcast_task(task)
-                print(f"\n\033[93mBroadcast Results:\033[0m")
+                print("\n\033[93mBroadcast Results:\033[0m")
                 for node_id, result in results.items():
                     print(f"\n  {node_id}:")
                     print(f"  {result}\n")

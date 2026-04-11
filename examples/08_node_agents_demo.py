@@ -316,7 +316,12 @@ class NodeChatSystem:
         return {
             "node": self.node.get_status(),
             "agents": {
-                name: {"id": agent.id, "name": agent.name, "role": agent.role.value, "is_running": agent.is_running}
+                name: {
+                    "id": agent.id,
+                    "name": agent.name,
+                    "role": agent.role.value,
+                    "is_running": agent.is_running,
+                }
                 for name, agent in self.agents.items()
             },
             "resources": self.node.get_resource_info(),
@@ -386,7 +391,9 @@ async def demo_mode(system: NodeChatSystem):
     # Demo 4: Collaborative task (all agents participate)
     print("\n[DEMO 4] Collaborative Task Execution")
     print("-" * 40)
-    result = await system.execute_collaborative_task("Design a simple REST API for a todo application")
+    result = await system.execute_collaborative_task(
+        "Design a simple REST API for a todo application"
+    )
     print(result[:500] + "...")
 
     # Demo 5: Peer node connection

@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 from daie.agents.message import AgentMessage
 from daie.config import SystemConfig
 from daie.core.resilience import CircuitBreaker, RetryPolicy
-from daie.core.tracing import TraceContextManager, inject_trace_context, trace_span, extract_trace_context
-from daie.utils.encryption import encrypt_data, decrypt_data, generate_encryption_key
+from daie.core.tracing import TraceContextManager, inject_trace_context, trace_span
+from daie.utils.encryption import encrypt_data, decrypt_data
 from daie.utils.encryption.ciphers import derive_shared_secret
 import base64
 from daie.registry.manager import NodeRegistry
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from daie.agents import Agent
 
 from daie.core.tracing import get_logger
+
 logger = get_logger(__name__)
 
 # Audit logger for A2A communications
@@ -98,6 +99,10 @@ class CommunicationManager:
         self._agents: Dict[str, "Agent"] = {}
         self._peers: Dict[str, PeerInfo] = {}
         self._message_handlers: Dict[str, Callable] = {}
+        self._type_handlers: Dict[str, List[Callable]] = {}
+
+        # Internal tasks tracking
+        self._running_tasks: set[asyncio.Task] = set()
         self._connection: Optional[any] = None
 
         self.registry = NodeRegistry(config=self.config)
@@ -124,7 +129,7 @@ class CommunicationManager:
         self._background_tasks = set()
         self._heartbeat_task: Optional[asyncio.Task] = None
         self._last_heartbeat_sent: float = 0.0
-        
+
         # Metrics server
         self.metrics_server = None
         self._enable_metrics = getattr(self.config, "enable_metrics", True)
@@ -168,7 +173,7 @@ class CommunicationManager:
         logger.info(f"Agent {agent.name} (ID: {agent.id}) registered for communication")
 
         # Create a message handler for the agent
-        self._message_handlers[agent.id] = lambda msg: self._handle_message(agent.id, msg)
+        self._message_handlers[agent.id] = lambda msg: agent._handle_message(msg)
 
         # Register Agent capabilities and network config to NodeRegistry
         # network_url: The URL where THIS agent is hosted (others use this to reach it)
@@ -195,9 +200,7 @@ class CommunicationManager:
         # Subscribe to NATS if connected
         if self.nats and self.nats.nc:
             self._track_task(
-                asyncio.create_task(
-                    self.nats.subscribe_agent(agent.id, self._handle_message)
-                )
+                asyncio.create_task(self.nats.subscribe_agent(agent.id, self._handle_message))
             )
 
         return self
@@ -228,12 +231,10 @@ class CommunicationManager:
         """Join an agent to a group for swarm messaging"""
         if agent_id not in self._agents:
             return False
-        
+
         if self.nats and self.nats.nc:
             await self.nats.subscribe_group(
-                group_id,
-                agent_id,
-                lambda msg: self._handle_message(agent_id, msg)
+                group_id, agent_id, lambda msg: self._handle_message(agent_id, msg)
             )
             logger.info(f"Agent {agent_id} joined group {group_id}")
             return True
@@ -343,9 +344,12 @@ class CommunicationManager:
             logger.debug(f"Sending message from {message.sender_id} to {message.receiver_id}")
 
             # Rate limiting check
-            if self._enable_rate_limiting and not self._check_rate_limit(message.sender_id):
-                logger.warning(f"Rate limit exceeded for agent {message.sender_id}")
-                self._audit_log("RATE_LIMIT_EXCEEDED", message, "Rate limit exceeded")
+            # Outbound Rate Limiting (prevent local agent from flooding)
+            if self._enable_rate_limiting and not self._check_rate_limit(
+                message.sender_id, flow="outbound"
+            ):
+                logger.warning(f"Outbound rate limit exceeded for agent {message.sender_id}")
+                self._audit_log("RATE_LIMIT_EXCEEDED", message, "Outbound rate limit exceeded")
                 return False
 
             # Encrypt message content if encryption is enabled
@@ -364,8 +368,12 @@ class CommunicationManager:
                 success = await self.nats.publish(message)
                 if success:
                     latency = time.time() - start_time
-                    metrics.observe("daie_comm_p2p_latency_seconds", latency, labels={"method": "nats"})
-                    metrics.increment("daie_comm_messages_sent_total", labels={"agent_id": message.sender_id})
+                    metrics.observe(
+                        "daie_comm_p2p_latency_seconds", latency, labels={"method": "nats"}
+                    )
+                    metrics.increment(
+                        "daie_comm_messages_sent_total", labels={"agent_id": message.sender_id}
+                    )
                     return True
                 logger.warning("NATS publish failed, falling back to direct communication")
 
@@ -402,7 +410,7 @@ class CommunicationManager:
             priv = base64.b64decode(sender_private_key_b64)
             pub = base64.b64decode(receiver_data["public_key"])
             shared_key = derive_shared_secret(priv, pub)
-            
+
             # Cache for future use
             self._encryption_keys[cache_key] = shared_key
             return shared_key
@@ -480,7 +488,9 @@ class CommunicationManager:
             # For simplicity, we use the same cache mechanism but reverse roles
             key = self._get_shared_key(receiver.config.private_key, message.sender_id)
             if not key:
-                logger.warning(f"Failed to derive decryption key for message from {message.sender_id}")
+                logger.warning(
+                    f"Failed to derive decryption key for message from {message.sender_id}"
+                )
                 return message
 
             # Decrypt message content
@@ -533,12 +543,14 @@ class CommunicationManager:
         except Exception as e:
             logger.error(f"Audit logging failed: {e}")
 
-    def _check_rate_limit(self, agent_id: str) -> bool:
+    def _check_rate_limit(self, agent_id: str, flow: str = "inbound") -> bool:
         """
-        Check if agent has exceeded rate limit
+        Check if agent has exceeded rate limit.
+        Separate counters are maintained for different flow types to prevent double-counting.
 
         Args:
             agent_id: Agent ID to check
+            flow: Flow direction ('inbound' or 'outbound')
 
         Returns:
             True if within rate limit, False otherwise
@@ -548,25 +560,27 @@ class CommunicationManager:
 
         current_time = time.time()
 
-        # Use config values or system defaults - check both possible keys for compatibility
-        window = getattr(self.config, "rate_limit_window", 60)
-        max_msgs = getattr(
-            self.config, "rate_limit_max_messages", getattr(self.config, "rate_limit_per_peer", 100)
-        )
+        # Consistent parameter retrieval
+        window = self._rate_limit_window
+        max_msgs = self._rate_limit_max_messages
 
+        limit_key = f"{flow}:{agent_id}"
         window_start = current_time - window
 
-        # Clean old timestamps
-        self._message_counts[agent_id] = [
-            ts for ts in self._message_counts[agent_id] if ts > window_start
+        # Clean old timestamps for this specific flow+agent
+        self._message_counts[limit_key] = [
+            ts for ts in self._message_counts[limit_key] if ts > window_start
         ]
 
         # Check if within limit
-        if len(self._message_counts[agent_id]) >= max_msgs:
+        if len(self._message_counts[limit_key]) >= max_msgs:
+            logger.warning(
+                f"{flow.capitalize()} rate limit exceeded for {agent_id} ({len(self._message_counts[limit_key])} >= {max_msgs})"
+            )
             return False
 
         # Add current timestamp
-        self._message_counts[agent_id].append(current_time)
+        self._message_counts[limit_key].append(current_time)
         return True
 
     async def _send_message_internal(self, message: AgentMessage):
@@ -592,7 +606,9 @@ class CommunicationManager:
 
             # Audit log for message receive
             self._audit_log("MESSAGE_RECEIVE", message)
-            metrics.increment("daie_comm_messages_received_total", labels={"agent_id": message.receiver_id})
+            metrics.increment(
+                "daie_comm_messages_received_total", labels={"agent_id": message.receiver_id}
+            )
 
             with TraceContextManager(message.metadata):
                 result = receiver._handle_message(message)
@@ -701,7 +717,7 @@ class CommunicationManager:
                     "metadata": message.metadata,
                     "auth_token": token,
                 }
-                
+
                 # Send with timeout
                 await asyncio.wait_for(websocket.send(json.dumps(msg_dict)), timeout=timeout)
 
@@ -763,8 +779,10 @@ class CommunicationManager:
         """
         try:
             # Incoming Rate Limiting: Prevent DoS from specific peers
-            if not self._check_rate_limit(message.sender_id):
-                logger.warning(f"Rate limit exceeded for sender {message.sender_id}. Dropping message.")
+            if not self._check_rate_limit(message.sender_id, flow="inbound"):
+                logger.warning(
+                    f"Inbound rate limit exceeded for sender {message.sender_id}. Dropping message."
+                )
                 return
 
             # Check if agent exists locally
@@ -802,9 +820,28 @@ class CommunicationManager:
                 return
 
             with TraceContextManager(message.metadata):
-                agent = self._agents[agent_id]
-                # Always schedule via create_task — agent._handle_message is async
-                self._track_task(asyncio.create_task(agent._handle_message(message)))
+                # 1. Dispatch to type-based handlers (e.g., parliament_response)
+                if message.message_type in self._type_handlers:
+                    for handler in self._type_handlers[message.message_type]:
+                        try:
+                            res = handler(message)
+                            if asyncio.iscoroutine(res):
+                                self._track_task(asyncio.create_task(res))
+                        except Exception as e:
+                            logger.error(f"Error in type handler for {message.message_type}: {e}")
+
+                # 2. Dispatch to agent-specific handler
+                if agent_id in self._message_handlers:
+                    handler = self._message_handlers[agent_id]
+                    try:
+                        res = handler(message)
+                        if asyncio.iscoroutine(res):
+                            self._track_task(asyncio.create_task(res))
+                    except Exception as e:
+                        logger.error(f"Error in agent handler for {agent_id}: {e}")
+                elif agent_id in self._agents:
+                    agent = self._agents[agent_id]
+                    self._track_task(asyncio.create_task(agent._handle_message(message)))
         except Exception as e:
             logger.error(f"Error handling message for agent {agent_id}: {e}")
             self._audit_log("MESSAGE_RECEIVE_ERROR", message, str(e))
@@ -858,7 +895,9 @@ class CommunicationManager:
                 self._track_task(self._loop.create_task(self.metrics_server.start()))
 
             self._is_running = True
-            logger.info(f"Communication manager started successfully (Metrics: {self._metrics_port if self._enable_metrics else 'Off'})")
+            logger.info(
+                f"Communication manager started successfully (Metrics: {self._metrics_port if self._enable_metrics else 'Off'})"
+            )
 
         except Exception as e:
             logger.error(f"Failed to start communication manager: {e}")
@@ -881,9 +920,9 @@ class CommunicationManager:
                 task.cancel()
             self._background_tasks.clear()
 
-            if hasattr(self, "_listen_task") and not self._listen_task.done():
+            if self._listen_task and not self._listen_task.done():
                 self._listen_task.cancel()
-            if hasattr(self, "_discover_task") and not self._discover_task.done():
+            if self._discover_task and not self._discover_task.done():
                 self._discover_task.cancel()
             if self._heartbeat_task and not self._heartbeat_task.done():
                 self._heartbeat_task.cancel()
@@ -975,7 +1014,7 @@ class CommunicationManager:
     async def _send_heartbeats(self):
         """Send heartbeats to all registered agents and connected peers"""
         self._last_heartbeat_sent = time.time()
-        
+
         # In a real P2P system, we'd broadcast this or send to known neighbor nodes
         # For now, we'll mark this node as active in the registry
         for agent_id, agent in self._agents.items():
@@ -983,21 +1022,63 @@ class CommunicationManager:
                 sender_id=agent_id,
                 receiver_id="*",  # Broadcast heartbeat
                 content="hb",
-                message_type="heartbeat"
+                message_type="heartbeat",
             )
             # We don't use broadcast_message here to avoid recursion,
             # we just want to notify the registry and peers.
             self.registry.register_node(
                 agent_id,
-                {"role": str(getattr(agent, "role", "unknown")), "tools": agent.config.capabilities},
-                network_url=getattr(agent.config, "network_url", None)
+                {
+                    "role": str(getattr(agent, "role", "unknown")),
+                    "tools": agent.config.capabilities,
+                },
+                network_url=getattr(agent.config, "network_url", None),
             )
-        
+
         logger.debug(f"Sent heartbeats for {len(self._agents)} agents")
+
+    def register_handler(
+        self, message_type: str, handler: Callable[[AgentMessage], Any]
+    ) -> "CommunicationManager":
+        """
+        Register a listener for a specific message type
+        """
+        if message_type not in self._type_handlers:
+            self._type_handlers[message_type] = []
+        if handler not in self._type_handlers[message_type]:
+            self._type_handlers[message_type].append(handler)
+        return self
+
+    def unregister_handler(
+        self, message_type: str, handler: Callable[[AgentMessage], Any]
+    ) -> "CommunicationManager":
+        """
+        Unregister a listener for a specific message type
+        """
+        if message_type in self._type_handlers:
+            if handler in self._type_handlers[message_type]:
+                self._type_handlers[message_type].remove(handler)
+        return self
+
+    def register_agent_handler(
+        self, agent_id: str, handler: Callable[[AgentMessage], Any]
+    ) -> "CommunicationManager":
+        """
+        Register a custom listener for a specific agent ID (e.g. for orchestration)
+        """
+        self._message_handlers[agent_id] = handler
+        return self
+
+    def unregister_agent_handler(self, agent_id: str) -> "CommunicationManager":
+        """
+        Remove a custom listener for an agent ID
+        """
+        self._message_handlers.pop(agent_id, None)
+        return self
 
     def on_message_received(self, agent_id: str, handler: Callable[[AgentMessage], None]):
         """
-        Register a message handler for an agent
+        Register a message handler for an agent (legacy/direct)
 
         Args:
             agent_id: Agent ID

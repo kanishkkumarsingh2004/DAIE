@@ -431,7 +431,12 @@ class TestPracticalUseCases:
         agent_node = Node(node_id="agent-node-001", name="Agent Host")
 
         # Chain methods that support chaining
-        (agent_node.add_agent("nova").add_agent("alex").add_agent("assistant").set_resource("agent_capacity", 10))
+        (
+            agent_node.add_agent("nova")
+            .add_agent("alex")
+            .add_agent("assistant")
+            .set_resource("agent_capacity", 10)
+        )
 
         # Start separately since it doesn't return self
         await agent_node.start()

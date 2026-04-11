@@ -5,11 +5,10 @@ Replaces typer and rich dependencies
 
 import argparse
 import time
-from typing import List, Optional
 
 from daie.agents.config import AgentConfig, AgentRole
 from daie.config import ConfigManager
-from daie.utils.console import Console, print_error, print_info, print_success, print_header
+from daie.utils.console import print_error, print_info, print_success, print_header
 
 
 def list_agents(args: argparse.Namespace):

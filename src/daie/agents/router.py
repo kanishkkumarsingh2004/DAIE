@@ -252,6 +252,69 @@ class AgentRouter:
             # Fallback to first available agent
             return list(self.agents.keys())[0] if self.agents else None
 
+    async def select_agents(self, message: str, all_agents: List[Any], top_k: int = 4) -> List[Any]:
+        """
+        Intelligently select the top_k best agents for a given message from a provided pool.
+        """
+        try:
+            # Create a localized router pool for this subset
+            temp_router = self.__class__.from_agents(all_agents, self.router_agent_name)
+            router_agent = temp_router.agents.get(temp_router.router_agent_name)
+
+            if not router_agent:
+                return all_agents[:top_k]
+
+            agent_list = []
+            for agent_name, description in temp_router._agent_descriptions.items():
+                agent_list.append(f"- {agent_name}: {description}")
+            agents_section = "\n".join(agent_list)
+            valid_names = ", ".join(temp_router._agent_descriptions.keys())
+
+            prompt = f"""You are an intelligent message router. Analyze the user message and select the top {top_k} BEST agents to collectively handle it through peer review.
+
+**Available Agents:**
+{agents_section}
+
+**User Message:** "{message}"
+
+**Instructions:** Respond with EXACTLY a comma-separated list of {top_k} agent names from the valid choices: ({valid_names}).
+No explanation, bullet points, or numbering. Just the comma-separated names.
+
+**Selected Agents:**"""
+
+            from daie.core.llm_manager import get_llm_config
+
+            original_stream = get_llm_config().stream
+            get_llm_config().stream = False
+            try:
+                decision = await router_agent.send_message(prompt)
+            finally:
+                get_llm_config().stream = original_stream
+
+            # Parse comma separated names mapping them natively to object instances
+            selected = []
+            for raw_name in decision.split(","):
+                cleaned = raw_name.strip().lower()
+                if cleaned:
+                    for aname, agent_obj in temp_router.agents.items():
+                        if aname.lower() in cleaned or cleaned in aname.lower():
+                            if agent_obj not in selected:
+                                selected.append(agent_obj)
+                            break
+
+            # Pad seamlessly with default agents if LLM drops count
+            for agent_obj in all_agents:
+                if len(selected) >= top_k:
+                    break
+                if agent_obj not in selected:
+                    selected.append(agent_obj)
+
+            return selected[:top_k]
+
+        except Exception as e:
+            logger.error(f"Error in select_agents routing logic: {e}", exc_info=True)
+            return all_agents[:top_k]
+
     def _parse_decision(self, decision: str) -> str:
         """
         Parse and validate the LLM's routing decision.

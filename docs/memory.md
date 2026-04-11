@@ -45,21 +45,25 @@ await memory_manager.start()
 ```
 
 ### Binary File (Default)
+...
+```
 
-Uses Python's pickle format for fast serialization and deserialization.
+### SQLite Database (Robust Persistence)
+
+Uses SQLite for relational storage, supporting concurrent access and complex querying. This is the best option for multi-agent systems sharing a memory pool.
 
 **Features:**
-- Fast read/write operations
-- Compact file size
-- Native Python object support
-- Simple implementation
+- ACID compliance (Atomicity, Consistency, Isolation, Durability)
+- Concurrent access via WAL (Write-Ahead Logging) mode
+- Relational structure for complex filtering
+- Native integration with Windows, Linux, and macOS
 
 **Usage:**
 ```python
 from daie.config import SystemConfig
 from daie.memory import MemoryManager
 
-config = SystemConfig(memory_storage_type="binary")
+config = SystemConfig(memory_storage_type="sqlite")
 memory_manager = MemoryManager(config=config)
 await memory_manager.start()
 ```
@@ -110,7 +114,7 @@ await memory_manager.start()
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `persistent_memory` | bool | `True` | Whether to persist memory across restarts |
-| `memory_storage_type` | str | `"binary"` | Storage backend type ("vector", "binary") |
+| `memory_storage_type` | str | `"binary"` | Storage backend type ("sqlite", "vector", "binary") |
 | `memory_root_path` | str | `"./agent_memory"` | Root directory for memory storage |
 
 ### Environment Variables
@@ -201,6 +205,51 @@ memory_manager.store_memory(
     content="User prefers concise answers",
     memory_type="working",
     tags=["user_preference", "communication_style"]
+)
+```
+
+---
+
+## Shared Memory Namespaces
+
+DAIE allows agents to share memory pools across multiple instances using **Namespaces**. This is particularly powerful for `Orchestrator` groups or `Parliament` specialized teams.
+
+### How it works
+
+When multiple agents have the same `memory_namespace` configured in their `AgentConfig`, they will read and write to the same logical storage partition in the `MemoryManager`.
+
+### Usage
+
+```python
+from daie import Agent, AgentConfig
+
+shared_name = "strategic_planning_2024"
+
+# Agent A
+agent_a = Agent(config=AgentConfig(
+    name="Architect",
+    memory_namespace=shared_name
+))
+
+# Agent B
+agent_b = Agent(config=AgentConfig(
+    name="Auditor",
+    memory_namespace=shared_name
+))
+
+# Any episodic or semantic memory stored by Agent A 
+# will be visible to Agent B during its retrieval cycles.
+```
+
+### Integration with Multi-Agent Systems
+
+The `Orchestrator` and `HybridParliamentOrchestrator` automatically inject a shared namespace into all their sub-agents if one is provided during initialization.
+
+```python
+orchestrator = Orchestrator(
+    main_agent=boss,
+    sub_agents=[worker1, worker2],
+    shared_namespace="team_context"
 )
 ```
 

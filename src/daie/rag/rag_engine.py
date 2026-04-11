@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from daie.rag.backends import RAGBackend, create_backend
 from daie.rag.chunking import Chunk, ChunkingStrategy, create_chunker
-from daie.rag.document_loader import Document, load_directory
+from daie.rag.document_loader import load_directory
 
 logger = logging.getLogger(__name__)
 

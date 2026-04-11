@@ -3,9 +3,8 @@ Lightweight Prometheus-compatible metrics registry for DAIE.
 """
 
 import asyncio
-import time
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 
 class MetricsRegistry:
@@ -13,6 +12,7 @@ class MetricsRegistry:
     In-memory registry for system metrics.
     Exposes metrics in Prometheus text format.
     """
+
     _instance = None
 
     def __new__(cls):
@@ -48,25 +48,25 @@ class MetricsRegistry:
         if not labels:
             return name
         label_str = ",".join([f'{k}="{v}"' for k, v in sorted(labels.items())])
-        return f'{name}{{{label_str}}}'
+        return f"{name}{{{label_str}}}"
 
     def export(self) -> str:
         """Export all metrics in Prometheus text format."""
         lines = []
-        
+
         for key, value in self._counters.items():
             lines.append(f"{key} {value}")
-            
+
         for key, value in self._gauges.items():
             lines.append(f"{key} {value}")
-            
+
         # Very simple histogram representation (just exposing count and sum for now)
         for key, values in self._histograms.items():
-            name_base = key.split('{')[0]
+            name_base = key.split("{")[0]
             labels = key[len(name_base):]
             lines.append(f"{name_base}_count{labels} {len(values)}")
             lines.append(f"{name_base}_sum{labels} {sum(values)}")
-            
+
         return "\n".join(lines) + "\n"
 
 
@@ -74,6 +74,7 @@ class MetricsServer:
     """
     Lightweight HTTP server to expose metrics for Prometheus.
     """
+
     def __init__(self, registry: MetricsRegistry, port: int = 9090):
         self.registry = registry
         self.port = port
@@ -81,18 +82,17 @@ class MetricsServer:
 
     async def start(self):
         """Start the metrics HTTP server."""
-        self.server = await asyncio.start_server(
-            self._handle_request, "0.0.0.0", self.port
-        )
+        self.server = await asyncio.start_server(self._handle_request, "0.0.0.0", self.port)
         addr = self.server.sockets[0].getsockname()
         import logging
+
         logging.getLogger(__name__).info(f"Metrics server serving on {addr}")
-        
+
     async def _handle_request(self, reader, writer):
         """Handle incoming HTTP GET /metrics requests."""
         data = await reader.read(1024)
         request = data.decode()
-        
+
         if "GET /metrics" in request:
             body = self.registry.export()
             response = (
@@ -105,7 +105,7 @@ class MetricsServer:
             )
         else:
             response = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n"
-            
+
         writer.write(response.encode())
         await writer.drain()
         writer.close()

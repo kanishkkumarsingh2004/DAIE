@@ -69,21 +69,25 @@ class MemoryManager:
         """
         self.config = config or SystemConfig()
         self._is_initialized = False
-        
+
         # Limit the number of agents kept in RAM to prevent memory bloat
         self._max_agents_in_ram = getattr(self.config, "max_agents_in_ram", 20)
         self._agent_memories: OrderedDict[str, Dict[str, deque[MemoryItem]]] = OrderedDict()
-        
+
         self._storage: Optional[StorageBackend] = None
         self._root_path = self.config.memory_root_path
 
         # Ensure root directory exists
         os.makedirs(self._root_path, exist_ok=True)
 
+        self.auto_summarize_threshold = getattr(self.config, "auto_summarize_threshold", 50)
+        self._shared_memories: Dict[str, Dict[str, deque[MemoryItem]]] = {}
+
         logger.info(
-            "Memory manager initialized with storage type: %s at path: %s",
+            "Memory manager initialized with storage type: %s at path: %s (Auto-summarize at %d items)",
             self.config.memory_storage_type,
             self._root_path,
+            self.auto_summarize_threshold,
         )
 
     @property
@@ -152,8 +156,7 @@ class MemoryManager:
             # Convert loaded lists to deques for performance
             max_items = self.config.max_memory_items or 1000
             self._agent_memories[agent_id] = {
-                m_type: deque(items, maxlen=max_items)
-                for m_type, items in loaded.items()
+                m_type: deque(items, maxlen=max_items) for m_type, items in loaded.items()
             }
             # Move to end (MRU)
             self._agent_memories.move_to_end(agent_id)
@@ -213,7 +216,7 @@ class MemoryManager:
             logger.debug("Loaded memories for %d agents", len(self._agent_memories))
         except Exception as e:
             logger.error(f"Failed to load agent memories: {e}")
-            self._agent_memories = {}
+            self._agent_memories = OrderedDict()
 
     def initialize_agent_memory(self, agent_id: str) -> "MemoryManager":
         """
@@ -240,13 +243,41 @@ class MemoryManager:
                     "long_term": deque(maxlen=max_items),
                 }
             self._agent_memories.move_to_end(agent_id)
-            
+
             # Maintenance: Evict least recently used agent if we exceed RAM limit
             if len(self._agent_memories) > self._max_agents_in_ram:
                 lru_id, _ = self._agent_memories.popitem(last=False)
                 logger.debug(f"Evicted agent {lru_id} from RAM cache")
 
             logger.info(f"Memory initialized for agent: {agent_id}")
+
+        return self
+
+    def initialize_shared_memory(self, namespace: str) -> "MemoryManager":
+        """
+        Initialize a shared memory namespace
+        """
+        if namespace not in self._shared_memories:
+            max_items = self.config.max_memory_items or 1000
+            self._shared_memories[namespace] = {
+                "working": deque(maxlen=max_items),
+                "semantic": deque(maxlen=max_items),
+                "episodic": deque(maxlen=max_items),
+                "long_term": deque(maxlen=max_items),
+            }
+
+            # Load from storage if available
+            if self._storage and hasattr(self._storage, "retrieve_shared_memory"):
+                try:
+                    loaded_items = self._storage.retrieve_shared_memory(namespace)
+                    for item in loaded_items:
+                        if item.memory_type in self._shared_memories[namespace]:
+                            self._shared_memories[namespace][item.memory_type].append(item)
+                    logger.debug(
+                        f"Loaded {len(loaded_items)} shared memory items for namespace {namespace}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to load shared memory for namespace {namespace}: {e}")
 
         return self
 
@@ -257,22 +288,27 @@ class MemoryManager:
         memory_type: str = "working",
         metadata: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
+        namespace: Optional[str] = None,
     ) -> str:
         """
         Store a memory item with optimized performance
 
         Args:
-            agent_id: Agent ID
+            agent_id: Agent ID (ignored if namespace is provided)
             content: Memory content
             memory_type: Memory type (working, semantic, episodic)
             metadata: Optional metadata
             tags: Optional tags
-
-        Returns:
-            Memory item ID
+            namespace: Optional shared memory namespace
         """
-        if agent_id not in self._agent_memories:
-            self.initialize_agent_memory(agent_id)
+        if namespace:
+            if namespace not in self._shared_memories:
+                self.initialize_shared_memory(namespace)
+            target_pool = self._shared_memories[namespace]
+        else:
+            if agent_id not in self._agent_memories:
+                self.initialize_agent_memory(agent_id)
+            target_pool = self._agent_memories[agent_id]
 
         memory_item = MemoryItem(
             id=uuid7(),
@@ -283,16 +319,29 @@ class MemoryManager:
             tags=tags or [],
         )
 
-        # deque with maxlen handles truncation automatically and efficiently
-        self._agent_memories[agent_id][memory_type].append(memory_item)
+        if namespace:
+            memory_item.metadata["namespace"] = namespace
 
-        # Log only if content is string
-        content_preview = str(content)[:50] if content else ""
-        logger.debug(f"Memory stored for agent {agent_id}: {content_preview}...")
+        # deque handles truncation
+        target_pool[memory_type].append(memory_item)
 
-        # Save to persistent storage only if persistent memory is enabled
-        if self.config.persistent_memory:
-            self._save_agent_memory(agent_id)
+        # Save to storage
+        if self.config.persistent_memory and self._storage:
+            if namespace and hasattr(self._storage, "store_shared_memory"):
+                self._storage.store_shared_memory(namespace, memory_item)
+            else:
+                self._save_agent_memory(agent_id)
+
+        # Auto-summarization check for episodic memory
+        if (
+            memory_type == "episodic"
+            and len(target_pool["episodic"]) >= self.auto_summarize_threshold
+        ):
+            # We don't want to block the current thread, but we also can't easily trigger
+            # a background task with an LLM call without an Agent context here.
+            # In a production system, we'd queue this. For now, we'll implement the method
+            # and let the Agent or Orchestrator call it.
+            logger.debug(f"Episodic memory threshold reached for {namespace or agent_id}")
 
         return memory_item.id
 
@@ -302,31 +351,35 @@ class MemoryManager:
         memory_type: Optional[str] = None,
         tags: Optional[List[str]] = None,
         limit: int = 100,
+        namespace: Optional[str] = None,
     ) -> List[MemoryItem]:
         """
-        Retrieve memories for an agent
+        Retrieve memories for an agent or namespace
 
         Args:
             agent_id: Agent ID
-            memory_type: Memory type to retrieve (None for all types)
-            tags: Tags to filter memories (None for all)
-            limit: Maximum number of memories to return
-
-        Returns:
-            List of memory items
+            memory_type: Memory type to retrieve
+            tags: Tags to filter
+            limit: Maximum items
+            namespace: Optional shared namespace
         """
-        if agent_id not in self._agent_memories:
-            return []
-
-        # Update LRU
-        self._agent_memories.move_to_end(agent_id)
+        if namespace:
+            if namespace not in self._shared_memories:
+                self.initialize_shared_memory(namespace)
+            target_pool = self._shared_memories[namespace]
+        else:
+            if agent_id not in self._agent_memories:
+                return []
+            target_pool = self._agent_memories[agent_id]
+            # Update LRU
+            self._agent_memories.move_to_end(agent_id)
 
         pools = []
         if memory_type:
-            if memory_type in self._agent_memories[agent_id]:
-                pools.append(self._agent_memories[agent_id][memory_type])
+            if memory_type in target_pool:
+                pools.append(target_pool[memory_type])
         else:
-            pools = list(self._agent_memories[agent_id].values())
+            pools = list(target_pool.values())
 
         if not pools:
             return []
@@ -335,18 +388,15 @@ class MemoryManager:
         # We use heapq.merge on reversed deques (iterators) to get newest first in O(limit * log(num_pools)).
         # This is significantly faster than combining and sorting O(N log N).
         import itertools
-        merged = heapq.merge(
-            *[reversed(p) for p in pools],
-            key=lambda x: x.timestamp,
-            reverse=True
-        )
-        
+
+        merged = heapq.merge(*[reversed(p) for p in pools], key=lambda x: x.timestamp, reverse=True)
+
         results = list(itertools.islice(merged, limit))
 
         # Filter by tags if specified (post-merge as tags are rare)
         if tags:
             results = [item for item in results if any(tag in tags for tag in item.tags)]
-            
+
         return results
 
     def search_similar(
@@ -554,9 +604,7 @@ class MemoryManager:
         if self.config.persistent_memory:
             self._save_agent_memory(agent_id)
 
-        logger.info(
-            f"Summarized {len(contents)} episodic memories for agent {agent_id}"
-        )
+        logger.info(f"Summarized {len(contents)} episodic memories for agent {agent_id}")
         return summary
 
     # ── Shared Memory (Cross-Agent in Orchestrator) ───────────────────────────
@@ -633,6 +681,4 @@ class MemoryManager:
         shared_agent_id = f"shared_{namespace}"
         if shared_agent_id not in self._agent_memories:
             self.initialize_agent_memory(shared_agent_id)
-        return self.search_similar(
-            shared_agent_id, query, memory_type="semantic", limit=limit
-        )
+        return self.search_similar(shared_agent_id, query, memory_type="semantic", limit=limit)

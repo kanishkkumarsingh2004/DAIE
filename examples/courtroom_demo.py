@@ -66,7 +66,9 @@ async def main():
 
     # Start the courtroom
     await court.start()
-    print("[+] Court is in session! Judge: Judge_Justice, Lawyers: Prosecutor_Agent, Defense_Attorney\n")
+    print(
+        "[+] Court is in session! Judge: Judge_Justice, Lawyers: Prosecutor_Agent, Defense_Attorney\n"
+    )
 
     while True:
         try:
@@ -92,7 +94,7 @@ async def main():
                 except:
                     pass
 
-            print(f"\n\033[93mFinal Verdict/Guidance from Judge:\033[0m")
+            print("\n\033[93mFinal Verdict/Guidance from Judge:\033[0m")
             print(f"{final_display}\n")
 
             print("-" * 30 + "\n")

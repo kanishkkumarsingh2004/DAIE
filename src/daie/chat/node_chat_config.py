@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from typing import Callable, List, Optional
 
 from daie.core.hybrid import HybridOrchestratorNode
-from daie.core.llm_manager import get_llm_config
 
 
 @dataclass

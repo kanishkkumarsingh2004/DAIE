@@ -15,6 +15,7 @@ from daie.core.llm_manager import (
 from daie.core.node import Node
 from daie.core.orchestrator import Orchestrator
 from daie.core.system import DecentralizedAISystem
+from daie.core.parallel_executor import ParallelExecutor
 
 __all__ = [
     "DecentralizedAISystem",
@@ -29,4 +30,5 @@ __all__ = [
     "get_llm",
     "get_llm_config",
     "reset_llm_config",
+    "ParallelExecutor",
 ]

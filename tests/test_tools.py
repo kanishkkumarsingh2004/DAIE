@@ -48,9 +48,7 @@ class TestTool:
             name="test-tool",
             description="Test tool description",
             category=ToolCategory.GENERAL,
-            parameters=[
-                ToolParameter(name="text", type="string", description="Input text")
-            ],
+            parameters=[ToolParameter(name="text", type="string", description="Input text")],
         )
 
         tool = ConcreteTool(metadata)
@@ -69,9 +67,7 @@ class TestTool:
             description="Test tool description",
             category=ToolCategory.GENERAL,
             parameters=[
-                ToolParameter(
-                    name="text", type="string", description="Input text", required=True
-                )
+                ToolParameter(name="text", type="string", description="Input text", required=True)
             ],
         )
 
@@ -92,9 +88,7 @@ class TestTool:
             name="test-tool",
             description="Test tool description",
             category=ToolCategory.GENERAL,
-            parameters=[
-                ToolParameter(name="text", type="string", description="Input text")
-            ],
+            parameters=[ToolParameter(name="text", type="string", description="Input text")],
         )
 
         tool = ConcreteTool(metadata)
@@ -191,13 +185,9 @@ class TestToolRegistry:
         """Test listing available tools."""
         registry = ToolRegistry()
 
-        metadata1 = ToolMetadata(
-            name="tool1", description="Tool 1", category=ToolCategory.GENERAL
-        )
+        metadata1 = ToolMetadata(name="tool1", description="Tool 1", category=ToolCategory.GENERAL)
 
-        metadata2 = ToolMetadata(
-            name="tool2", description="Tool 2", category=ToolCategory.GENERAL
-        )
+        metadata2 = ToolMetadata(name="tool2", description="Tool 2", category=ToolCategory.GENERAL)
 
         tool1 = ConcreteTool(metadata1)
         tool2 = ConcreteTool(metadata2)
@@ -227,9 +217,7 @@ class TestToolIntegration:
             description="First tool",
             category=ToolCategory.GENERAL,
             parameters=[
-                ToolParameter(
-                    name="text", type="string", description="Input text", required=True
-                )
+                ToolParameter(name="text", type="string", description="Input text", required=True)
             ],
         )
 

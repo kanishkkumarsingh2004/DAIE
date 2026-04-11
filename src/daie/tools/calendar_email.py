@@ -173,12 +173,14 @@ class EmailTool(Tool):
                 else:
                     body = msg.get_payload(decode=True).decode(errors="replace")
 
-                emails.append({
-                    "from": msg.get("From", ""),
-                    "subject": msg.get("Subject", ""),
-                    "date": msg.get("Date", ""),
-                    "body": body[:500],
-                })
+                emails.append(
+                    {
+                        "from": msg.get("From", ""),
+                        "subject": msg.get("Subject", ""),
+                        "date": msg.get("Date", ""),
+                        "body": body[:500],
+                    }
+                )
 
             mail.logout()
             return {"success": True, "emails": emails, "count": len(emails)}
@@ -206,11 +208,13 @@ class EmailTool(Tool):
             for msg_id in reversed(ids):
                 _, data = mail.fetch(msg_id, "(RFC822)")
                 msg = email.message_from_bytes(data[0][1])
-                emails.append({
-                    "from": msg.get("From", ""),
-                    "subject": msg.get("Subject", ""),
-                    "date": msg.get("Date", ""),
-                })
+                emails.append(
+                    {
+                        "from": msg.get("From", ""),
+                        "subject": msg.get("Subject", ""),
+                        "date": msg.get("Date", ""),
+                    }
+                )
 
             mail.logout()
             return {"success": True, "emails": emails, "count": len(emails)}
@@ -304,7 +308,11 @@ class CalendarTool(Tool):
         elif action == "generate_ics":
             return await asyncio.to_thread(self._create_ics_event, params)
         elif action == "list_events":
-            return {"success": True, "events": [], "message": "Local event listing not yet supported. Use generate_ics to create events."}
+            return {
+                "success": True,
+                "events": [],
+                "message": "Local event listing not yet supported. Use generate_ics to create events.",
+            }
 
         return {"success": False, "error": f"Unknown action: {action}"}
 

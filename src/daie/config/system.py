@@ -241,11 +241,14 @@ class SystemConfig:
             config.central_core_url = os.getenv("CENTRAL_CORE_URL")
 
         if os.getenv("BOOTSTRAP_NODES"):
-            # Phase 3: Hardware Acceleration
-            config.acceleration_backend = os.getenv("DAIE_ACCELERATION", config.acceleration_backend)
-            config.gpu_layers = int(os.getenv("DAIE_GPU_LAYERS", str(config.gpu_layers)))
-            config.num_threads = int(os.getenv("DAIE_THREADS", str(config.num_threads)))
             config.bootstrap_nodes = os.getenv("BOOTSTRAP_NODES").split(",")
+
+        # Phase 3: Hardware Acceleration
+        config.acceleration_backend = os.getenv("DAIE_ACCELERATION", config.acceleration_backend)
+        if os.getenv("DAIE_GPU_LAYERS"):
+            config.gpu_layers = int(os.getenv("DAIE_GPU_LAYERS"))
+        if os.getenv("DAIE_THREADS"):
+            config.num_threads = int(os.getenv("DAIE_THREADS"))
 
         if os.getenv("DHT_PORT"):
             try:
@@ -525,10 +528,10 @@ class SystemConfig:
         if self.rag_document_path is not None:
             import os
 
-            if not os.path.isdir(self.rag_document_path):
-                errors.setdefault("rag_document_path", []).append("Must be a valid directory path")
-            elif not os.path.exists(self.rag_document_path):
+            if not os.path.exists(self.rag_document_path):
                 errors.setdefault("rag_document_path", []).append("Directory does not exist")
+            elif not os.path.isdir(self.rag_document_path):
+                errors.setdefault("rag_document_path", []).append("Must be a valid directory path")
 
         return errors
 

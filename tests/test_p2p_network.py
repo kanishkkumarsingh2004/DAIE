@@ -102,7 +102,10 @@ class TestP2PNetwork(unittest.IsolatedAsyncioTestCase):
 
         # Verify send was called
         mock_websocket.send.assert_called_once()
-        print("Websocket Send Call Args:", json.dumps(mock_websocket.send.call_args[0], indent=2, default=str))
+        print(
+            "Websocket Send Call Args:",
+            json.dumps(mock_websocket.send.call_args[0], indent=2, default=str),
+        )
 
     @patch("websockets.connect")
     async def test_a2a_file_transfer_tool(self, mock_connect):
@@ -138,7 +141,9 @@ class TestP2PNetwork(unittest.IsolatedAsyncioTestCase):
         self.assertIn("base64_data", sent_json["metadata"])
 
         encoded_data = sent_json["metadata"]["base64_data"]
-        self.assertEqual(base64.b64decode(encoded_data).decode("utf-8"), "Hello World from base64 transfer.")
+        self.assertEqual(
+            base64.b64decode(encoded_data).decode("utf-8"), "Hello World from base64 transfer."
+        )
 
         # Clean up
         os.remove(test_file)

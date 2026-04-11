@@ -51,7 +51,7 @@ def test_system_config_rag_params():
     # Test validation
     errors = config.validate()
     assert "rag_document_path" in errors
-    assert "Must be a valid directory path" in errors["rag_document_path"]
+    assert "Directory does not exist" in errors["rag_document_path"]
 
     print("✅ SystemConfig RAG parameters test passed")
 
@@ -116,13 +116,17 @@ def test_from_dict():
 
 def test_to_dict():
     """Test to_dict method with RAG parameters"""
-    system_config = SystemConfig(rag_document_path="/test/documents", enable_rag=True, rag_strict_context=True)
+    system_config = SystemConfig(
+        rag_document_path="/test/documents", enable_rag=True, rag_strict_context=True
+    )
     system_dict = system_config.to_dict()
     assert system_dict["rag_document_path"] == "/test/documents"
     assert system_dict["enable_rag"] is True
     assert system_dict["rag_strict_context"] is True
 
-    agent_config = AgentConfig(rag_document_path="/test/documents", enable_rag=True, rag_strict_context=True)
+    agent_config = AgentConfig(
+        rag_document_path="/test/documents", enable_rag=True, rag_strict_context=True
+    )
     agent_dict = agent_config.to_dict()
     assert agent_dict["rag_document_path"] == "/test/documents"
     assert agent_dict["enable_rag"] is True

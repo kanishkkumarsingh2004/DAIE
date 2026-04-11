@@ -8,7 +8,7 @@ import logging
 import time
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Optional, Type
 
 logger = logging.getLogger(__name__)
 

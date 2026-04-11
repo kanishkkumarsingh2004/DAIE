@@ -206,7 +206,7 @@ class NodeRegistry:
         """Connect to DHT bootstrap nodes"""
         if not self._dht_server:
             return
-        
+
         nodes = []
         for node in bootstrap_nodes:
             try:
@@ -214,7 +214,7 @@ class NodeRegistry:
                 nodes.append((host, int(port)))
             except ValueError:
                 logger.warning(f"Invalid bootstrap node format: {node}. Expected host:port")
-        
+
         if nodes:
             await self._dht_server.bootstrap(nodes)
             logger.info(f"Bootstrapped DHT with {len(nodes)} nodes")
@@ -228,7 +228,7 @@ class NodeRegistry:
                         await self._publish_dht_node(
                             agent_id,
                             node_data.get("network_url", ""),
-                            node_data.get("capabilities", {})
+                            node_data.get("capabilities", {}),
                         )
                 await asyncio.sleep(600)  # Refresh every 10 minutes
             except asyncio.CancelledError:
@@ -365,7 +365,7 @@ class NodeRegistry:
             }
 
             await self._dht_server.set(agent_id, json.dumps(node_data))
-            
+
             # Index by capabilities for distributed search
             tools = capabilities.get("tools", [])
             for tool in tools:
@@ -636,7 +636,7 @@ class NodeRegistry:
             existing = await self._dht_server.get(cap_key)
             if not existing:
                 return []
-            
+
             agent_ids = json.loads(existing)
             return await self.discover_agents_dht(agent_ids)
         except Exception as e:
@@ -750,24 +750,26 @@ class NodeRegistry:
     def prune_nodes(self, threshold_seconds: float = 300.0):
         """
         Remove or mark nodes as inactive if they haven't been seen recently.
-        
+
         Args:
             threshold_seconds: Time in seconds before a node is considered inactive.
         """
         current_time = time.time()
         nodes_to_prune = []
-        
+
         for agent_id, node_data in self._nodes.items():
             last_seen = node_data.get("last_seen", 0)
             if current_time - last_seen > threshold_seconds:
                 nodes_to_prune.append(agent_id)
-        
+
         for agent_id in nodes_to_prune:
             # Instead of deleting, just mark as inactive to preserve history/topology
             if self._nodes[agent_id].get("status") != "inactive":
                 self._nodes[agent_id]["status"] = "inactive"
-                logger.info(f"Node {agent_id} marked as inactive (last seen {current_time - self._nodes[agent_id]['last_seen']:.1f}s ago)")
-        
+                logger.info(
+                    f"Node {agent_id} marked as inactive (last seen {current_time - self._nodes[agent_id]['last_seen']:.1f}s ago)"
+                )
+
         if nodes_to_prune:
             self._save_registry()
 

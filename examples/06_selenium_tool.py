@@ -56,7 +56,9 @@ async def main():
     # ──────────────────────────────────────────────
     print("\n[1] Basic Web Scraping - Getting page title and URL")
 
-    result = await agent.execute_task("Open https://example.com and tell me the page title and current URL")
+    result = await agent.execute_task(
+        "Open https://example.com and tell me the page title and current URL"
+    )
     print(f"    Result: {result}")
 
     # ──────────────────────────────────────────────
@@ -65,7 +67,8 @@ async def main():
     print("\n[2] Element Interaction - Finding and reading elements")
 
     result = await agent.execute_task(
-        "Go to https://example.com and find the main heading element. " "Tell me what text it contains."
+        "Go to https://example.com and find the main heading element. "
+        "Tell me what text it contains."
     )
     print(f"    Result: {result}")
 
@@ -75,7 +78,8 @@ async def main():
     print("\n[3] Screenshot Capture - Taking a screenshot of the page")
 
     result = await agent.execute_task(
-        "Navigate to https://example.com and take a screenshot. " "Save it as 'example_screenshot.png'"
+        "Navigate to https://example.com and take a screenshot. "
+        "Save it as 'example_screenshot.png'"
     )
     print(f"    Result: {result}")
 
@@ -85,7 +89,8 @@ async def main():
     print("\n[4] JavaScript Execution - Running custom JavaScript")
 
     result = await agent.execute_task(
-        "Go to https://example.com and execute JavaScript to get the " "page title. Return the result."
+        "Go to https://example.com and execute JavaScript to get the "
+        "page title. Return the result."
     )
     print(f"    Result: {result}")
 
@@ -146,7 +151,8 @@ async def main():
     print("\n[9] Data Extraction - Scraping structured data")
 
     result = await agent.execute_task(
-        "Go to https://httpbin.org/html and extract all the text content " "from the page. Return the main content."
+        "Go to https://httpbin.org/html and extract all the text content "
+        "from the page. Return the main content."
     )
     print(f"    Result: {result}")
 

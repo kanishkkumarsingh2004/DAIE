@@ -169,13 +169,15 @@ class TestDecentralizedAISystem:
     @patch("daie.core.system.CommunicationManager")
     @patch("daie.core.system.MemoryManager")
     @patch("daie.agents.Agent")
-    async def test_system_start_stop(self, mock_agent, mock_memory_manager, mock_comm_manager, mock_logger):
+    async def test_system_start_stop(
+        self, mock_agent, mock_memory_manager, mock_comm_manager, mock_logger
+    ):
         """Test system start and stop operations."""
         # Setup AsyncMocks for instances
         mock_comm_instance = mock_comm_manager.return_value
         mock_comm_instance.start = AsyncMock()
         mock_comm_instance.stop = AsyncMock()
-        
+
         mock_memory_instance = mock_memory_manager.return_value
         mock_memory_instance.start = Mock()
         mock_memory_instance.stop = Mock()

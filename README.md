@@ -11,26 +11,27 @@
 | Feature | DAIE | LangChain | CrewAI |
 |---------|------|-----------|--------|
 | **Offline-first** | ✅ Full Ollama support | ❌ Cloud-dependent | ❌ Cloud-dependent |
-| **P2P Networking** | ✅ Built-in | ❌ No | ❌ No |
-| **Agent Personas** | ✅ Gender, personality, behavior | ❌ Limited | ❌ Limited |
-| **Intelligent Routing** | ✅ LLM-based agent selection | ❌ No | ❌ No |
-| **File Transfer** | ✅ A2A secure transfer | ❌ No | ❌ No |
-| **Vision Support** | ✅ Camera + vision models | ⚠️ Limited | ❌ No |
-| **Streaming** | ✅ Library-level | ⚠️ Per-call | ❌ No |
-| **Custom Tools** | ✅ `@tool` decorator | ⚠️ Complex | ⚠️ Complex |
-| **Multi-Agent** | ✅ Parliament & Orchestrator | ⚠️ Chains | ✅ Crews |
-| **Dependencies** | 🪶 Ultra-lightweight | 📦📦📦 Heavy | 📦📦 Medium |
-| **Philosophy** | ✅ Zero-dependency core | ❌ Dependency heavy | ❌ Dependency heavy |
+| **P2P Networking** | ✅ Decentralized / No Central Server | ❌ No | ❌ No |
+| **Parallel Execution**| ✅ Smart Concurrency Controller | ⚠️ Complex/Manual | ⚠️ Basic |
+| **Persistent Memory** | ✅ SQLite/Vector + Shared Namespaces | ⚠️ Manual Storage | ⚠️ Limited |
+| **Peer Review** | ✅ MoA / Parliament Consensus | ❌ No | ❌ No |
+| **Intelligent Routing** | ✅ Content-aware Agent Selection | ❌ No | ❌ No |
+| **Temporal Context** | ✅ Native Date/Time Awareness | ❌ No | ❌ No |
+| **Agent Personas** | ✅ Gender, Personality, Behavior | ❌ Limited | ❌ Limited |
+| **File Transfer** | ✅ A2A Secure Network Transfer | ❌ No | ❌ No |
+| **Vision Support** | ✅ Camera + Vision Models | ⚠️ Limited | ❌ No |
+| **Streaming** | ✅ Library-level (tokens as they arrive) | ⚠️ Per-call | ❌ No |
+| **Dependencies** | 🪶 Ultra-lightweight (Zero-dep Core) | 📦📦📦 Heavy | 📦📦 Medium |
 
 **DAIE is for you if you want:**
-- 🏠 **Offline-first AI** — Run everything locally with Ollama, no cloud required
-- 🔗 **Decentralized agents** — Agents communicate directly over P2P networks
-- 🎭 **Human-like personas** — Configure gender, personality, and behavior traits
-- 🧠 **Intelligent routing** — LLM automatically selects the best agent for each message
-- 📁 **Secure file transfers** — Send files between agents with Base64 encoding
-- 👁️ **Vision capabilities** — Camera integration with vision models like Qwen-VL
-- ⚡ **Real-time streaming** — Tokens stream as they arrive, no buffering
-- 💬 **Pre-configured chat loops** — Ready-to-use chat loops for agents, nodes, orchestrators, and hybrid systems
+- 🏠 **Offline-first AI** — Run everything locally with Ollama/Llama.cpp, no API keys required.
+- 🔗 **Decentralized Intelligence** — Agents communicate directly over P2P networks; build a global "Living LLM" tapestry.
+- ⚡ **Parallel Efficiency** — True parallel agent execution with smart concurrency limits to protect your GPU/VRAM.
+- 🧠 **Collective Intelligence** — Shared persistent memory namespaces allow agent clusters to learn and evolve together.
+- 🏛️ **Unbreakable Reasoning** — Use the **Parliament Architecture** to pitch specialists against each other for peer-reviewed consensus.
+- 🎭 **Rich Personality** — Go beyond "helpful assistant" with deeply configured personas, traits, and behavioral guardrails.
+- 👁️ **Visual Awareness** — Direct camera integration and vision model support out of the box.
+- 💬 **Ready-to-Ship Loops** — Professional chat interfaces for individual agents, nodes, and hybrid multi-agent systems.
 
 ---
 
@@ -90,18 +91,27 @@
 
 ### 🤖 AI Agents
 - **ReAct agent loop** — LLM reasons → picks a tool → sees the result → iterates until it gives a final answer
-- **Parliament Architecture** — A "Mixture-of-Agents" peer-review mechanism where sub-agents independently answer, review each other without self-bias, and synthesize a mathematically robust consensus.
+- **Parliament Architecture** — A "Mixture-of-Agents" peer-review mechanism supporting configurable `max_review_rounds` and dynamic `TF-IDF` early stopping to reach mathematical Pydantic-enforced consensus.
+- **Distributed/P2P Parliament** — Parliament can span multiple physical nodes. Agents on different machines participate in deliberation via broadcast-based signaling.
+- **Hybrid Parliament Orchestration** — Synthesizes abstract high-level tasks via the parliament, dynamically pushing the resulting roadmap into an Orchestrator.
 - **Multi-Agent Orchestration** — Coordinate main agents and sub-agents for complex goals (e.g. Research Lab, Courtroom)
 - **Intelligent Agent Router** — LLM-based routing that automatically selects the best agent for each message based on content analysis
 - **Agent persona** — configure `gender`, `personality`, and `behavior` traits injected directly into the LLM prompt
 - **Per-agent LLM overrides** — each agent can have its own `temperature` and `max_tokens`
+- **Real-Time Temporal Awareness** — All agents have instant knowledge of current date, time, and timezone context via automatic prompt injection.
+- **Parallel Execution Layer** — Smart concurrency management via `ParallelExecutor` mapping native thread locks to cleanly parallelize local topology without hitting GPU/OOM faults.
+
+### 🧠 Persistent Memory
+- **Persistent Storage** — Support for `SQLiteStorage` backend, ensuring agent memories survive restarts.
+- **Shared Memory Namespaces** — Agents in an `Orchestrator` or `Parliament` can share a unified memory context for collective intelligence.
+- **Auto-Summarization** — Automatic condensation of episodic memories into long-term summaries using LLM to keep the working context lean.
+- **Memory Snapshots** — Manual `save_memory()` and `load_memory()` methods for versioned agent states.
 
 ### 🔍 RAG Systems
-- **Decentralized RAG** — Every agent can have its own unique knowledge base (TF-IDF retrieval)
-- **Document-based knowledge** — Load `.txt`, `.pdf`, `.md` files for context-aware responses
 
 ### ⚙️ Automation Tools
-- **Pre-built tools** — file system, HTTP API calls, Selenium Chrome browser automation
+- **Hardened Tools** — Secure sandbox-ready code execution, robust web search (DuckDuckGo + Tavily), and modern Playwright browser automation.
+- **Pre-built tools** — file system, HTTP API calls, SQLite/PostgreSQL Database, Selenium & Playwright browser automation.
 - **Custom tools** — decorate any function with `@tool` and it works identically to built-in tools
 - **A2A file transfer** — securely send files between agents over the network using Base64 encoding
 
@@ -152,12 +162,13 @@ For detailed documentation, see the [docs](docs/) folder:
 - [Chat Configs](docs/chat-configs.md) — Pre-configured chat loops for agents, nodes, orchestrators, and hybrid systems
 
 ### 🏗️ Architecture Patterns
-- **Parliament Pattern**: Strict peer-reviewed consensus engine dramatically reducing hallucination rates
-- **Node Architecture**: Distributed infrastructure for multi-location systems
-- **Orchestrator Pattern**: Hierarchical workflow coordination for complex tasks
-- **Hybrid Architecture**: Combine Node + Orchestrator for enterprise-scale systems
-- **HybridOrchestratorNode**: Simplified hybrid setup combining Node + Orchestrator in one class
-- **Agent Router**: LLM-based intelligent routing for optimal agent selection
+- **Parliament Pattern**: Strict peer-reviewed consensus engine with structural Pydantic outputs and dynamic early stopping, dramatically reducing hallucination rates.
+- **Node Architecture**: Distributed infrastructure for multi-location systems.
+- **Orchestrator Pattern**: Hierarchical workflow coordination for complex tasks.
+- **Hybrid Architecture**: Combine Node + Orchestrator for enterprise-scale systems.
+- **HybridOrchestratorNode**: Simplified hybrid setup combining Node + Orchestrator in one class.
+- **HybridParliamentOrchestrator**: Combines Parliament's theoretical strategic modeling natively with the Orchestrator's execution delegation.
+- **Agent Router**: LLM-based intelligent routing for optimal agent selection.
 
 ### 🛠️ Developer Tools
 - [CLI](docs/cli.md) — Command-line interface for agent and system management
@@ -218,13 +229,13 @@ What would you like to do? 😊
 
 You: Search for weather in San Francisco
 
-LUNA: 🔍 Let me search that for you!
+LUNA: 🌍 Connecting to the globe! Let me find that for you.
 
-[Using tool: selenium_chrome]
-[Opening browser...]
-[Searching: "weather in San Francisco"]
+[Using tool: web_search]
+[Querying DuckDuckGo & Tavily fallback...]
+[Search completed in 0.8s]
 
-LUNA: 🌁 Found it! San Francisco is currently:
+LUNA: 🌁 Here's the current situation in San Francisco:
 - Temperature: 62°F (17°C)
 - Conditions: Partly cloudy
 - Humidity: 75%
@@ -483,7 +494,49 @@ async def main():
 asyncio.run(main())
 ```
 
-### 7. Full-Power One-File Demo (Orchestrator + Tools + Guardrails)
+### 7. Parliament Deliberation
+
+The `Parliament` allows you to pitch specialists against one another to peer-review answers iteratively until they generate a verified architectural consensus string (halting early to save cost if they naturally agree using TF-IDF checks).
+
+```python
+from daie import Agent, AgentConfig
+from daie.agents import Parliament, AgentRole
+from daie.chat import ParliamentChatConfig
+
+coder = Agent(config=AgentConfig(name="Coder", role=AgentRole.SOFTWARE_ENGINEER))
+auditor = Agent(config=AgentConfig(name="Security", role=AgentRole.SECURITY_AUDITOR))
+manager = Agent(config=AgentConfig(name="Manager", role=AgentRole.GENERAL_PURPOSE))
+
+# Construct a parliament mapping maximum 3 review iterations 
+parliament = Parliament(sub_agents=[coder, auditor, manager], max_review_rounds=3)
+
+# Start an interactive discussion cleanly using standard loop formats
+config = ParliamentChatConfig(parliament=parliament)
+config.run()
+```
+
+### 8. Hybrid Parliament Orchestration
+
+Combines deep abstract debates into actual execution via the `HybridParliamentOrchestrator`. Sub-agents outline a roadmap, and the orchestrator dynamically delegates task nodes securely.
+
+```python
+from daie.agents import OrchestratorAgent, HybridParliamentOrchestrator
+from daie.chat import HybridParliamentChatConfig
+
+# Re-use our abstract parliament setup from above
+orchestrator = OrchestratorAgent()
+
+hybrid_pipeline = HybridParliamentOrchestrator(
+    parliament=parliament,
+    orchestrator=orchestrator,
+    min_confidence_threshold=60.0  # Failsafe abort for terrible planning protocols
+)
+
+config = HybridParliamentChatConfig(hybrid_pipeline=hybrid_pipeline)
+config.run()
+```
+
+### 9. Full-Power One-File Demo (Orchestrator + Tools + Guardrails)
 
 Copy this into a single file (e.g., `demo.py`) and run it to see the full architecture in action.
 
@@ -553,7 +606,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 8. Chat Loop Config (Pre-configured Chat Loops)
+### 10. Chat Loop Config (Pre-configured Chat Loops)
 
 The `daie.chat` module provides pre-configured chat loop setups so you don't need to write the full boilerplate code. Simply configure and run!
 
@@ -604,6 +657,9 @@ config = AgentConfig(
     gender="female",                             # Literal["male", "female"] or None
     personality="sarcastic, witty, very direct",  # free-form string
     behavior="always starts sentences with Hmm",  # free-form string
+
+    # Temporal Context
+    include_datetime=True,               # Inject current date/time context
 
     # Per-agent LLM overrides (take priority over global set_llm settings)
     temperature=0.7,
@@ -670,14 +726,17 @@ When `stream=True`, `send_message()` prints tokens as they arrive and returns th
 
 | Tool | Description |
 |---|---|
-| `FileManagerTool` | Create, read, write, delete, copy, move files and directories |
-| `APICallTool` | HTTP GET / POST / PUT / DELETE / PATCH requests |
-| `HTTPGetTool` | Simplified HTTP GET |
-| `HTTPPostTool` | Simplified HTTP POST |
-| `SeleniumChromeTool` | Full Chrome browser automation |
-| `A2ASendFileTool` | Transfer files securely between agents over P2P network (import from `daie.tools.a2a_file`) |
-| `A2ASendMessageTool` | Send messages between agents (import from `daie.tools.a2a`) |
-| `A2ADelegateTaskTool` | Delegate tasks to other agents via ACP (import from `daie.tools.a2a`) |
+| `FileManagerTool` | Complete file and directory manipulation |
+| `APICallTool` | Comprehensive HTTP requests (GET/POST/etc) |
+| `WebSearchTool` | Robust web search (DuckDuckGo + Tavily fallback) |
+| `CodeSandboxTool` | Secure Python code execution in restricted context |
+| `DatabaseTool` | Execute SQL queries against SQLite or PostgreSQL |
+| `PlaywrightBrowserTool`| Modern, fast browser automation (Highly Recommended) |
+| `SeleniumChromeTool` | Legacy browser automation with deep Chrome support |
+| `A2ASendFileTool` | Transfer files securely between agents over P2P network |
+| `A2ASendMessageTool` | Send messages between agents |
+| `A2ADelegateTaskTool` | Delegate tasks to other agents via ACP |
+| `CalendarEmailTool` | Mock interactions for schedule and mail management |
 
 ### FileManagerTool actions
 
@@ -890,9 +949,9 @@ daie core logs
 src/daie/
 ├── agents/         Agent, AgentConfig, AgentRole, AgentMessage, Orchestrator, AgentRouter
 ├── core/           LLMManager, LLMConfig, LLMType, set_llm(), get_llm(), DecentralizedAISystem, Node
-├── tools/          Tool base class, @tool decorator, FileManagerTool,
-│                   APICallTool, HTTPGetTool, HTTPPostTool, SeleniumChromeTool, ToolRegistry,
-│                   A2ASendFileTool, A2ASendMessageTool, A2ADelegateTaskTool
+├── tools/          Tool base class, @tool decorator, FileManagerTool, WebSearchTool,
+│                   CodeSandboxTool, DatabaseTool, PlaywrightBrowserTool, APICallTool,
+│                   A2ASendFileTool, A2ASendMessageTool, A2ADelegateTaskTool, VisionTool
 ├── utils/          AudioManager, CameraManager, encryption, logging, serialization
 ├── communication/  CommunicationManager (in-memory + WebSocket P2P)
 ├── registry/       NodeRegistry (decentralized agent discovery)
@@ -1241,7 +1300,7 @@ DAIE is a mature, production-ready framework with comprehensive features:
 - **Intelligent Routing**: LLM-based agent selection with AgentRouter
 - **P2P Networking**: Full peer-to-peer communication with authentication
 - **RAG System**: TF-IDF based retrieval with per-agent knowledge bases
-- **Tools**: 8+ pre-built tools with custom `@tool` decorator support
+- **Tools**: 12+ pre-built tools with custom `@tool` decorator support
 - **Memory Management**: Working, semantic, and episodic memory systems
 - **CLI**: Complete command-line interface for agent and system management
 - **Documentation**: Comprehensive docs with examples and guides
@@ -1253,10 +1312,10 @@ DAIE is a mature, production-ready framework with comprehensive features:
 - **Example Tests**: All examples have corresponding test coverage
 
 ### 🔧 Recent Improvements
-- Enhanced Node vs Orchestrator documentation with 100+ use cases
-- Added decision matrix for architecture selection
-- Expanded "When to Use" guides with detailed scenarios
-- Improved error handling and logging throughout
+- **Zero-Drift Temporal Awareness**: Solved frozen-in-time hallucinations via mandatory date/time injection for all agents.
+- **Tool Hardening**: Added sandbox-ready code execution, modern Playwright support, and SQL database interactions.
+- **Communication Stabilization**: Implemented inbound/outbound rate limiting for high-reliability NATS delivery.
+- **Improved Use Cases**: Added decision matrix and 100+ architecture scenarios to documentation.
 
 ## 🤝 Community & Support
 
@@ -1324,7 +1383,7 @@ pytest tests/
 - **Examples**: 10+
 - **Documentation Pages**: 15+
 - **Supported LLM Providers**: 6 (Ollama, OpenAI, Anthropic, Google, Azure, OpenRouter)
-- **Pre-built Tools**: 8+
+- **Pre-built Tools**: 12+
 - **Architecture Patterns**: 3 (Node, Orchestrator, Hybrid)
 - **Chat Loop Configs**: 4 (ChatLoopConfig, NodeChatConfig, OrchestratorChatConfig, HybridChatConfig)
 

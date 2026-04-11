@@ -21,8 +21,7 @@ from daie.agents.agent import Agent
 from daie.agents.config import AgentConfig, AgentRole
 from daie.agents.exceptions import ToolExecutionError, ToolNotFoundError
 from daie.tools.file_manager import FileManagerTool
-from daie.tools.tool import (Tool, ToolCategory, ToolMetadata, ToolParameter,
-                             tool)
+from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter, tool
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -44,7 +43,11 @@ class EchoTool(Tool):
                 name="echo",
                 description="Echo the input text back",
                 category=ToolCategory.GENERAL,
-                parameters=[ToolParameter(name="text", type="string", description="Text to echo", required=True)],
+                parameters=[
+                    ToolParameter(
+                        name="text", type="string", description="Text to echo", required=True
+                    )
+                ],
             )
         )
 
@@ -81,7 +84,9 @@ class TestToolsBlock:
     def test_description_truncated_at_120(self):
         class LongDescTool(Tool):
             def __init__(self):
-                super().__init__(ToolMetadata(name="long", description="x" * 200, category=ToolCategory.GENERAL))
+                super().__init__(
+                    ToolMetadata(name="long", description="x" * 200, category=ToolCategory.GENERAL)
+                )
 
             async def _execute(self, p):
                 return {}
@@ -194,7 +199,11 @@ class TestRunTool:
     async def test_run_tool_exception_raises_tool_execution_error(self):
         class BrokenTool(Tool):
             def __init__(self):
-                super().__init__(ToolMetadata(name="broken", description="always fails", category=ToolCategory.GENERAL))
+                super().__init__(
+                    ToolMetadata(
+                        name="broken", description="always fails", category=ToolCategory.GENERAL
+                    )
+                )
 
             async def _execute(self, p):
                 raise RuntimeError("boom")

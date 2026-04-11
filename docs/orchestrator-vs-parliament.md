@@ -6,19 +6,21 @@ Understanding when to use which is critical for building effective multi-agent s
 
 ## At a Glance
 
-| Feature | Orchestrator | Parliament |
-|---------|--------------|------------|
-| **Core Paradigm** | Hierarchical Task Execution | Peer-to-Peer Deliberation ("Mixture-of-Agents") |
-| **Primary Goal** | Breaking down and executing multi-step workflows | Maximizing accuracy and drastically reducing hallucinations |
-| **Input Routing** | Main Agent analyzes prompt → creates distinct sub-prompts | Identical user prompt is routed to all agents simultaneously |
-| **Team Structure** | Main Agent (Coordinator) + Sub-Agents (Workers) | Equal Peers (Specialists) + 1 Speaker (Synthesizer) |
-| **Execution Flow** | Dynamic (Main Agent decides who does what, and when) | Strictly Staged: 1. Generate → 2. Peer Review → 3. Synthesize |
-| **Agent Interactions**| Top-down delegation via explicitly defined A2A logic tools | Horizontal cross-peer review (Agents critique rival answers) |
-| **Output Assembly** | Main Agent merges distinct pieces together to form the answer | Speaker fuses all data and critiques into a unified consensus |
-| **Prompt Injection** | Adds hierarchical team mechanics (e.g., context rules, roles) | Retains pure domain specialization (e.g., Economist, Lawyer) |
-| **Latency Profile** | Variable (depends entirely on how the Main Agent delegates) | Higher (requires waiting on full generation and review rounds) |
-| **Token Consumption** | Moderate (Agents only process their assigned sub-task payload) | Heavy (All agents must deeply read all other agents' initial responses) |
-| **Ideal Use Cases** | Automated labs, procedural pipelines, structured simulations | Complex fact-checking, ethical/legal deliberation, analytical consensus |
+| Feature | Orchestrator | Parliament | Hybrid Pipeline |
+|---------|--------------|------------|-----------------|
+| **Core Paradigm** | Hierarchical Task Execution | Peer-to-Peer Deliberation | Deliberation → Execution |
+| **Primary Goal** | Breaking down and executing multi-step workflows | Maximizing accuracy and drastically reducing hallucinations | Producing a highly verified plan and natively executing it |
+| **Input Routing** | Main Agent analyzes prompt → creates distinct sub-prompts | Identical user prompt is routed to all agents simultaneously | Parliament builds roadmap → Orchestrator executes it |
+| **Team Structure** | Main Agent (Coordinator) + Sub-Agents (Workers) | Equal Peers (Specialists) + 1 Speaker (Synthesizer) | Assembly (Planners) + Orchestrator (Manager) + Sub-Agents (Workers) |
+| **Execution Flow** | Dynamic (Main Agent decides who does what, and when) | Strictly Staged: 1. Generate → 2. Peer Review → 3. Synthesize | Sequential: 1. Parliament plans → 2. Minimum Confidence Check → 3. Orchestration phase |
+| **Agent Interactions**| Top-down delegation via explicitly defined A2A logic tools | Horizontal cross-peer review (Agents critique rival answers) | Assembly debates horizontally; Orchestrator delegates vertically |
+| **Output Assembly** | Main Agent merges distinct pieces together to form the answer | Speaker fuses all data and critiques into a unified consensus | Orchestrator abstracts final tool outputs bound by Parliament rules |
+| **Prompt Injection** | Adds hierarchical team mechanics (e.g., context rules, roles) | Retains pure domain specialization (e.g., Economist, Lawyer) | Blends abstract strategic theory with concrete delegation limits |
+| **Latency Profile** | Variable (depends entirely on how the Main Agent delegates) | Higher (requires waiting on full generation and review rounds) | Highest (Incurs both full debate latency and subsequent execution latency) |
+| **Token Consumption** | Moderate (Agents only process their assigned sub-task payload) | Heavy (All agents must deeply read all other agents' initial responses) | Maximum (Extremely heavy context windows mapped across multiple topologies) |
+| **Ideal Use Cases** | Automated labs, procedural pipelines, structured simulations | Complex fact-checking, ethical/legal deliberation | Abstract organizational goals demanding extreme verified reliability before autonomous execution |
+| **Persistent Memory** | Supported (SQLite + Shared Namespace) | Supported (SQLite + Shared Namespace) | Supported (Full Cross-Phase Persistence) |
+| **Distributed (P2P)** | Supported (Individual agent nodes) | Supported (Broadcast-based deliberation) | Supported (Multi-node planning and execution) |
 
 ---
 
@@ -59,6 +61,24 @@ The `Parliament` uses a horizontal, decentralized approach often referred to as 
 
 - Use an **Orchestrator** when you need a team to **divide and conquer** (doing different things and combining them).
 - Use a **Parliament** when you need a team of experts to **peer-review and converge** (looking at the same thing to find the singular most accurate truth).
+
+---
+
+## The Hybrid Pipeline: Deliberate & Delegate
+
+The `HybridParliamentOrchestrator` bridges the gap between deep abstract thought and raw procedural execution. It is the heaviest, most powerful topology DAIE supports.
+
+### How it Works:
+1. **Strategic Deliberation:** The Parliament assembly receives a prompt, debates the best approach over multiple iterations, and synthesizes a high-confidence consensus **Roadmap**.
+2. **Safety Barrier Check:** The pipeline checks the `consensus_confidence`. If it drops below `min_confidence_threshold` (e.g., 60%), the entire pipeline aborts to protect your API budget and system state from acting on hallucinations.
+3. **Execution Context:** The system initializes a **Shared Memory Namespace**. Both the Parliament planners and the Orchestrator executors write to and read from this shared persistent SQLite pool, ensuring the executors have full context of the "why" behind the roadmap.
+4. **Task Delegation:** If verified, the exact roadmap output is pushed directly down to an `OrchestratorAgent`. The Orchestrator breaks that roadmap down step-by-step and delegates sub-agents with actual tools (e.g., File, Browser, API) to build the solution.
+5. **Distributed Handoff:** The pipeline supports **P2P operation**, where the Parliament can run on one set of nodes and the Orchestrator on another, coordinated via the `CommunicationManager`.
+
+**Best For:**
+- Highly abstract enterprise tasks requiring heavy up-front planning before writing code/data.
+- Enforcing verifiable logic safety barriers before allowing agents to execute mutating tools natively.
+- Example: *"Analyze the Q3 macroeconomic reports and write an optimized real-estate investment python script predicting next quarter."* (Parliament reads the Q3 reports to figure out the formula; Orchestrator builds the Python script).
 
 ---
 

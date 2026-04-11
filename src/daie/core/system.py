@@ -258,7 +258,7 @@ class DecentralizedAISystem:
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt received")
         finally:
-            if loop.is_running():
+            if not loop.is_closed():
                 loop.run_until_complete(self.stop())
 
     def _create_pid_file(self):

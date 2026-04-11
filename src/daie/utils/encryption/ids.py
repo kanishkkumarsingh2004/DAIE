@@ -4,10 +4,8 @@ In-house ID generation utilities, including UUIDv7.
 
 import os
 import time
-import random
 import string
 import secrets
-from typing import Optional
 
 
 def uuid7() -> str:

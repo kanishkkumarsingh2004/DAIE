@@ -12,7 +12,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from daie.rag.document_loader import Document
 
@@ -95,7 +95,12 @@ class FixedSizeChunker(ChunkingStrategy):
             if chunk_text:
                 meta = {**base_meta, "chunk_index": chunk_idx}
                 chunks.append(
-                    Chunk(text=chunk_text, source=document.source, chunk_index=chunk_idx, metadata=meta)
+                    Chunk(
+                        text=chunk_text,
+                        source=document.source,
+                        chunk_index=chunk_idx,
+                        metadata=meta,
+                    )
                 )
                 chunk_idx += 1
 
@@ -154,7 +159,12 @@ class SentenceChunker(ChunkingStrategy):
             if chunk_text:
                 meta = {**base_meta, "chunk_index": chunk_idx}
                 chunks.append(
-                    Chunk(text=chunk_text, source=document.source, chunk_index=chunk_idx, metadata=meta)
+                    Chunk(
+                        text=chunk_text,
+                        source=document.source,
+                        chunk_index=chunk_idx,
+                        metadata=meta,
+                    )
                 )
                 chunk_idx += 1
 
@@ -305,7 +315,10 @@ class SemanticChunker(ChunkingStrategy):
             current_text = " ".join(current_group)
 
             # Split if similarity drops OR chunk size exceeded
-            if sim < self.similarity_threshold or len(current_text) + len(sentences[i]) > self.chunk_size:
+            if (
+                sim < self.similarity_threshold
+                or len(current_text) + len(sentences[i]) > self.chunk_size
+            ):
                 if current_text.strip():
                     meta = {**base_meta, "chunk_index": chunk_idx}
                     chunks.append(
@@ -375,7 +388,9 @@ def create_chunker(
     if strategy == "fixed":
         return cls(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     elif strategy == "sentence":
-        return cls(chunk_size=chunk_size, chunk_overlap_sentences=kwargs.get("chunk_overlap_sentences", 1))
+        return cls(
+            chunk_size=chunk_size, chunk_overlap_sentences=kwargs.get("chunk_overlap_sentences", 1)
+        )
     elif strategy == "recursive":
         return cls(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     elif strategy == "semantic":

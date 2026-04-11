@@ -99,7 +99,9 @@ class TestMemoryManager:
         memory_manager.initialize_agent_memory("agent1")
 
         # Store different types of memories
-        memory_manager.store_memory("agent1", "Working memory 1", "working", tags=["test", "important"])
+        memory_manager.store_memory(
+            "agent1", "Working memory 1", "working", tags=["test", "important"]
+        )
         memory_manager.store_memory("agent1", "Semantic memory 1", "semantic", tags=["knowledge"])
         memory_manager.store_memory("agent1", "Episodic memory 1", "episodic", tags=["event"])
         memory_manager.store_memory("agent1", "Working memory 2", "working", tags=["test"])
@@ -180,8 +182,12 @@ class TestMemoryManager:
         """Test search_similar with binary storage (text matching fallback)."""
         memory_manager.initialize_agent_memory("agent1")
 
-        memory_manager.store_memory("agent1", "Python programming language", "semantic", tags=["programming"])
-        memory_manager.store_memory("agent1", "Java programming language", "semantic", tags=["programming"])
+        memory_manager.store_memory(
+            "agent1", "Python programming language", "semantic", tags=["programming"]
+        )
+        memory_manager.store_memory(
+            "agent1", "Java programming language", "semantic", tags=["programming"]
+        )
         memory_manager.store_memory("agent1", "Cooking recipes", "semantic", tags=["cooking"])
 
         # Search for programming-related memories

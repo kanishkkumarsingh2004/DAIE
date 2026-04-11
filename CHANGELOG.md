@@ -1,6 +1,21 @@
-# Changelog
-
 All notable changes to the Decentralized AI Ecosystem (DAIE) library will be documented in this file.
+
+## [1.0.6] - 2026-04-12
+### Added
+- **Parliament Multi-Agent Architecture**: Deliberative consensus loops allowing agent teams to "debate" and reach democratic or peer-reviewed conclusions.
+- **Distributed Deliberation**: Support for running a single Parliament across multiple physical P2P nodes via `CommunicationManager` broadcasting.
+- **Persistent SQLite Storage**: Concurrent-safe disk persistence for agent memory (episodic and semantic) using SQLite with WAL (Write-Ahead Logging).
+- **Hardened Tool Ecosystem**:
+    - **Safe Code Execution**: Native async sandbox with POSIX resource limits (`RLIMIT_CPU`, `RLIMIT_AS`) and blocked dangerous imports.
+    - **Advanced Playwright**: Intelligent HTML-to-Markdown extraction while stripping non-content elements.
+    - **Schema Discovery**: Database tools can now self-inspect table schemas for autonomous SQL correction.
+    - **Async-First Search**: Web search tool refactored for native async with robust Tavily fallback and User-Agent rotation.
+- **Parallel Executor**: New core utility to run any number of agents or tasks in parallel with managed concurrency thresholds.
+
+### Changed
+- Refactored `CodeSandboxTool` to use `asyncio.create_subprocess_exec` for superior performance and non-blocking I/O.
+- Enhanced `CommunicationManager` with agent-specific broadcast handlers for distributed state synchronization.
+- Updated `Agent.stop()` to ensure ALL sub-components (Memory, Tools, Comm) are shut down cleanly.
 
 ## [1.0.5] - 2026-04-03
 ### Fixed — Production Stability Release

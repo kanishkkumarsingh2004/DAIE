@@ -128,7 +128,7 @@ async def main():
 
     # Display status
     status = hybrid.get_status()
-    print(f"\n[*] System Status:")
+    print("\n[*] System Status:")
     print(f"  - Node: {status['node_name']} (ID: {status['node_id']})")
     print(f"  - Context: {status['context_name']}")
     print(f"  - Total Agents: {status['total_agents']}")
@@ -165,7 +165,7 @@ async def main():
             # Handle status command
             if user_input.lower() == "status":
                 status = hybrid.get_status()
-                print(f"\n\033[93mSystem Status:\033[0m")
+                print("\n\033[93mSystem Status:\033[0m")
                 print(f"  Running: {status['is_running']}")
                 print(f"  Agents: {status['total_agents']}")
                 print(f"  Resources: {status['resources']}")
@@ -174,23 +174,23 @@ async def main():
             # Handle route command
             if user_input.lower().startswith("route "):
                 message = user_input[6:].strip()
-                print(f"\n\033[92mRouting message to best agent...\033[0m")
+                print("\n\033[92mRouting message to best agent...\033[0m")
                 response = await hybrid.route_message(message)
-                print(f"\n\033[93mResponse:\033[0m")
+                print("\n\033[93mResponse:\033[0m")
                 print(f"{response}\n")
                 continue
 
             # Handle collab command
             if user_input.lower().startswith("collab "):
                 task = user_input[7:].strip()
-                print(f"\n\033[92mExecuting collaborative task...\033[0m")
+                print("\n\033[92mExecuting collaborative task...\033[0m")
                 response = await hybrid.execute_collaborative_task(task)
-                print(f"\n\033[93mCollaborative Response:\033[0m")
+                print("\n\033[93mCollaborative Response:\033[0m")
                 print(f"{response}\n")
                 continue
 
             # Default: execute task via orchestrator
-            print(f"\n\033[92mProfessor is orchestrating the task...\033[0m")
+            print("\n\033[92mProfessor is orchestrating the task...\033[0m")
             result = await hybrid.execute_task(user_input)
 
             # Extract answer if it still looks like JSON
@@ -204,7 +204,7 @@ async def main():
                 except:
                     pass
 
-            print(f"\n\033[93mFinal Answer from Professor:\033[0m")
+            print("\n\033[93mFinal Answer from Professor:\033[0m")
             print(f"{final_display}\n")
 
             print("-" * 30 + "\n")

@@ -77,7 +77,9 @@ async def main():
     # 4. Start Orchestrator
     print("[*] Initializing classroom environment...")
     await classroom.start()
-    print("[+] Classroom is ready! Teacher: Professor_AI, Students: Math_Student, Research_Student\n")
+    print(
+        "[+] Classroom is ready! Teacher: Professor_AI, Students: Math_Student, Research_Student\n"
+    )
 
     # 5. Chat Loop
     while True:
@@ -106,7 +108,7 @@ async def main():
                 except:
                     pass
 
-            print(f"\n\033[93mFinal Answer from Professor_AI:\033[0m")
+            print("\n\033[93mFinal Answer from Professor_AI:\033[0m")
             print(f"{final_display}\n")
 
             print("-" * 30 + "\n")

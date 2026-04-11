@@ -163,11 +163,11 @@ async def listen_for_user_input(agent: Agent, logger: logging.Logger):
 
             if isinstance(result, dict) and "success" in result:
                 # Tool execution result
-                print(f"\nTool result:")
+                print("\nTool result:")
                 if result.get("success"):
-                    print(f"Success!")
+                    print("Success!")
                     if "contents" in result:
-                        print(f"Files in directory:")
+                        print("Files in directory:")
                         for item in result.get("contents", []):
                             print(f"  - {item['name']}")
                     elif "path" in result:

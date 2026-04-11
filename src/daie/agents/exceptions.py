@@ -30,9 +30,7 @@ class ToolNotFoundError(AgentError):
         self.tool_name = tool_name
         self.available_tools = available_tools or []
         tools_str = ", ".join(self.available_tools) if self.available_tools else "(none)"
-        super().__init__(
-            f"Tool '{tool_name}' not found. Available tools: {tools_str}"
-        )
+        super().__init__(f"Tool '{tool_name}' not found. Available tools: {tools_str}")
 
 
 class ReActLoopError(AgentError):
@@ -49,9 +47,7 @@ class TokenLimitExceeded(AgentError):
     def __init__(self, used_tokens: int, max_tokens: int):
         self.used_tokens = used_tokens
         self.max_tokens = max_tokens
-        super().__init__(
-            f"Token limit exceeded: {used_tokens} used, {max_tokens} allowed"
-        )
+        super().__init__(f"Token limit exceeded: {used_tokens} used, {max_tokens} allowed")
 
 
 class ToolCallLimitExceeded(AgentError):
@@ -60,9 +56,7 @@ class ToolCallLimitExceeded(AgentError):
     def __init__(self, used_calls: int, max_calls: int):
         self.used_calls = used_calls
         self.max_calls = max_calls
-        super().__init__(
-            f"Tool call limit exceeded: {used_calls} used, {max_calls} allowed"
-        )
+        super().__init__(f"Tool call limit exceeded: {used_calls} used, {max_calls} allowed")
 
 
 class AgentNotRunningError(AgentError):

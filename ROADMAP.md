@@ -21,18 +21,24 @@ Welcome to the project roadmap for the Decentralized AI Ecosystem (DAIE). This d
 *   **Multi-Modal Perception**: Introduced Vision tooling (e.g., `VisionAnalyzeTool`) for seamless multi-modal reasoning.
 *   **Observability & Hardening**: Native Prometheus `MetricsServer` hooks, context tracing, and rate-limiting to protect nodes from spam endpoints.
 
+### Phase 4: Advanced Coordination & Persistence
+*   **Parliament Architecture**: Peer-reviewed consensus deliberation with consensus voting and conflict resolution.
+*   **Distributed Deliberation**: True P2P Parliament support allowing agents on different physical nodes to join same-session deliberation loops.
+*   **Persistent SQLite Storage**: Concurrent-safe disk storage with Write-Ahead Logging (WAL) and Shared Memory Namespaces for team context persistence.
+*   **Hardened Tool Ecosystem**: Production-ready tools with native async execution, secure sandboxed code execution, and intelligent web/DB schema discovery.
+
 ---
 
-## 🟡 Phase 4: Ecosystem Expansion & Deployment (Current)
+## 🟡 Phase 5: Ecosystem Expansion & UX (Current)
 
-*   [ ] **Advanced Tool Selection**: Context-aware Code Execution Sandboxing, integrated Web Search, and generic API interaction proxies.
-*   [ ] **Multi-Node Cluster Benchmarks**: Final validation of swarm behaviors using 5-10 independently deployed nodes acting simultaneously.
 *   [ ] **Dashboard UI**: Develop an administrative web interface to visualize DHT node topology, message throughput, and agent task states visually.
 *   [ ] **Vector RAG Refinement**: Extend the RAG engine beyond simple embeddings to handle complex graph-based context lookups for deeply integrated agent knowledge.
+*   [ ] **Multi-Node Cluster Benchmarks**: Final validation of swarm behaviors using 5-10 independently deployed nodes acting simultaneously.
+*   [ ] **Agent Router Improvements**: Enhancing the dynamic selection of agents based on real-time node availability and capability scoring.
 
 ---
 
-## 🔴 Phase 5: Open Governance & Maturity (Future Focus)
+## 🔴 Phase 6: Open Governance & Maturity (Future Focus)
 
 *   [ ] **Incentive Layer (Web3 Optional)**: Designing an abstraction layer to potentially allow nodes to be rewarded cryptographically for donating compute power (LLM inference) to the ecosystem.
 *   [ ] **Cross-Framework Bridges**: Creating zero-configuration compatibility layers for existing LangChain or AutoGen communities to plug agents directly into the DAIE swarm.

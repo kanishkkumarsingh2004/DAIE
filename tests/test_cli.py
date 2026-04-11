@@ -14,13 +14,14 @@ from daie.cli.main import cli
 
 class CliRunner:
     """Helper to test argparse-based CLI."""
+
     def invoke(self, app_func, args=None):
         if args is None:
             args = []
-        
+
         stdout = io.StringIO()
         # Mock sys.argv for argparse.parse_args()
-        with patch.object(sys, 'argv', ['daie'] + args):
+        with patch.object(sys, "argv", ["daie"] + args):
             with redirect_stdout(stdout):
                 try:
                     app_func()
@@ -29,7 +30,7 @@ class CliRunner:
                     exit_code = e.code if e.code is not None else 0
                 except Exception:
                     exit_code = 1
-        
+
         return Mock(exit_code=exit_code, output=stdout.getvalue())
 
 
@@ -53,7 +54,7 @@ class TestCLI:
 
         mock_instance = Mock()
         mock_system.return_value = mock_instance
-        
+
         # Patch read_pid to return None (not running)
         with patch("daie.cli.core.read_pid", return_value=None):
             result = runner.invoke(cli, ["core", "start"])

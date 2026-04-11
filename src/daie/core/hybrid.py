@@ -729,7 +729,8 @@ class MultiNodeHybridSystem:
         child_node = self.get_node(child_node_id)
 
         parent_node.remove_child_hybrid_node(child_node_id)
-        child_node.set_parent_hybrid_node(None)
+        child_node._parent_hybrid_node_id = None
+        child_node.node._parent_node_id = None
 
         logger.info(
             f"Parent-child relationship between '{parent_node_id}' and '{child_node_id}' removed"

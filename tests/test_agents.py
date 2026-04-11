@@ -205,7 +205,9 @@ class TestAgent:
                 tool_registry=Mock(),
             )
 
-            result = await agent.execute_task({"name": "test-tool", "params": {"text": "test input"}})
+            result = await agent.execute_task(
+                {"name": "test-tool", "params": {"text": "test input"}}
+            )
 
             assert isinstance(result, dict)
             assert "result" in result

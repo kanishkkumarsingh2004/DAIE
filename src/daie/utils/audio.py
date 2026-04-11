@@ -266,7 +266,7 @@ class AudioManager:
             # Play audio data in chunks
             chunk_size = min(1024, len(audio_data))
             for i in range(0, len(audio_data), chunk_size):
-                chunk = audio_data[i : i + chunk_size]
+                chunk = audio_data[i: i + chunk_size]
                 self.output_stream.write(chunk)
 
             logger.info("Audio playback completed")

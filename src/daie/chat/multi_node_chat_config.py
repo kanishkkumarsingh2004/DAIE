@@ -216,7 +216,7 @@ class MultiNodeChatConfig:
                     status = self.system.get_system_status()
                     for node_id in status["nodes"].keys():
                         if user_input.lower().startswith(f"{node_id} "):
-                            task = user_input[len(node_id) + 1 :].strip()
+                            task = user_input[len(node_id) + 1:].strip()
                             print(f"\n\033[92mExecuting on {node_id}...\033[0m")
                             result = await self.system.execute_task(node_id, task)
                             # Always print — execute_task never streams

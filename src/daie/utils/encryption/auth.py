@@ -4,7 +4,6 @@ Authentication and security-related utility functions.
 
 import re
 import os
-from typing import Optional
 
 
 def generate_salt(length: int = 16) -> bytes:

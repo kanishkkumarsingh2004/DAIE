@@ -3,8 +3,6 @@ Lightweight console utilities using ANSI escape codes
 Replaces rich dependency
 """
 
-import sys
-
 
 class Console:
     """Simple console formatter"""

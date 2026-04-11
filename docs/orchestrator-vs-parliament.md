@@ -6,7 +6,7 @@ Understanding when to use which is critical for building effective multi-agent s
 
 ## At a Glance
 
-| Feature | Orchestrator | Parliament | Hybrid Pipeline |
+| Feature | [Orchestrator](orchestrator.md) | [Parliament](parliament.md) | [Hybrid Pipeline](hybrid-pipeline.md) |
 |---------|--------------|------------|-----------------|
 | **Core Paradigm** | Hierarchical Task Execution | Peer-to-Peer Deliberation | Deliberation → Execution |
 | **Primary Goal** | Breaking down and executing multi-step workflows | Maximizing accuracy and drastically reducing hallucinations | Producing a highly verified plan and natively executing it |
@@ -64,21 +64,13 @@ The `Parliament` uses a horizontal, decentralized approach often referred to as 
 
 ---
 
-## The Hybrid Pipeline: Deliberate & Delegate
+## The Hybrid Pipeline
 
 The `HybridParliamentOrchestrator` bridges the gap between deep abstract thought and raw procedural execution. It is the heaviest, most powerful topology DAIE supports.
 
-### How it Works:
-1. **Strategic Deliberation:** The Parliament assembly receives a prompt, debates the best approach over multiple iterations, and synthesizes a high-confidence consensus **Roadmap**.
-2. **Safety Barrier Check:** The pipeline checks the `consensus_confidence`. If it drops below `min_confidence_threshold` (e.g., 60%), the entire pipeline aborts to protect your API budget and system state from acting on hallucinations.
-3. **Execution Context:** The system initializes a **Shared Memory Namespace**. Both the Parliament planners and the Orchestrator executors write to and read from this shared persistent SQLite pool, ensuring the executors have full context of the "why" behind the roadmap.
-4. **Task Delegation:** If verified, the exact roadmap output is pushed directly down to an `OrchestratorAgent`. The Orchestrator breaks that roadmap down step-by-step and delegates sub-agents with actual tools (e.g., File, Browser, API) to build the solution.
-5. **Distributed Handoff:** The pipeline supports **P2P operation**, where the Parliament can run on one set of nodes and the Orchestrator on another, coordinated via the `CommunicationManager`.
+For a deep dive into the hybrid architecture, workflows, and implementation details, see the dedicated [Hybrid Pipeline Documentation](hybrid-pipeline.md).
 
-**Best For:**
-- Highly abstract enterprise tasks requiring heavy up-front planning before writing code/data.
-- Enforcing verifiable logic safety barriers before allowing agents to execute mutating tools natively.
-- Example: *"Analyze the Q3 macroeconomic reports and write an optimized real-estate investment python script predicting next quarter."* (Parliament reads the Q3 reports to figure out the formula; Orchestrator builds the Python script).
+---
 
 ---
 

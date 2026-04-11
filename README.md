@@ -142,6 +142,7 @@ For detailed documentation, see the [docs](docs/) folder:
 - [Agents](docs/agents.md) — Agent creation, configuration, and the ReAct loop
 - [Parliament](docs/parliament.md) — Mixture-of-Agents deliberation, peer review, and consensus synthesis
 - [Orchestrator](docs/orchestrator.md) — Multi-agent coordination and task delegation
+- [Hybrid Pipeline](docs/hybrid-pipeline.md) — Sequential strategic planning (Parliament) and task execution (Orchestrator)
 - [Memory](docs/memory.md) — Agent memory management (working, semantic, episodic)
 - [Agent Router](docs/agents.md#intelligent-agent-routing) — LLM-based intelligent agent routing
 
@@ -167,7 +168,7 @@ For detailed documentation, see the [docs](docs/) folder:
 - **Orchestrator Pattern**: Hierarchical workflow coordination for complex tasks.
 - **Hybrid Architecture**: Combine Node + Orchestrator for enterprise-scale systems.
 - **HybridOrchestratorNode**: Simplified hybrid setup combining Node + Orchestrator in one class.
-- **HybridParliamentOrchestrator**: Combines Parliament's theoretical strategic modeling natively with the Orchestrator's execution delegation.
+- [HybridParliamentOrchestrator](docs/hybrid-pipeline.md): Combines Parliament's theoretical strategic modeling natively with the Orchestrator's execution delegation.
 - **Agent Router**: LLM-based intelligent routing for optimal agent selection.
 
 ### 🛠️ Developer Tools

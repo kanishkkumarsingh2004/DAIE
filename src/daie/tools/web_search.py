@@ -83,11 +83,11 @@ class WebSearchTool(Tool):
         """Async-wrapped DuckDuckGo search."""
         try:
             try:
-                from duckduckgo_search import DDGS
-            except ImportError:
                 from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
         except ImportError:
-            raise ImportError("duckduckgo-search not installed. Run: pip install duckduckgo-search")
+            raise ImportError("duckduckgo-search (or ddgs) not installed. Run: pip install duckduckgo-search")
 
         def _sync_search():
             with DDGS() as ddgs:

@@ -118,14 +118,19 @@ try:
             role = AgentRole(request.role)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid role")
-        config = AgentConfig(
-            name=request.name,
-            role=role,
-            goal=request.goal,
-            backstory=request.backstory,
-            system_prompt=request.system_prompt,
-            capabilities=request.capabilities,
-        )
+        config_kwargs = {
+            "name": request.name,
+            "role": role,
+            "capabilities": request.capabilities,
+        }
+        if request.goal is not None:
+            config_kwargs["goal"] = request.goal
+        if request.backstory is not None:
+            config_kwargs["backstory"] = request.backstory
+        if request.system_prompt is not None:
+            config_kwargs["system_prompt"] = request.system_prompt
+
+        config = AgentConfig(**config_kwargs)  # type: ignore[arg-type]
         from daie.agents import Agent
 
         agent = Agent(config=config)
@@ -264,7 +269,7 @@ try:
 
 except ImportError:
     SERVER_AVAILABLE = False
-    app = None
+    app = None  # type: ignore[assignment]
 
     def start_server(host: str = "0.0.0.0", port: int = 3333, reload: bool = False):
         raise ImportError(

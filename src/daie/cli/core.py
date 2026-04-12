@@ -103,7 +103,7 @@ def start_core(args: argparse.Namespace):
 
             # Wait for PID file verification
             max_wait = 5
-            wait_time = 0
+            wait_time = 0.0
             while wait_time < max_wait:
                 pid = read_pid()
                 if pid:
@@ -158,7 +158,7 @@ def stop_core(args: argparse.Namespace):
         print_info("Initiating shutdown...")
 
         max_wait = 10
-        wait_time = 0
+        wait_time = 0.0
         while wait_time < max_wait:
             try:
                 os.kill(pid, 0)

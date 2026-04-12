@@ -283,7 +283,9 @@ class HybridChatConfig:
                     await asyncio.sleep(self.retry_delay)
 
         # All retries failed
-        raise last_error
+        if last_error:
+            raise last_error
+        raise RuntimeError("All retries failed without a specific error")
 
     def run(self) -> None:
         """

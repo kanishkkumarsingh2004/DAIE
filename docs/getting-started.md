@@ -1,243 +1,160 @@
-# Getting Started with DAIE
+# Getting Started with the Decentralized AI Ecosystem (DAIE)
 
-## Installation
+Welcome to the **Decentralized AI Ecosystem (DAIE)**—a high-performance, production-ready framework designed for building autonomous, tool-capable AI agents that can deliberate, coordinate, and execute complex tasks across a decentralized network.
+
+---
+
+## 🚀 Installation
+
+DAIE requires **Python 3.10+**. We recommend using a virtual environment.
 
 ```bash
 pip install daie
 ```
 
-**Optional extras:**
+### Optional Extras
+Tailor your installation for specific environments:
 
 ```bash
-pip install "daie[dev]"      # pytest, black, mypy, flake8, pytest-asyncio, pytest-cov
-pip install "daie[docs]"     # sphinx, sphinx-rtd-theme, nbsphinx
+pip install "daie[dev]"      # Full development suite (pytest, mypy, black)
+pip install "daie[docs]"     # Documentation generators (Sphinx, RTD)
+pip install "daie[all]"      # Every dependency for maximum capability
 ```
 
-**Requires Python 3.10+**
-
-**Core dependencies:** `pyyaml`, `selenium`, `webdriver-manager`, `uvicorn`, `websockets`, `nats-py`, `pyaudio`, `zeroconf`, `kademlia`, `numpy`, `pydantic`, `pydantic-settings`
+**Core Dependencies:** `pydantic`, `nats-py`, `websockets`, `uvicorn`, `kademlia`, `numpy`, `pyyaml`, `selenium`.
 
 ---
 
-## Quick Start
+## 🔥 Quick Start
 
-### 1. Simple streaming chat with persona
-
-```python
-import asyncio
-from daie import Agent, AgentConfig, set_llm
-from daie.agents import AgentRole
-
-set_llm(ollama_llm="wizard-vicuna-uncensored:7b", stream=True)
-
-async def main():
-    agent = Agent(config=AgentConfig(
-        name="Alex",
-        role=AgentRole.GENERAL_PURPOSE,
-        system_prompt="You are a helpful and concise AI assistant.",
-        gender="female",
-        personality="sassy, witty, and very direct",
-        behavior="always uses emojis and speaks enthusiastically",
-        temperature=0.9,
-        max_tokens=1024
-    ))
-    await agent.start()
-
-    print("=== Chat Loop ===")
-    print("Type 'exit' to quit.\n")
-
-    while True:
-        try:
-            user_input = input("You: ")
-            if user_input.lower() in ("exit", "quit"):
-                break
-        except (KeyboardInterrupt, EOFError):
-            print("\nExiting...")
-            break
-
-        response = await agent.send_message(user_input)
-        print("\n")
-
-    await agent.stop()
-
-asyncio.run(main())
-```
-
-### 2. Agent with tools (ReAct loop)
+### 1. The Autonomous Agent
+Create a specialized agent with a distinct persona and streaming capabilities.
 
 ```python
 import asyncio
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
-from daie.tools import FileManagerTool, APICallTool, tool
 
-set_llm(ollama_llm="llama3.2:1b", stream=True)
-
-
-# Custom tool via decorator
-@tool(name="calculate_math", description="Evaluate a basic math expression.")
-async def calculate_math(expression: str) -> str:
-    return str(eval(expression))
-
-async def main():
-    agent = Agent(config=AgentConfig(
-        name="MathBot",
-        role=AgentRole.GENERAL_PURPOSE,
-        system_prompt="You are a capable agent with access to math and file tools.",
-    ))
-
-    agent.add_tool(calculate_math)
-    agent.add_tool(FileManagerTool())
-
-    await agent.start()
-
-    # LLM autonomously picks the right tools via the ReAct loop
-    result = await agent.execute_task(
-        "Calculate 25 * 14 and save the result into a file called result.txt"
-    )
-    print("Final Answer:", result)
-
-    await agent.stop()
-
-asyncio.run(main())
-```
-
-### 3. P2P multi-agent networking & file transfer
-
-```python
-import asyncio
-from daie import Agent, AgentConfig, set_llm
-from daie.agents import AgentRole
-from daie.communication import CommunicationManager
-from daie.agents.message import AgentMessage
-
-set_llm(ollama_llm="wizard-vicuna-uncensored:7b")
-
-async def main():
-    # Shared communication bus
-    comm = CommunicationManager()
-    await comm.start()
-
-    # Agent 1
-    # network_url: The URL where THIS agent is hosted (others use this to reach it)
-    agent1 = Agent(config=AgentConfig(
-        name="NodeAlfa",
-        role=AgentRole.GENERAL_PURPOSE,
-        network_url="http://localhost:8000",  # This agent is hosted on localhost:8000
-    ))
-    await agent1.start(communication_manager=comm)
-
-    # Agent 2 (with auth + file transfers)
-    # network_url: The URL where THIS agent is hosted (others use this to reach it)
-    agent2 = Agent(config=AgentConfig(
-        name="NodeBravo",
-        role=AgentRole.GENERAL_PURPOSE,
-        network_url="http://localhost:8001",  # This agent is hosted on localhost:8001
-        auth_token="secure_token_123",
-        allow_file_transfers=True,
-    ))
-    await agent2.start(communication_manager=comm)
-
-    # Send direct message
-    msg = AgentMessage(
-        sender_id=agent1.id,
-        receiver_id=agent2.id,
-        content="Hello from NodeAlfa!",
-        message_type="text",
-    )
-    await comm.send_message(msg)
-
-    # A2A file transfer
-    file_tool = agent1.get_tool("a2a_send_file")
-    if file_tool:
-        await file_tool.execute({
-            "receiver_id": agent2.id,
-            "file_path": "payload.txt",
-            "message": "Secure payload!",
-        })
-
-    await agent1.stop()
-    await agent2.stop()
-    await comm.stop()
-
-asyncio.run(main())
-```
-
-### 4. Multi-Agent Orchestration
-
-The `Orchestrator` allows a main agent to coordinate multiple sub-agents to solve complex problems.
-
-```python
-from daie import Agent, AgentConfig, Orchestrator
-from daie.agents import AgentRole
-
-Professor = Agent(config=AgentConfig(name="Professor", role=AgentRole.COORDINATOR))
-Nova = Agent(config=AgentConfig(name="NOVA", goal="Handle technical research"))
-
-orchestrator = Orchestrator(
-    main_agent=Professor,
-    sub_agents=[Nova],
-    context_name="research_lab"
-)
-
-await orchestrator.start()
-response = await orchestrator.execute_task("Research decentralized consensus")
-```
-
-### 5. Decentralized RAG
-
-Agents can maintain independent knowledge bases using simple directory-based RAG.
-
-```python
-config = AgentConfig(
-    name="Expert",
-    rag_document_path="data/expert_knowledge/"  # Local folder with .txt, .pdf, .md files
-)
-agent = Agent(config=config)
-# The agent will automatically retrieve relevant context before answering
-```
-
----
-
-## Core Concepts
-
-### The ReAct Loop
-
-DAIE agents use a **ReAct (Reasoning + Acting)** loop:
-
-1. **LLM reasons** about the task
-2. **Picks a tool** (or gives a final answer)
-3. **Sees the result** of the tool execution
-4. **Iterates** until it produces a final answer
-
-This allows agents to autonomously solve complex, multi-step tasks.
-
-### Agent Persona
-
-Agents can have personality traits that are injected into every LLM prompt:
-
-- `gender` — "male" or "female"
-- `personality` — free-form string (e.g., "sarcastic, witty, very direct")
-- `behavior` — free-form string (e.g., "always starts sentences with Hmm")
-
-### Streaming
-
-Streaming is a library-level setting — set it once, it applies everywhere:
-
-```python
+# Global LLM configuration (Ollama, OpenAI, Anthropic, etc.)
 set_llm(ollama_llm="llama3.2:latest", stream=True)
+
+async def main():
+    agent = Agent(config=AgentConfig(
+        name="Oracle",
+        role=AgentRole.GENERAL_PURPOSE,
+        system_prompt="You are a high-level strategic intelligence.",
+        personality="analytical, precise, and visionary",
+        behavior="uses structured logic and occasional metaphors",
+        temperature=0.7
+    ))
+    
+    await agent.start()
+    
+    # Direct streaming chat
+    response = await agent.send_message("What is the future of decentralized coordination?")
+    
+    await agent.stop()
+
+asyncio.run(main())
 ```
 
-When `stream=True`, `send_message()` prints tokens as they arrive and returns the full response string when done.
-`execute_task()` always runs the reasoning loop without streaming (for reliability), then streams the final answer.
+### 2. High-Stakes consensus: The Parliament
+When a task is too complex for a single mind, use the **Parliament** architecture for peer-reviewed deliberation.
+
+```python
+from daie import Agent, AgentConfig, set_llm
+from daie.agents.parliament import Parliament
+
+async def run_parliament():
+    # Define a panel of experts
+    experts = [
+        Agent(config=AgentConfig(name="Strategist", goal="Focus on long-term implications")),
+        Agent(config=AgentConfig(name="Technician", goal="Focus on feasibility and implementation")),
+        Agent(config=AgentConfig(name="Ethicist", goal="Focus on safety and human alignment"))
+    ]
+    
+    # Initialize the assembly
+    assembly = Parliament(sub_agents=experts)
+    await assembly.start()
+    
+    # Multi-round peer review for a refined answer
+    result = await assembly.deliberate("Design a global resource distribution algorithm.")
+    
+    print(f"Consensus Answer: {result['final_answer']}")
+    print(f"Confidence Level: {result['consensus_confidence']}%")
+    
+    await assembly.stop()
+
+# asyncio.run(run_parliament())
+```
+
+### 3. The Hybrid Pipeline: "Deliberate then Delegate"
+Bridges the gap between deep strategic thinking and active execution by combining a **Parliament** with an **Orchestrator**.
+
+```python
+from daie.agents.hybrid_parliament import HybridParliamentOrchestrator
+from daie.agents.orchestrator import OrchestratorAgent
+
+async def run_hybrid():
+    # 1. Setup the 'Think Tank' (Parliament)
+    assembly = Parliament(sub_agents=[...]) 
+    
+    # 2. Setup the 'Ops Hub' (Orchestrator)
+    ops_manager = OrchestratorAgent(config=AgentConfig(name="OpsManager"))
+    
+    # 3. Connect them via the Hybrid Pipeline
+    pipeline = HybridParliamentOrchestrator(
+        parliament=assembly,
+        orchestrator=ops_manager
+    )
+    
+    # Parliament deliberates on the roadmap -> Orchestrator executes sub-tasks
+    final_output = await pipeline.execute("Establish a secure P2P node mesh across 3 regions.")
+    print(final_output)
+```
 
 ---
 
-## Next Steps
+## 🌐 Core Concepts
 
-- [Agents](agents.md) — Deep dive into agent configuration and the ReAct loop
-- [Tools](tools.md) — Pre-built tools and creating custom tools
-- [LLM Configuration](llm.md) — Multi-provider LLM setup
-- [Communication](communication.md) — P2P networking and file transfers
-- [RAG](rag.md) — Retrieval-Augmented Generation
-- [Orchestrator](orchestrator.md) — Multi-agent coordination
+### 🧠 The ReAct Loop
+DAIE agents operate on a **Reasoning + Acting** loop. They don't just guess; they observe their environment, reason about the next step, select the appropriate tool, and iterate until the objective is achieved.
+
+### 🎭 Agent Personas
+Personas are not just cosmetic. They influence the **Reasoning** phase, allowing you to create agents with different risk profiles, expertise areas, and communication styles.
+
+### 📡 P2P Networking
+Every DAIE agent can act as a **Node** in a decentralized network. They communicate via encrypted protocols, sharing knowledge and delegating tasks across the mesh without a central server.
+
+---
+
+## 🛠 Command Line Interface
+
+DAIE comes with a powerful CLI for managing agents and the ecosystem directly.
+
+```bash
+# Initialize the system configuration
+daie core init
+
+# Start the central core system
+daie core start --background
+
+# Create a new agent via an interactive wizard
+daie agent create
+
+# List all configured agents
+daie agent list
+
+# Check the status of the core system
+daie core status
+```
+
+---
+
+## 📚 Next Steps
+
+- **[Agents Guide](agents.md)**: Deep dive into agent configuration and lifecycle.
+- **[Tool Registry](tools.md)**: Learn how to give your agents "hands" to interact with the world.
+- **[Parliament Architecture](parliament.md)**: Master the art of multi-agent deliberation.
+- **[RAG & Memory](rag.md)**: Implementing persistent knowledge bases.
+- **[Networking](communication.md)**: Setup multi-node decentralized clusters.

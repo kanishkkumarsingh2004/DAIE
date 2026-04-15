@@ -41,7 +41,7 @@ try:
     app = FastAPI(
         title="Decentralized AI Ecosystem API",
         description="API for managing the Decentralized AI Ecosystem",
-        version="1.0.5",
+        version="1.0.6",
         lifespan=lifespan,
     )
 

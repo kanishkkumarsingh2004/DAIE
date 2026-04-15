@@ -1,4 +1,4 @@
 DAIE (Decentralized AI Ecosystem) - Management Overview:
 - The library is maintained by the Core Architecture Team.
-- Versioning follows semantic rules (current stable: 1.0.5).
+- Versioning follows semantic rules (current stable: 1.0.6).
 - The "Orchestrator" is the recommended pattern for multi-agent coordination.

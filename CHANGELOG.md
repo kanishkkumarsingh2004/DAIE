@@ -1,6 +1,6 @@
 All notable changes to the Decentralized AI Ecosystem (DAIE) library will be documented in this file.
 
-## [1.0.6] - 2026-04-12
+## [1.0.6] - 2026-04-15
 ### Added
 - **Parliament Multi-Agent Architecture**: Deliberative consensus loops allowing agent teams to "debate" and reach democratic or peer-reviewed conclusions.
 - **Distributed Deliberation**: Support for running a single Parliament across multiple physical P2P nodes via `CommunicationManager` broadcasting.

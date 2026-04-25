@@ -14,7 +14,7 @@ Example usage:
 >>> await agent.stop()
 """
 
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 __author__ = "Kanishk Kumar Singh"
 __email__ = "kanishkkumar2004@gmail.com"
 __license__ = "MIT"

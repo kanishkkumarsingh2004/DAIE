@@ -61,6 +61,29 @@ It describes how `Orchestrator`, `HybridOrchestratorNode`, and `MultiNodeHybridS
 - `HybridOrchestratorNode` layer: combines node infrastructure with local orchestration.
 - `MultiNodeHybridSystem` layer: connects multiple hybrid nodes across devices.
 
+### Ecosystem Layers Summary
+
+| Layer | Component | Primary Function | Operational Scope |
+|-------|-----------|------------------|-------------------|
+| **L4: System** | `MultiNodeHybridSystem` | Global Mesh & Topology | Cross-Device / Global |
+| **L3: Node** | `HybridOrchestratorNode` | Infrastructure & Hosting | Host / Virtual Node |
+| **L2: Coordination** | `Orchestrator` / `Parliament` | Task Delegation & Logic | Domain / Workflow |
+| **L1: Agent** | `Agent` | Cognition & Tool Execution | Individual Intelligence |
+
+### Layer Detailed Breakdown
+
+#### 🧠 L1: Leaf Agent Layer (The Cognition Layer)
+The primary cognitive unit. It handles the **ReAct loop**, memory management, and tool interaction. This is where individual reasoning and task execution happen.
+
+#### 🤝 L2: Coordination Layer (The Management Layer)
+The layer of collaborative intelligence. **Orchestrators** manage hierarchical workflows, while **Parliaments** ensure verified consensus through peer-review. Communication happens via the **Agent Connect Protocol (ACP)**.
+
+#### 🏗️ L3: Hybrid Node Layer (The Infrastructure Layer)
+The physical/virtual foundation. A **HybridOrchestratorNode** acts as a secure host, managing hardware resources (GPU/VRAM) and providing the P2P networking stack for the coordination clusters it hosts.
+
+#### 🌐 L4: Multi-Node System Layer (The Ecosystem Layer)
+The decentralized fabric. The **MultiNodeHybridSystem** connects multiple nodes across devices, supporting complex N-layer nesting and global P2P mesh discovery.
+
 ## Core Concepts
 
 - `Orchestrator`:

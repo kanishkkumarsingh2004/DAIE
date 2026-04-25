@@ -87,6 +87,77 @@
 
 ---
 
+## 🌐 DAIE Ecosystem Layers (Network Stack)
+
+DAIE follows a 4-layer architectural stack, similar to the OSI model, enabling nested coordination and distributed intelligence across a decentralized mesh.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│             L4: MULTI-NODE HYBRID SYSTEM LAYER              │
+│       (Global Mesh, Cross-Device P2P, N-Layer Nesting)      │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│               L3: HYBRID ORCHESTRATOR NODE LAYER            │
+│         (Resource Management, Node-level P2P, Lifecycle)    │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   L2: COORDINATION LAYER                    │
+│        (Orchestrator, Parliament, Task Delegation, MoA)     │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      L1: LEAF AGENT LAYER                   │
+│          (ReAct Loop, Persona, Memory, Tool Usage)          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Layer | Component | Primary Function | Operational Scope |
+|-------|-----------|------------------|-------------------|
+| **L4: System** | `MultiNodeHybridSystem` | Global Mesh & Topology | Cross-Device / Global |
+| **L3: Node** | `HybridOrchestratorNode` | Infrastructure & Hosting | Host / Virtual Node |
+| **L2: Coordination** | `Orchestrator` / `Parliament` | Task Delegation & Logic | Domain / Workflow |
+| **L1: Agent** | `Agent` | Cognition & Tool Execution | Individual Intelligence |
+
+### Layer Deep Dive
+
+#### 🧠 L1: Leaf Agent Layer (The Cognition Layer)
+*   **Role**: The fundamental unit of decentralized intelligence.
+*   **Capabilities**: Implements the **ReAct** (Reasoning + Acting) loop, manages local **Persistent Memory**, and executes **Tools** (File System, Web Search, Browser Automation).
+*   **Context**: Operates as a standalone entity with a specific persona, gender, and behavior profile.
+
+#### 🤝 L2: Coordination Layer (The Management Layer)
+*   **Role**: Aggregates and orchestrates multiple L1 agents into a functional team.
+*   **Capabilities**:
+    *   **Orchestrator**: Handles hierarchical task decomposition and sequential delegation via **ACP (Agent Connect Protocol)**.
+    *   **Parliament**: Enables peer-review consensus (Mixture-of-Agents) where specialists deliberate and verify outputs.
+*   **Context**: Manages domain-specific workflows (e.g., a "Legal Research Lab" or "Software Dev Team").
+
+#### 🏗️ L3: Hybrid Node Layer (The Infrastructure Layer)
+*   **Role**: Provides the host environment and resource management for L2 coordination clusters.
+*   **Capabilities**: Combines node-level infrastructure (P2P endpoints, auth/security) with local orchestrators. It manages **Local Resource Allocation** (GPU/VRAM) and agent lifecycles.
+*   **Context**: Represents a physical or virtual machine participating in the ecosystem.
+
+#### 🌐 L4: Multi-Node System Layer (The Ecosystem Layer)
+*   **Role**: The global fabric connecting disparate L3 nodes into a unified, decentralized mesh.
+*   **Capabilities**: Supports **N-Layer Nesting** (nodes containing nodes), cross-device P2P routing, and global peer discovery via **Kademlia/DHT**.
+*   **Context**: The "living tapestry" of AI—enabling parent/child node relationships across the globe.
+
+### How the Layers Interact (Encapsulation)
+
+DAIE follows a strict **Encapsulation Pattern** to ensure modularity and scalability:
+
+1.  **L1 (Agent)** is the execution engine. It knows *how* to use a tool (e.g., "Write this file") but doesn't need to know the global goal.
+2.  **L2 (Coordination)** provides the "Strategic Intent". It breaks down a high-level mission (e.g., "Build a website") and maps it to specific L1 agent capabilities.
+3.  **L3 (Node)** provides the "Host Environment". It ensures that L1 and L2 have the necessary physical resources (GPU, VRAM, Network ports) and security boundaries to operate safely.
+4.  **L4 (System)** provides the "Global Fabric". It connects multiple L3 nodes into a unified directory, allowing an agent on a laptop in London to seamlessly delegate a task to an agent on a server in Tokyo.
+
+---
+
+---
+
+
 ## Features
 
 ### 🤖 AI Agents

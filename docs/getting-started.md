@@ -4,6 +4,24 @@ Welcome to the **Decentralized AI Ecosystem (DAIE)**—a high-performance, produ
 
 ---
 
+## 🏗 The Architectural Stack
+
+DAIE is built as a layered ecosystem, allowing you to scale from a single cognitive unit to a global decentralized network.
+
+| Layer | Component | Function | Scope |
+|-------|-----------|----------|-------|
+| **L4: System** | `MultiNodeHybridSystem` | Global Mesh & Topology | Cross-Device / Global |
+| **L3: Node** | `HybridOrchestratorNode` | Infrastructure & Hosting | Host / Virtual Node |
+| **L2: Coordination** | `Orchestrator` / `Parliament` | Task Delegation & Logic | Domain / Workflow |
+| **L1: Agent** | `Agent` | Cognition & Tool Execution | Individual Intelligence |
+
+*   **L1 (Agent)**: The brain. Handles reasoning, tools, and memory.
+*   **L2 (Coordination)**: The manager. Orchestrates multi-agent workflows and consensus.
+*   **L3 (Node)**: The host. Manages infrastructure, resources, and P2P connectivity.
+*   **L4 (System)**: The ecosystem. Connects nodes across devices into a global mesh.
+
+---
+
 ## 🚀 Installation
 
 DAIE requires **Python 3.10+**. We recommend using a virtual environment.

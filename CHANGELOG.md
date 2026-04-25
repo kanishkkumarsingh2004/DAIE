@@ -1,5 +1,14 @@
 All notable changes to the Decentralized AI Ecosystem (DAIE) library will be documented in this file.
 
+## [1.0.7] - 2026-04-25
+### Added
+- **Architectural Stack Documentation**: Formalized the 4-layer DAIE ecosystem stack (L1-L4) in `README.md` and `docs/`.
+    - **L1: Agent Layer**: Individual cognitive units.
+    - **L2: Coordination Layer**: Orchestrators and Parliaments.
+    - **L3: Node Layer**: Hybrid infrastructure and resource management.
+    - **L4: System Layer**: Global multi-node mesh and P2P routing.
+- **Encapsulation Pattern**: Documented the cross-layer interaction model for decentralized AI systems.
+
 ## [1.0.6] - 2026-04-15
 ### Added
 - **Parliament Multi-Agent Architecture**: Deliberative consensus loops allowing agent teams to "debate" and reach democratic or peer-reviewed conclusions.

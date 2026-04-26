@@ -116,7 +116,7 @@ DAIE follows a 4-layer architectural stack, similar to the OSI model, enabling n
 | Layer | Component | Primary Function | Operational Scope |
 |-------|-----------|------------------|-------------------|
 | **L4: System** | `MultiNodeHybridSystem` | Global Mesh & Topology | Cross-Device / Global |
-| **L3: Node** | `HybridOrchestratorNode` | Infrastructure & Hosting | Host / Virtual Node |
+| **L3: Node** | `HybridOrchestratorNode` / `Block` | Containerization & Hosting | Host / Virtual Node |
 | **L2: Coordination** | `Orchestrator` / `Parliament` | Task Delegation & Logic | Domain / Workflow |
 | **L1: Agent** | `Agent` | Cognition & Tool Execution | Individual Intelligence |
 
@@ -135,13 +135,16 @@ DAIE follows a 4-layer architectural stack, similar to the OSI model, enabling n
 *   **Context**: Manages domain-specific workflows (e.g., a "Legal Research Lab" or "Software Dev Team").
 
 #### 🏗️ L3: Hybrid Node Layer (The Infrastructure Layer)
-*   **Role**: Provides the host environment and resource management for L2 coordination clusters.
-*   **Capabilities**: Combines node-level infrastructure (P2P endpoints, auth/security) with local orchestrators. It manages **Local Resource Allocation** (GPU/VRAM) and agent lifecycles.
+*   **Role**: Provides the host environment, containerization, and resource management.
+*   **Capabilities**:
+    *   **HybridOrchestratorNode**: Combines node infrastructure with local orchestrators.
+    *   **Block Container**: Wraps any architecture for instant P2P deployment, terminal interaction, and "conscious" network awareness.
 *   **Context**: Represents a physical or virtual machine participating in the ecosystem.
 
 #### 🌐 L4: Multi-Node System Layer (The Ecosystem Layer)
 *   **Role**: The global fabric connecting disparate L3 nodes into a unified, decentralized mesh.
 *   **Capabilities**: Supports **N-Layer Nesting** (nodes containing nodes), cross-device P2P routing, and global peer discovery via **Kademlia/DHT**.
+*   **Containerization**: Uses the **Block** system to wrap architectures for deployment.
 *   **Context**: The "living tapestry" of AI—enabling parent/child node relationships across the globe.
 
 ### How the Layers Interact (Encapsulation)
@@ -194,6 +197,8 @@ DAIE follows a strict **Encapsulation Pattern** to ensure modularity and scalabi
 
 ### 🌐 Networking & Communication
 - **P2P networking** — agents communicate across machines via WebSocket with authentication & authorization
+- **Block Containerization** — Wrap any agent or node into a "Block" for instant deployment as a network server or terminal chat loop.
+- **Agent-to-Agent (A2A) Delegation** — Agents can autonomously find and delegate tasks to other agents over the network using specialized tools.
 - **WebSocket Support** — Real-time bidirectional communication
 - **Multi-provider LLM** — Ollama (default), OpenAI, Anthropic, Google, Azure, OpenRouter
 
@@ -226,6 +231,7 @@ For detailed documentation, see the [docs](docs/) folder:
 ### 🌐 Networking & Communication
 - [P2P Networking](docs/p2p.md) — Peer-to-peer communication protocol for agents
 - [Network Configuration](docs/network_configuration.md) — Detailed guide on `network_url` and `network_connections`
+- [Container Blocks](docs/container-blocks.md) — Deploying architectures as containerized Blocks
 - [Node](docs/node.md) — Node abstraction for managing agents and resources
 - [Orchestrator](docs/orchestrator.md) — Multi-agent coordination and task delegation
 - [Node vs Orchestrator](docs/node-vs-orchestrator.md) — Complete comparison guide with 100+ use cases and decision matrix

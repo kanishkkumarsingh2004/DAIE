@@ -189,7 +189,10 @@ The `AgentConfig` dataclass defines all parameters for an agent:
 | `allow_file_transfers` | `bool` | `False` | Allow incoming file transfers |
 | `allowed_senders` | `List[str]` | `[]` | Whitelist of sender IDs (empty = allow all) |
 | `communication_timeout` | `int` | `30` | Communication timeout in seconds |
-| `heartbeat_interval` | `int` | `10` | Heartbeat interval in seconds |
+| `heartbeat_interval` | `int` | `10` | Defines the time interval in seconds at which the agent sends or checks for active heartbeats to maintain connections (must be > 0). |
+
+**Why `heartbeat_interval`?** 
+In a decentralized P2P network, agents may disconnect silently due to network instability, power loss, or node crashes. The `heartbeat_interval` ensures that agents proactively ping their connected peers. If a peer fails to respond to heartbeats within a certain threshold, the connection is considered dead. This triggers the agent to either drop the peer or initiate reconnection strategies, preventing the system from hanging indefinitely while waiting for responses from offline peers.
 
 ### RAG Settings
 

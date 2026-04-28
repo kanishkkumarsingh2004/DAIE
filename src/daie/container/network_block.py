@@ -1,5 +1,5 @@
 """
-Architecture Container (Block) Module
+Architecture Container (Network Block) Module
 """
 
 import logging
@@ -10,8 +10,10 @@ from daie.core.tracing import get_logger
 
 logger = get_logger(__name__)
 
-class BlockChatWrapper:
+
+class NetworkBlockChatWrapper:
     """Internal wrapper to make any architecture compatible with ChatLoopConfig."""
+
     def __init__(self, architecture):
         self.architecture = architecture
         # Proxy attributes that ChatLoopConfig might need
@@ -20,15 +22,19 @@ class BlockChatWrapper:
         elif hasattr(architecture, "node_name"):
             # For HybridOrchestratorNode
             from dataclasses import dataclass
+
             @dataclass
             class DummyConfig:
                 name: str
+
             self.config = DummyConfig(name=architecture.node_name)
         else:
             from dataclasses import dataclass
+
             @dataclass
             class DummyConfig:
                 name: str
+
             self.config = DummyConfig(name="Architecture")
 
     async def start(self, *args, **kwargs):
@@ -49,7 +55,7 @@ class BlockChatWrapper:
             func = self.architecture.arun
         elif callable(self.architecture):
             func = self.architecture
-            
+
         if func:
             try:
                 if asyncio.iscoroutinefunction(func):
@@ -61,24 +67,25 @@ class BlockChatWrapper:
                 return str(result)
             except Exception as e:
                 return f"Error: {str(e)}"
-                
+
         return "Error: Architecture is not executable"
 
-class Block:
+
+class NetworkBlock:
     """
     A container that wraps any AI architecture and provides interaction modes.
-    
-    This class serves as a "block" in the decentralized AI ecosystem, capable of
+
+    This class serves as a "network block" in the decentralized AI ecosystem, capable of
     running in either a terminal-based chat loop or as a network-hosted API server.
     It supports graph-like connectivity through 'edges'.
-    
+
     Attributes:
         architecture: The AI logic or agent to wrap.
         host: The host address to bind the server to.
         port: The port to bind the server to.
         chat: If True, runs an interactive terminal chat loop.
         logs: If True, enables detailed logging (forced to False if chat is True).
-        edges: A list of endpoints (URLs/ports) this block is connected to.
+        edges: A list of endpoints (URLs/ports) this network block is connected to.
     """
 
     def __init__(
@@ -89,7 +96,7 @@ class Block:
         chat: bool = False,
         logs: Optional[bool] = None,
         edges: Optional[List[str]] = None,
-        stream: bool = True
+        stream: bool = True,
     ):
         self.architecture = architecture
         self.host = host
@@ -121,7 +128,9 @@ class Block:
         # Inject network and architecture knowledge into system prompt
         self._inject_knowledge()
 
-        logger.info(f"Block initialized (host={self.host}, port={self.port}, chat={self.chat}, edges={len(self.edges)}, stream={self.stream})")
+        logger.info(
+            f"NetworkBlock initialized (host={self.host}, port={self.port}, chat={self.chat}, edges={len(self.edges)}, stream={self.stream})"
+        )
 
     def _inject_knowledge(self):
         """Inject network and architecture knowledge into the system prompt."""
@@ -132,41 +141,45 @@ class Block:
             "\n\n[System Knowledge: Network & Architecture]",
             f"- Deployment Mode: {'Interactive Chat' if self.chat else 'Network Server'}",
             f"- Local Endpoint: http://{self.host}:{self.port}",
-            f"- Network Edges (Connections): {', '.join(self.edges) if self.edges else 'No external edges'}"
+            f"- Network Edges (Connections): {', '.join(self.edges) if self.edges else 'No external edges'}",
         ]
-        
+
         if isinstance(self.architecture, HybridOrchestratorNode):
             knowledge.append(f"- Node Type: Hybrid Orchestrator ('{self.architecture.node_name}')")
             sub_agents = [a.config.name for a in self.architecture.sub_agents]
-            knowledge.append(f"- Internal Agents Count: {len(sub_agents) + 1} (1 Main + {len(sub_agents)} Sub-agents)")
+            knowledge.append(
+                f"- Internal Agents Count: {len(sub_agents) + 1} (1 Main + {len(sub_agents)} Sub-agents)"
+            )
             knowledge.append(f"- Managed Agents: {', '.join(sub_agents)}")
         elif isinstance(self.architecture, Agent):
             knowledge.append(f"- Node Type: Standalone Agent ('{self.architecture.config.name}')")
             knowledge.append("- Internal Agents Count: 1")
-            
+
             # List known peer IDs if any
             conns = self.architecture.config.network_connections
             if conns:
                 knowledge.append(f"- Known Peer Agents (Direct IDs): {', '.join(conns.keys())}")
-        
+
         # Explicit reminder about A2A tools if edges exist
         if self.edges:
-            knowledge.append("- Communication: You have A2A tools ('a2a_send_message', 'a2a_delegate_task') to interact with the peers/edges listed above.")
-            
+            knowledge.append(
+                "- Communication: You have A2A tools ('a2a_send_message', 'a2a_delegate_task') to interact with the peers/edges listed above."
+            )
+
         knowledge_str = "\n".join(knowledge)
-        
+
         # Inject into system prompt
         target_agent = None
         if isinstance(self.architecture, Agent):
             target_agent = self.architecture
         elif isinstance(self.architecture, HybridOrchestratorNode):
             target_agent = self.architecture.main_agent
-            
+
         if target_agent and hasattr(target_agent.config, "system_prompt"):
             # Append if not already there
             if knowledge_str not in target_agent.config.system_prompt:
                 target_agent.config.system_prompt += knowledge_str
-                
+
         # Auto-equip communication tools
         self._equip_communication_tools()
 
@@ -174,7 +187,7 @@ class Block:
         """Add A2A communication tools to the agent if they are not already present."""
         if not self.edges:
             return
-            
+
         from daie.agents import Agent
         from daie.core.hybrid import HybridOrchestratorNode
         from daie.tools.a2a import A2ASendMessageTool, A2ADelegateTaskTool
@@ -184,18 +197,19 @@ class Block:
             target_agents.append(self.architecture)
         elif isinstance(self.architecture, HybridOrchestratorNode):
             target_agents.append(self.architecture.main_agent)
-            
+
         for agent in target_agents:
-            if not agent: continue
-            
+            if not agent:
+                continue
+
             # Check if tools already exist
             tool_names = list(agent.tools.keys())
-            
+
             if "a2a_send_message" not in tool_names:
                 agent.add_tool(A2ASendMessageTool())
             if "a2a_delegate_task" not in tool_names:
                 agent.add_tool(A2ADelegateTaskTool())
-                
+
             # Remind the agent about these tools in system prompt
             tool_reminder = "\n- You have A2A tools ('a2a_send_message', 'a2a_delegate_task') to communicate with the edges listed above."
             if tool_reminder not in agent.config.system_prompt:
@@ -204,7 +218,7 @@ class Block:
     def _setup_streaming(self):
         """Configure streaming for the wrapped architecture."""
         from daie.agents import Agent
-        
+
         if isinstance(self.architecture, Agent):
             self.architecture.config.stream = self.stream
         elif hasattr(self.architecture, "config") and hasattr(self.architecture.config, "stream"):
@@ -219,12 +233,12 @@ class Block:
         if isinstance(self.architecture, Agent):
             if not self.architecture.config.network_connections:
                 self.architecture.config.network_connections = {}
-            
+
             for edge in self.edges:
                 # Use the edge URL as a temporary key if ID is unknown
                 # The communication manager will handle discovery if needed
                 self.architecture.config.network_connections[edge] = edge
-                
+
             # Also set the local network URL for this agent
             if not self.architecture.config.network_url:
                 self.architecture.config.network_url = f"http://{self.host}:{self.port}"
@@ -235,13 +249,13 @@ class Block:
                 # Hybrid nodes can connect to other node IDs
                 # Here we assume the edge might be a URL or a node_id
                 self.architecture.connect_to_node(edge)
-            
+
             # Also set the local network URL for the main agent
             if self.architecture.main_agent and not self.architecture.main_agent.config.network_url:
                 self.architecture.main_agent.config.network_url = f"http://{self.host}:{self.port}"
 
     def run(self):
-        """Run the block in the configured mode."""
+        """Run the network block in the configured mode."""
         if self.chat:
             self._run_chat_mode()
         else:
@@ -250,10 +264,10 @@ class Block:
     def _run_chat_mode(self):
         """Run interactive terminal chat loop."""
         from daie.agents import Agent
-        
+
         # Wrap the architecture to ensure compatibility with ChatLoopConfig
-        wrapped_arch = BlockChatWrapper(self.architecture)
-        
+        wrapped_arch = NetworkBlockChatWrapper(self.architecture)
+
         chat_loop = ChatLoopConfig(agent=wrapped_arch)
         chat_loop.run()
 
@@ -264,7 +278,7 @@ class Block:
             from fastapi import FastAPI, HTTPException
             from pydantic import BaseModel
 
-            app = FastAPI(title=f"DAIE Block Server ({self.port})")
+            app = FastAPI(title=f"DAIE Network Block Server ({self.port})")
 
             class TaskRequest(BaseModel):
                 task: str
@@ -276,8 +290,12 @@ class Block:
                     "status": "online",
                     "port": self.port,
                     "edges": self.edges,
-                    "architecture": str(type(self.architecture).__name__)
+                    "architecture": str(type(self.architecture).__name__),
                 }
+
+            @app.get("/health")
+            async def health():
+                return {"status": "healthy"}
 
             @app.post("/execute")
             async def execute(request: TaskRequest):
@@ -295,17 +313,24 @@ class Block:
                         else:
                             result = self.architecture(request.task)
                     else:
-                        raise HTTPException(status_code=500, detail="Architecture is not executable via known methods")
-                    
+                        raise HTTPException(
+                            status_code=500,
+                            detail="Architecture is not executable via known methods",
+                        )
+
                     return {"result": result}
                 except Exception as e:
                     logger.error(f"Execution error: {e}", exc_info=True)
                     raise HTTPException(status_code=500, detail=str(e))
 
             # Start the server
-            logger.info(f"Starting Block server on http://{self.host}:{self.port}")
-            uvicorn.run(app, host=self.host, port=self.port, log_level="info" if self.logs else "warning")
-            
+            logger.info(f"Starting Network Block server on http://{self.host}:{self.port}")
+            uvicorn.run(
+                app, host=self.host, port=self.port, log_level="info" if self.logs else "warning"
+            )
+
         except ImportError:
-            logger.error("FastAPI or Uvicorn not installed. Please install with: pip install 'daie[server]'")
+            logger.error(
+                "FastAPI or Uvicorn not installed. Please install with: pip install 'daie[server]'"
+            )
             raise ImportError("Server requirements missing: fastapi, uvicorn")

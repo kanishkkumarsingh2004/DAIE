@@ -2,7 +2,6 @@
 Configuration module for the Decentralized AI Library
 """
 
-from daie.container.block import Block
+from daie.container.network_block import NetworkBlock
 
-__all__ = ["Block"]
-
+__all__ = ["NetworkBlock"]

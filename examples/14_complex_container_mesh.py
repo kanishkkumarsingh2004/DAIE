@@ -1,7 +1,7 @@
 """
 Example 14: Complex Container Mesh Architecture
 
-This example demonstrates how to use the `Block` container to build a complex
+This example demonstrates how to use the `NetworkBlock` container to build a complex
 decentralized mesh architecture. We create a "Research & Publishing Ecosystem"
 where different nodes (Blocks) have different specialized architectures and 
 are connected via graph-like 'edges'.
@@ -22,7 +22,7 @@ import os
 import asyncio
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
-from daie.container import Block
+from daie.container import NetworkBlock
 from daie.core.hybrid import HybridOrchestratorNode
 
 # Optional: Set your LLM preference
@@ -77,9 +77,9 @@ def create_research_mesh():
     # 4. Containerize into Blocks with 'Edges' (Graph Topology)
     # -------------------------------------------------------------------------
     
-    # Block A: The Lab (Coordinator)
+    # NetworkBlock A: The Lab (Coordinator)
     # It knows about the Analyst.
-    lab_block = Block(
+    lab_block = NetworkBlock(
         architecture=lab_node,
         host="0.0.0.0",
         port=8000,
@@ -87,9 +87,9 @@ def create_research_mesh():
         edges=["http://localhost:8001"] # Connected to Analyst
     )
 
-    # Block B: The Analyst
+    # NetworkBlock B: The Analyst
     # It knows about the Lab (to send questions) and the Writer (to send results).
-    analyst_block = Block(
+    analyst_block = NetworkBlock(
         architecture=analyst_agent,
         host="0.0.0.0",
         port=8001,
@@ -97,9 +97,9 @@ def create_research_mesh():
         edges=["http://localhost:8000", "http://localhost:8002"]
     )
 
-    # Block C: The Writer
+    # NetworkBlock C: The Writer
     # It knows about the Lab (to confirm publishing).
-    writer_block = Block(
+    writer_block = NetworkBlock(
         architecture=writer_agent,
         host="0.0.0.0",
         port=8002,
@@ -112,7 +112,7 @@ def create_research_mesh():
     print(f"Node B (Analyst) : Port 8001 -> Edges: {analyst_block.edges}")
     print(f"Node C (Writer)  : Port 8002 -> Edges: {writer_block.edges} (Chat Mode Active)")
     
-    print("\nIn a production environment, you would run each block in its own process/container:")
+    print("\nIn a production environment, you would run each network_block in its own process/container:")
     print("  - lab_block.run()")
     print("  - analyst_block.run()")
     print("  - writer_block.run()")

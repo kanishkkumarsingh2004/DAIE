@@ -230,15 +230,15 @@ Create custom tools by decorating any function:
 ```python
 from daie.tools import tool
 
-@tool(name="calculate", description="Evaluate a math expression")
-async def calculate(expression: str) -> str:
-    return str(eval(expression))
+@tool(name="reverse_string", description="Reverses a string")
+async def reverse_string(text: str) -> str:
+    return text[::-1]
 
 # Add to agent
-agent.add_tool(calculate)
+agent.add_tool(reverse_string)
 
 # Use in ReAct loop
-result = await agent.execute_task("What is 12 * 34?")
+result = await agent.execute_task("Reverse the word 'decentralized'")
 ```
 
 ### Decorator Parameters

@@ -5,8 +5,8 @@ DAIE provides a built-in RAG engine that allows agents to maintain independent k
 ## Features
 
 - **Per-Agent Knowledge Bases** — Each agent can have its own `rag_document_path`
-- **TF-IDF Retrieval** — Uses TF-IDF indexing with cosine similarity (no external ML dependencies)
-- **Vector RAG** — Optional vector-based retrieval using ChromaDB and sentence-transformers for semantic search
+- **Vector RAG** — Industry-standard semantic retrieval using ChromaDB/FAISS and sentence-transformers
+- **TF-IDF Retrieval** — Fallback TF-IDF indexing for environments with zero ML dependencies
 - **Automatic Context Augmentation** — Retrieved context is automatically injected into prompts
 - **Strict Context Mode** — Optionally restrict answers to document content only
 - **Multiple Document Formats** — Supports `.txt`, `.pdf`, `.md` files
@@ -26,8 +26,8 @@ DAIE provides a built-in RAG engine that allows agents to maintain independent k
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                         RAG ENGINE                                  │    │
 │  │  • Document loading                                                 │    │
-│  │  • TF-IDF indexing                                                  │    │
-│  │  • Context retrieval                                                │    │
+│  │  • Vector embeddings (or TF-IDF)                                    │    │
+│  │  • Semantic context retrieval                                       │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                    │                                        │
 │                                    ▼                                        │
@@ -48,18 +48,18 @@ DAIE provides a built-in RAG engine that allows agents to maintain independent k
 │                                    │                                        │
 │                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                      TF-IDF INDEXER                                 │    │
-│  │  • Build vocabulary                                                 │    │
-│  │  • Compute term frequency                                           │    │
-│  │  • Compute inverse document frequency                               │    │
-│  │  • Create TF-IDF matrix                                             │    │
+│  │                      VECTOR INDEXER                                 │    │
+│  │  • Generate sentence embeddings                                     │    │
+│  │  • Store in ChromaDB / FAISS                                        │    │
+│  │  • (Fallback to TF-IDF if ML unavailable)                           │    │
+│  │                                                                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                    │                                        │
 │                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                         RETRIEVER                                   │    │
-│  │  • Convert query to TF-IDF vector                                   │    │
-│  │  • Compute cosine similarity                                        │    │
+│  │  • Generate query embedding                                         │    │
+│  │  • Perform semantic similarity search                               │    │
 │  │  • Return top-k relevant chunks                                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                    │                                        │
@@ -129,9 +129,9 @@ config = AgentConfig(
 
 ---
 
-## RAGEngine
+## TF-IDF RAGEngine (Fallback)
 
-The `RAGEngine` class handles document loading, chunking, indexing, and retrieval using TF-IDF (no external dependencies):
+The `RAGEngine` class handles document loading, chunking, indexing, and retrieval using TF-IDF (no external dependencies). Use this only if you cannot install vector dependencies:
 
 ```python
 from daie.rag import RAGEngine
@@ -278,8 +278,11 @@ Documents are split into chunks:
 - Chunks overlap by `chunk_overlap` characters for context continuity
 - Each chunk tracks its source file and index
 
-### 3. TF-IDF Indexing
+### 3. Vector Embeddings or TF-IDF Indexing
 
+By default (with `VectorRAGEngine`), documents are converted to dense vector embeddings using sentence-transformers and stored in ChromaDB or FAISS.
+
+If using the fallback `RAGEngine`:
 A TF-IDF (Term Frequency-Inverse Document Frequency) index is built:
 
 - **Term Frequency**: How often a term appears in a chunk
@@ -290,10 +293,10 @@ A TF-IDF (Term Frequency-Inverse Document Frequency) index is built:
 
 When a query is received:
 
-1. The query is converted to a TF-IDF vector
-2. Cosine similarity is computed between the query and all chunks
-3. Top-k most similar chunks are returned
-4. Chunks with similarity > 0.05 are included
+1. The query is converted to an embedding (or TF-IDF vector).
+2. Semantic similarity (or Cosine similarity) is computed between the query and all chunks.
+3. Top-k most similar chunks are returned.
+4. Chunks with similarity below a threshold are filtered out.
 
 ### 5. Context Augmentation
 

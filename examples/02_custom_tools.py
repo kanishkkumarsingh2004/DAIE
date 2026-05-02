@@ -12,28 +12,27 @@ set_llm(ollama_llm="wizard-vicuna-uncensored:7b", stream=True)
 
 
 # Define a custom tool using the @tool decorator
-@tool(name="calculate_math", description="Evaluate a basic math expression.")
-async def calculate_math(expression: str) -> str:
-    """Evaluates a math expression and returns the result."""
+@tool(name="reverse_string", description="Reverses a string.")
+async def reverse_string(text: str) -> str:
+    """Reverses the given text and returns it."""
     try:
-        # NOTE: eval is used here simply for demonstration purposes
-        result = eval(expression)
-        return f"The math result is: {result}"
+        result = text[::-1]
+        return f"The reversed string is: {result}"
     except Exception as e:
-        return f"Error computing math: {e}"
+        return f"Error reversing string: {e}"
 
 
 async def main():
     agent = Agent(
         config=AgentConfig(
-            name="MathBot",
+            name="StringBot",
             role=AgentRole.GENERAL_PURPOSE,
-            system_prompt="You are a capable agent with access to math and file tools.",
+            system_prompt="You are a capable agent with access to string manipulation and file tools.",
         )
     )
 
-    # Register our custom math tool
-    agent.add_tool(calculate_math)
+    # Register our custom string tool
+    agent.add_tool(reverse_string)
 
     # Register a library built-in tool
     agent.add_tool(FileManagerTool())
@@ -42,10 +41,10 @@ async def main():
 
     # Execute complex tasks using the ReAct loop
     # The agent will auto-select the right tools to accomplish the goal!
-    print("Agent executing task: 'Calculate 25 * 14 and save it to result.txt'")
+    print("Agent executing task: 'Reverse the string 'decentralized' and save it to result.txt'")
 
     answer = await agent.execute_task(
-        "Calculate 25 * 14 and save the result into a file called result.txt"
+        "Reverse the string 'decentralized' and save the result into a file called result.txt"
     )
     print("\nFinal LLM Answer:\n", answer)
 

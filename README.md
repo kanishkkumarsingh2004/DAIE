@@ -8,20 +8,20 @@
 
 ## Why DAIE?
 
-| Feature | DAIE | LangChain | CrewAI |
-|---------|------|-----------|--------|
-| **Offline-first** | ✅ Full Ollama support | ❌ Cloud-dependent | ❌ Cloud-dependent |
-| **P2P Networking** | ✅ Decentralized / No Central Server | ❌ No | ❌ No |
-| **Parallel Execution**| ✅ Smart Concurrency Controller | ⚠️ Complex/Manual | ⚠️ Basic |
-| **Persistent Memory** | ✅ SQLite/Vector + Shared Namespaces | ⚠️ Manual Storage | ⚠️ Limited |
-| **Peer Review** | ✅ MoA / Parliament Consensus | ❌ No | ❌ No |
-| **Intelligent Routing** | ✅ Content-aware Agent Selection | ❌ No | ❌ No |
-| **Temporal Context** | ✅ Native Date/Time Awareness | ❌ No | ❌ No |
-| **Agent Personas** | ✅ Gender, Personality, Behavior | ❌ Limited | ❌ Limited |
-| **File Transfer** | ✅ A2A Secure Network Transfer | ❌ No | ❌ No |
-| **Vision Support** | ✅ Camera + Vision Models | ⚠️ Limited | ❌ No |
-| **Streaming** | ✅ Library-level (tokens as they arrive) | ⚠️ Per-call | ❌ No |
-| **Dependencies** | 🪶 Ultra-lightweight (Zero-dep Core) | 📦📦📦 Heavy | 📦📦 Medium |
+| Core Feature | Description |
+|--------------|-------------|
+| **Offline-first** | ✅ Full local Ollama / Llama.cpp support |
+| **P2P Networking** | ✅ Decentralized / No Central Server |
+| **Parallel Execution**| ✅ Smart Concurrency Controller |
+| **Persistent Memory** | ✅ SQLite/Vector + Shared Namespaces |
+| **Peer Review** | ✅ MoA / Parliament Consensus |
+| **Intelligent Routing** | ✅ Content-aware Agent Selection |
+| **Temporal Context** | ✅ Native Date/Time Awareness |
+| **Agent Personas** | ✅ Gender, Personality, Behavior |
+| **File Transfer** | ✅ A2A Network Transfer (Base64-encoded) |
+| **Vision Support** | ✅ Camera + Vision Models |
+| **Streaming** | ✅ Library-level (tokens as they arrive) |
+| **Dependencies** | 🪶 Lightweight Core |
 
 **DAIE is for you if you want:**
 - 🏠 **Offline-first AI** — Run everything locally with Ollama/Llama.cpp, no API keys required.
@@ -80,7 +80,7 @@
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    RAG ENGINE (TF-IDF)                      │
+│           RAG ENGINE (Vector Embeddings & TF-IDF)           │
 │  • Document loading  • Context retrieval  • Knowledge base  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -187,7 +187,7 @@ DAIE follows a strict **Encapsulation Pattern** to ensure modularity and scalabi
 - **Hardened Tools** — Secure sandbox-ready code execution, robust web search (DuckDuckGo + Tavily), and modern Playwright browser automation.
 - **Pre-built tools** — file system, HTTP API calls, SQLite/PostgreSQL Database, Selenium & Playwright browser automation.
 - **Custom tools** — decorate any function with `@tool` and it works identically to built-in tools
-- **A2A file transfer** — securely send files between agents over the network using Base64 encoding
+- **A2A file transfer** — send files between agents over the network using Base64 encoding
 
 ### 💬 Chatbots & Vision
 - **Streaming tokens** — set `stream=True` once, tokens print as they arrive
@@ -223,7 +223,7 @@ For detailed documentation, see the [docs](docs/) folder:
 - [Agent Router](docs/agents.md#intelligent-agent-routing) — LLM-based intelligent agent routing
 
 ### 🔍 RAG Systems
-- [RAG](docs/rag.md) — Retrieval-Augmented Generation with TF-IDF
+- [RAG](docs/rag.md) — Retrieval-Augmented Generation with Vector Embeddings (Chroma/FAISS) and TF-IDF
 
 ### ⚙️ Automation Tools
 - [Tools](docs/tools.md) — Pre-built tools, custom tools, and the @tool decorator
@@ -342,7 +342,7 @@ pip install "daie[docs]"     # sphinx, sphinx-rtd-theme, nbsphinx
 **Core dependencies:** `pyyaml`, `selenium`, `webdriver-manager`, `uvicorn`, `websockets`, `nats-py`, `pyaudio`, `zeroconf`, `kademlia`, `numpy`, `pydantic`, `pydantic-settings`
 
 > [!TIP]
-> **Zero-Dependency Philosophy**: DAIE includes in-house, lightweight replacements for `requests`, `python-dotenv`, `rich`, `typer`, and `cryptography` to keep the core footprint minimal and avoid dependency hell.
+> **Lightweight Core Philosophy**: DAIE includes in-house, lightweight replacements for `requests`, `python-dotenv`, `rich`, `typer`, and `cryptography` to keep the core footprint minimal and avoid dependency hell.
 
 ---
 
@@ -401,25 +401,26 @@ from daie.tools import FileManagerTool, APICallTool, tool
 set_llm(ollama_llm="llama3.2:1b", stream=True)
 
 # Custom tool via decorator
-@tool(name="calculate_math", description="Evaluate a basic math expression.")
-async def calculate_math(expression: str) -> str:
-    return str(eval(expression))
+@tool(name="fetch_weather", description="Fetch current weather for a city.")
+async def fetch_weather(city: str) -> str:
+    # In a real app, you would make an API call here
+    return f"The weather in {city} is 72°F and sunny."
 
 async def main():
     agent = Agent(config=AgentConfig(
-        name="MathBot",
+        name="WeatherBot",
         role=AgentRole.GENERAL_PURPOSE,
-        system_prompt="You are a capable agent with access to math and file tools.",
+        system_prompt="You are a capable agent with access to weather and file tools.",
     ))
 
-    agent.add_tool(calculate_math)
+    agent.add_tool(fetch_weather)
     agent.add_tool(FileManagerTool())
 
     await agent.start()
 
     # LLM autonomously picks the right tools via the ReAct loop
     result = await agent.execute_task(
-        "Calculate 25 * 14 and save the result into a file called result.txt"
+        "Check the weather in Tokyo and save the result into a file called result.txt"
     )
     print("Final Answer:", result)
 
@@ -870,12 +871,12 @@ await browser.execute({"action": "screenshot", "screenshot_path": "page.png"})
 ```python
 from daie.tools import tool
 
-@tool(name="calculate", description="Evaluate a math expression")
-async def calculate(expression: str) -> str:
-    return str(eval(expression))  # use safely in production
+@tool(name="reverse_string", description="Reverses a string")
+async def reverse_string(text: str) -> str:
+    return text[::-1]
 
-agent.add_tool(calculate)
-result = await agent.execute_task("What is 12 * 34?")
+agent.add_tool(reverse_string)
+result = await agent.execute_task("Reverse the word 'decentralized'")
 ```
 
 ---
@@ -886,7 +887,7 @@ DAIE supports multi-agent communication via its `CommunicationManager`. Agents c
 
 - **Discover peers** via the built-in `NodeRegistry`
 - **Send direct messages** between agents (in-process or via WebSocket for remote agents)
-- **Transfer files** securely using Base64 encoding with the `A2ASendFileTool`
+- **Transfer files** using Base64 encoding with the `A2ASendFileTool`
 - **Authorize senders** with `allowed_senders` whitelists
 - **Authenticate connections** with `auth_token`
 
@@ -1035,7 +1036,7 @@ src/daie/
 ├── registry/       NodeRegistry (decentralized agent discovery)
 ├── memory/         MemoryManager (working, semantic, episodic)
 ├── protocols/      Protocol definitions (ACP - Agent Connect Protocol)
-├── rag/            RAGEngine, DocumentLoader (TF-IDF retrieval)
+├── rag/            RAGEngine, DocumentLoader (Vector Embeddings & TF-IDF)
 └── cli/            Typer-based CLI (agent management, core system control)
 ```
 
@@ -1232,7 +1233,8 @@ python examples/01_basic_chat.py
 - **Node Registry**: Decentralized agent discovery
 
 ### RAG System
-- **TF-IDF Retrieval**: Simple but effective document retrieval
+- **Vector Embeddings (Chroma/FAISS)**: Industry-standard semantic retrieval
+- **TF-IDF Retrieval**: Fallback zero-ML-dependency document retrieval
 - **Per-Agent Knowledge**: Each agent can have its own knowledge base
 - **Document Loading**: Support for .txt, .pdf, .md files
 
@@ -1279,7 +1281,7 @@ python examples/01_basic_chat.py
 - **Authentication**: Token-based auth for agent connections
 - **Authorization**: Sender whitelists for message filtering
 - **Encryption**: Built-in encryption utilities
-- **Secure File Transfer**: Base64 encoding for A2A file transfers
+- **File Transfer**: Base64 encoding for A2A file transfers
 - **Resource Isolation**: Per-node resource isolation
 - **Access Control**: Per-node and per-agent access control
 
@@ -1377,7 +1379,7 @@ DAIE is a mature, production-ready framework with comprehensive features:
 - **Multi-Agent Orchestration**: Orchestrator pattern for complex task coordination
 - **Intelligent Routing**: LLM-based agent selection with AgentRouter
 - **P2P Networking**: Full peer-to-peer communication with authentication
-- **RAG System**: TF-IDF based retrieval with per-agent knowledge bases
+- **RAG System**: Vector Embeddings & TF-IDF based retrieval with per-agent knowledge bases
 - **Tools**: 12+ pre-built tools with custom `@tool` decorator support
 - **Memory Management**: Working, semantic, and episodic memory systems
 - **CLI**: Complete command-line interface for agent and system management

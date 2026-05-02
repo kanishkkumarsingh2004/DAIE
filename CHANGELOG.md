@@ -53,7 +53,7 @@ All notable changes to the Decentralized AI Ecosystem (DAIE) library will be doc
 
 ## [1.0.5] - 2026-03-31
 ### Added
-- **Zero-Dependency Core**: Replaced several external dependencies (`requests`, `python-dotenv`, `rich`, `typer`) with in-house, lightweight implementations (`http_client`, `env`, `console`, `cli.core`).
+- **Lightweight Core**: Replaced several external dependencies (`requests`, `python-dotenv`, `rich`, `typer`) with in-house, lightweight implementations (`http_client`, `env`, `console`, `cli.core`).
 - **In-House Tracing**: Removed OpenTelemetry in favor of a custom, lightweight tracing architecture in `daie.core.tracing`.
 - **Enhanced Guardrails**: Implemented strict task-level token and tool-call guardrails directly in `AgentConfig`.
 - **One-File Demo**: Added a comprehensive "Full Power" demonstration snippet to `README.md`.
@@ -103,7 +103,7 @@ All notable changes to the Decentralized AI Ecosystem (DAIE) library will be doc
 - **Persona-Driven Behavior**: Personality traits (gender, behavioral quirks) reflected in LLM prompts.
 - **A2A / ACP Protocol**: Secure Agent-to-Agent (A2A) communication over P2P networks.
 - **Tool Use**: Autonomous ReAct loop for agents to utilize CLI, File, and API tools.
-- **Secure File Transfers**: Base64-encoded encrypted file transfers between agents.
+- **File Transfers**: Base64-encoded file transfers between agents.
 
 ## [1.0.0] - 2026-03-20
 ### Added

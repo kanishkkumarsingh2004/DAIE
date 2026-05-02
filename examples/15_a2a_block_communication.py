@@ -1,12 +1,12 @@
 """
-Example 15: Agent-to-Agent (A2A) Block Communication
+Example 15: Agent-to-Agent (A2A) NetworkBlock Communication
 
-This example demonstrates how a simple agent in one Block can communicate with
-an orchestrator in another Block using the A2A protocol.
+This example demonstrates how a simple agent in one NetworkBlock can communicate with
+an orchestrator in another NetworkBlock using the A2A protocol.
 
 Architecture:
-1. Orchestrator Block (Port 8000): A Hybrid Node with multiple sub-agents.
-2. Visitor Block (Port 8001): A simple agent that wants to query the Orchestrator.
+1. Orchestrator NetworkBlock (Port 8000): A Hybrid Node with multiple sub-agents.
+2. Visitor NetworkBlock (Port 8001): A simple agent that wants to query the Orchestrator.
 
 The 'Visitor' will use its auto-equipped A2A tools to ask the 'Orchestrator'
 about its internal state.
@@ -17,18 +17,18 @@ import time
 import os
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
-from daie.container import Block
+from daie.container import NetworkBlock
 from daie.core.hybrid import HybridOrchestratorNode
 
 # Configure your LLM here
 set_llm(ollama_llm="llama3.2:1b", stream=True)
 
-def run_server_node(block):
-    """Function to run a block as a background server."""
-    block.run()
+def run_server_node(network_block):
+    """Function to run a network_block as a background server."""
+    network_block.run()
 
 def main():
-    print("=== Setting up A2A Block Communication ===")
+    print("=== Setting up A2A NetworkBlock Communication ===")
 
     # -------------------------------------------------------------------------
     # 1. Setup Node A: The Orchestrator (Hybrid Node)
@@ -50,8 +50,8 @@ def main():
     for i in range(3):
         orch_node.add_sub_agent(Agent(config=AgentConfig(name=f"Worker-{i+1}")))
     
-    # Wrap in a Block
-    orch_block = Block(
+    # Wrap in a NetworkBlock
+    orch_block = NetworkBlock(
         architecture=orch_node,
         port=8000,
         chat=False
@@ -67,13 +67,13 @@ def main():
         system_prompt="You are a network explorer. You use your A2A tools to gather info from other nodes."
     ))
     
-    # Manually map the ID in the agent's connection pool BEFORE block init
+    # Manually map the ID in the agent's connection pool BEFORE network_block init
     # so it gets injected into the system prompt knowledge
     visitor_agent.config.network_connections["central-boss"] = "http://localhost:8000"
 
-    # Wrap in a Block and point an 'edge' to the Orchestrator
+    # Wrap in a NetworkBlock and point an 'edge' to the Orchestrator
     # We map the specific agent ID to its URL in the edges
-    visitor_block = Block(
+    visitor_block = NetworkBlock(
         architecture=visitor_agent,
         port=8001,
         chat=True, # We will chat with this one

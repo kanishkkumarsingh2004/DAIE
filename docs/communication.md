@@ -6,7 +6,7 @@ DAIE supports multi-agent communication via its `CommunicationManager`. Agents c
 
 - **Peer Discovery** via the built-in `NodeRegistry`
 - **Direct Messaging** between agents (in-process or via HTTP for remote agents)
-- **File Transfers** securely using Base64 encoding with `A2ASendFileTool`
+- **File Transfers** using Base64 encoding with `A2ASendFileTool`
 - **Sender Authorization** with `allowed_senders` whitelists
 - **Connection Authentication** with `auth_token`
 - **Task Delegation** via the Agent Connect Protocol (ACP)

@@ -812,7 +812,7 @@ When `stream=True`, `send_message()` prints tokens as they arrive and returns th
 | `DatabaseTool` | Execute SQL queries against SQLite or PostgreSQL |
 | `PlaywrightBrowserTool`| Modern, fast browser automation (Highly Recommended) |
 | `SeleniumChromeTool` | Legacy browser automation with deep Chrome support |
-| `A2ASendFileTool` | Transfer files securely between agents over P2P network |
+| `A2ASendFileTool` | Transfer files between agents with ChaCha20 E2E encryption |
 | `A2ASendMessageTool` | Send messages between agents |
 | `A2ADelegateTaskTool` | Delegate tasks to other agents via ACP |
 | `CalendarEmailTool` | Mock interactions for schedule and mail management |
@@ -1229,7 +1229,7 @@ python examples/01_basic_chat.py
 ### Networking & Communication
 - **P2P Networking**: Direct agent-to-agent communication via WebSocket
 - **Authentication**: Token-based auth with sender whitelists
-- **File Transfer**: Secure A2A file transfer with Base64 encoding
+- **File Transfer**: A2A file transfer with ChaCha20+HMAC end-to-end encryption (X25519 key agreement)
 - **Node Registry**: Decentralized agent discovery
 
 ### RAG System

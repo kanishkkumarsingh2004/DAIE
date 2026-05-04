@@ -103,7 +103,7 @@ All notable changes to the Decentralized AI Ecosystem (DAIE) library will be doc
 - **Persona-Driven Behavior**: Personality traits (gender, behavioral quirks) reflected in LLM prompts.
 - **A2A / ACP Protocol**: Secure Agent-to-Agent (A2A) communication over P2P networks.
 - **Tool Use**: Autonomous ReAct loop for agents to utilize CLI, File, and API tools.
-- **File Transfers**: Base64-encoded file transfers between agents.
+- **File Transfers**: End-to-end encrypted (ChaCha20+HMAC) file transfers between agents.
 
 ## [1.0.0] - 2026-03-20
 ### Added

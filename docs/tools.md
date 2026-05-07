@@ -11,7 +11,7 @@ DAIE provides a powerful tool system that allows agents to interact with the ext
 | `HTTPGetTool` | Simplified HTTP GET | `from daie.tools import HTTPGetTool` |
 | `HTTPPostTool` | Simplified HTTP POST | `from daie.tools import HTTPPostTool` |
 | `SeleniumChromeTool` | Full Chrome browser automation | `from daie.tools import SeleniumChromeTool` |
-| `A2ASendFileTool` | Transfer files securely between agents over P2P network | `from daie.tools.a2a_file import A2ASendFileTool` |
+| `A2ASendFileTool` | Transfer files between agents with ChaCha20 E2E encryption | `from daie.tools.a2a_file import A2ASendFileTool` |
 | `A2ASendMessageTool` | Send messages between agents | `from daie.tools.a2a import A2ASendMessageTool` |
 | `A2ADelegateTaskTool` | Delegate tasks to other agents via ACP | `from daie.tools.a2a import A2ADelegateTaskTool` |
 
@@ -173,7 +173,7 @@ await browser.execute({"action": "close"})
 
 ### A2ASendFileTool
 
-Transfer files securely between agents over the P2P network.
+Transfer files between agents over the P2P network with ChaCha20 end-to-end encryption.
 
 ```python
 from daie.tools.a2a_file import A2ASendFileTool

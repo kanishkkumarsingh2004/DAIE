@@ -187,7 +187,12 @@ class Agent:
         # Task-level usage tracking
         self._current_task_tokens = 0
         self._current_task_tool_calls = 0
+        self._current_task_id: Optional[str] = None
         self._background_tasks: set[asyncio.Task] = set()
+
+        # Attach the global usage tracker (singleton)
+        from daie.core.usage_tracker import UsageTracker
+        self._usage_tracker = UsageTracker()
 
         if tools:
             for t in tools:
@@ -249,6 +254,16 @@ class Agent:
                 )
             self._llm = get_llm()
         return self._llm
+
+    @property
+    def usage_report(self) -> dict:
+        """
+        Per-agent usage summary with token counts and estimated cost.
+
+        Returns a dict with keys: invocation_count, task_count,
+        prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd.
+        """
+        return self._usage_tracker.get_agent_summary(self.id)
 
     # ── tool management ───────────────────────────────────────────────────────
 
@@ -558,23 +573,33 @@ class Agent:
 
     # ── ReAct loop ────────────────────────────────────────────────────────────
 
-    async def execute_task(self, user_input: str, images: Optional[List[str]] = None) -> str:
+    async def execute_task(
+        self,
+        user_input: str,
+        images: Optional[List[str]] = None,
+        output_schema=None,
+    ):
         """
         Execute a task using the multi-step agent loop.
 
         Args:
             user_input: The task description or query
             images: Optional list of base64 encoded images or image URLs
+            output_schema: Optional Pydantic BaseModel subclass. When provided,
+                the agent's final answer is validated against this schema and
+                returned as a typed model instance instead of a raw string.
+
+        Returns:
+            ``str`` if ``output_schema`` is None, otherwise an instance of
+            the provided Pydantic model.
         """
         # --- PHASE 3: MULTI-MODAL SUPPORT ---
         if images:
             logger.info(f"Agent '{self.name}' received {len(images)} images for task")
-            # We can store images in memory or metadata
-            # For ReAct, we'll pass them to the LLM if supported
 
-        return await self._execute_task_internal(user_input, images=images)
+        return await self._execute_task_internal(user_input, images=images, output_schema=output_schema)
 
-    async def arun(self, user_input: str, images: Optional[List[str]] = None) -> str:
+    async def arun(self, user_input: str, images: Optional[List[str]] = None, output_schema=None):
         """
         Convenience shorthand: auto-start + execute_task.
 
@@ -583,9 +608,9 @@ class Agent:
         """
         if not self._is_running:
             await self.start()
-        return await self.execute_task(user_input, images=images)
+        return await self.execute_task(user_input, images=images, output_schema=output_schema)
 
-    def run(self, user_input: str, images: Optional[List[str]] = None) -> str:
+    def run(self, user_input: str, images: Optional[List[str]] = None, output_schema=None):
         """Synchronous wrapper around arun() for scripts and notebooks."""
         try:
             loop = asyncio.get_running_loop()
@@ -593,19 +618,20 @@ class Agent:
             loop = None
 
         if loop and loop.is_running():
-            # If we're in an existing loop, use a thread or nest_asyncio logic
-            # For simplicity in this framework, we'll try a direct block if possible
-            # or recommend using await arun()
-            return asyncio.run(self.arun(user_input, images=images))
+            return asyncio.run(self.arun(user_input, images=images, output_schema=output_schema))
 
-        return asyncio.run(self.arun(user_input, images=images))
+        return asyncio.run(self.arun(user_input, images=images, output_schema=output_schema))
 
     async def _execute_task_internal(
-        self, task_input: Union[str, Dict[str, Any]], images: Optional[List[str]] = None
+        self,
+        task_input: Union[str, Dict[str, Any]],
+        images: Optional[List[str]] = None,
+        output_schema=None,
     ) -> Any:
         # Reset task-level tracking
         self._current_task_tokens = 0
         self._current_task_tool_calls = 0
+        self._current_task_id = generate_id()
 
         # ... (rest of logic)
 
@@ -629,6 +655,11 @@ class Agent:
                     user_input += "\n(Answer ONLY using the provided documents)"
 
         system_prompt = self._build_system_prompt()
+
+        # Inject structured output schema into the system prompt if requested
+        if output_schema is not None:
+            from daie.agents.structured_output import build_schema_prompt
+            system_prompt += build_schema_prompt(output_schema)
         history: List[str] = []
 
         # Set agent context for logging
@@ -680,9 +711,19 @@ class Agent:
             # --- Usage Tracking & Guardrails ---
             if hasattr(self.llm, "last_usage"):
                 usage = self.llm.last_usage
-                self._current_task_tokens += (
-                    usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
-                )
+                if isinstance(usage, dict):
+                    tok = usage.get("total_tokens", 0)
+                    self._current_task_tokens += tok
+                    # Record to usage tracker
+                    self._usage_tracker.record(
+                        task_id=self._current_task_id or "",
+                        agent_id=self.id,
+                        agent_name=self.name,
+                        provider=self.config.llm_provider,
+                        model=self.config.llm_model,
+                        prompt_tokens=usage.get("prompt_tokens", 0),
+                        completion_tokens=usage.get("completion_tokens", 0),
+                    )
                 metrics.increment(
                     "daie_agent_tokens_total",
                     labels={"agent_id": self.id},
@@ -715,13 +756,15 @@ class Agent:
 
                 if _get_cfg().stream or self.config.stream:
                     self._stream_final_answer(raw)
-                return self._finalize_task(raw)
+                return self._finalize_task(raw, output_schema=output_schema)
 
             if "answer" in parsed:
                 answer = parsed["answer"]
-                # Ensure answer is always a plain string — LLMs sometimes put
-                # lists or dicts in the answer field
-                if not isinstance(answer, str):
+                # When output_schema is set and answer is a dict, keep it as
+                # JSON for structured validation rather than stringifying
+                if output_schema is not None and isinstance(answer, dict):
+                    answer = json.dumps(answer, ensure_ascii=False)
+                elif not isinstance(answer, str):
                     answer = json.dumps(answer, ensure_ascii=False)
                 # Log final answer to history.txt
                 if hasattr(self, "memory_manager") and self.memory_manager:
@@ -732,7 +775,7 @@ class Agent:
 
                 if _get_cfg().stream or self.config.stream:
                     self._stream_final_answer(answer)
-                return self._finalize_task(answer)
+                return self._finalize_task(answer, output_schema=output_schema)
 
             # ── tool call ─────────────────────────────────────────────────
             tool_name = parsed.get("tool")
@@ -835,15 +878,29 @@ class Agent:
             logger.error(f"LLM summary invocation failed: {exc}")
             raise LLMInvocationError(str(exc), original_error=exc)
 
+        # Record summary invocation usage
+        if hasattr(self.llm, "last_usage"):
+            usage = self.llm.last_usage
+            if isinstance(usage, dict):
+                self._usage_tracker.record(
+                    task_id=self._current_task_id or "",
+                    agent_id=self.id,
+                    agent_name=self.name,
+                    provider=self.config.llm_provider,
+                    model=self.config.llm_model,
+                    prompt_tokens=usage.get("prompt_tokens", 0),
+                    completion_tokens=usage.get("completion_tokens", 0),
+                )
+
         parsed = self._parse_llm_json(raw)
         answer = (parsed or {}).get("answer", raw)
         if not isinstance(answer, str):
             answer = json.dumps(answer, ensure_ascii=False)
 
-        return self._finalize_task(answer)
+        return self._finalize_task(answer, output_schema=output_schema)
 
-    def _finalize_task(self, answer: str) -> str:
-        """Post-process final answer and record metrics"""
+    def _finalize_task(self, answer: str, output_schema=None):
+        """Post-process final answer, validate against output schema, and record metrics."""
         metrics.increment(
             "agent_task_completed_total", labels={"agent_role": self.config.role.value}
         )
@@ -855,6 +912,22 @@ class Agent:
         # Trigger periodic memory maintenance
         if hasattr(self, "memory_manager") and self.memory_manager:
             self._track_task(self._maybe_summarize_memory())
+
+        # Structured output validation
+        if output_schema is not None:
+            from daie.agents.structured_output import (
+                OutputValidationError,
+                parse_and_validate,
+            )
+
+            try:
+                return parse_and_validate(answer, output_schema)
+            except OutputValidationError:
+                logger.warning(
+                    f"Structured output validation failed for schema "
+                    f"{output_schema.__name__}. Raising error."
+                )
+                raise
 
         return answer
 
@@ -1258,6 +1331,37 @@ class Agent:
                 file_path = os.path.join(downloads_dir, f"{self.id}_{file_name}")
 
                 b64_data = message.metadata.get("base64_data", "")
+
+                # Decrypt file payload if it was encrypted by the sender
+                if message.metadata.get("file_encrypted", False):
+                    try:
+                        from daie.utils.encryption.ciphers import (
+                            decrypt_data,
+                            derive_shared_secret,
+                        )
+
+                        comm_mgr = getattr(self, "communication_manager", None)
+                        if comm_mgr and self.config.private_key:
+                            topology = comm_mgr.registry.get_network_topology()
+                            sender_data = topology.get("nodes", {}).get(message.sender_id)
+                            if sender_data and sender_data.get("public_key"):
+                                priv = base64.b64decode(self.config.private_key)
+                                pub = base64.b64decode(sender_data["public_key"])
+                                shared_key = derive_shared_secret(priv, pub)
+                                b64_data = decrypt_data(b64_data, shared_key)
+                                logger.info(
+                                    f"Decrypted file payload from {message.sender_id}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"No public key for sender {message.sender_id}, "
+                                    "cannot decrypt file payload"
+                                )
+                    except Exception as dec_err:
+                        logger.error(f"File decryption failed: {dec_err}")
+                        reply_content = f"Error decrypting file: {str(dec_err)}"
+                        raise Exception(reply_content)
+
                 with open(file_path, "wb") as f:
                     f.write(base64.b64decode(b64_data))
 
@@ -1466,3 +1570,94 @@ class Agent:
             logger.info(f"Agent '{self.name}' stopped successfully")
         except Exception as exc:
             logger.error(f"Error stopping agent '{self.name}': {exc}")
+
+    # ── serialization & hot-reload ────────────────────────────────────────
+
+    def snapshot(self, path: str = None) -> dict:
+        """
+        Capture the agent's current state as a serializable snapshot.
+
+        If the agent is running, it will be stopped first (graceful pause).
+        If ``path`` is provided, the snapshot is also written to that file.
+
+        Args:
+            path: Optional file path to save the JSON snapshot.
+
+        Returns:
+            The snapshot as a plain dictionary.
+
+        Example::
+
+            snapshot_dict = agent.snapshot("./checkpoint.json")
+        """
+        from daie.agents.serialization import serialize_agent
+
+        snap = serialize_agent(self)
+
+        if path:
+            snap.save(path)
+
+        return snap.to_dict()
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        path_or_dict,
+        tools=None,
+    ) -> "Agent":
+        """
+        Reconstruct an agent from a previously saved snapshot.
+
+        The agent is created in a **stopped** state. Call
+        ``await agent.start()`` to resume execution.
+
+        Args:
+            path_or_dict: Path to a snapshot JSON file, or a dict returned
+                by ``agent.snapshot()``.
+            tools: Optional list of tool instances to register. Tools that
+                were present in the snapshot but not provided here will
+                trigger a warning (not an error).
+
+        Returns:
+            A new ``Agent`` with the original identity, config, and E2EE keys.
+
+        Example::
+
+            agent = Agent.from_snapshot("./checkpoint.json", tools=[FileManagerTool()])
+            await agent.start()
+            result = await agent.execute_task("Continue where we left off")
+        """
+        from daie.agents.serialization import AgentSnapshot, deserialize_agent
+
+        if isinstance(path_or_dict, (str,)):
+            snap = AgentSnapshot.load(path_or_dict)
+        elif isinstance(path_or_dict, dict):
+            snap = AgentSnapshot.from_dict(path_or_dict)
+        else:
+            # Try treating it as a Path-like object
+            snap = AgentSnapshot.load(str(path_or_dict))
+
+        return deserialize_agent(snap, tools=tools)
+
+    async def pause(self) -> dict:
+        """
+        Gracefully stop the agent and return its snapshot.
+
+        This is a convenience method combining ``stop()`` + ``snapshot()``.
+        Use this when you intend to resume the agent later.
+
+        Returns:
+            The snapshot as a plain dictionary.
+
+        Example::
+
+            snapshot_dict = await agent.pause()
+            # Save to file for transfer to another machine
+            import json
+            with open("agent_state.json", "w") as f:
+                json.dump(snapshot_dict, f, indent=2)
+        """
+        if self._is_running:
+            await self.stop()
+
+        return self.snapshot()

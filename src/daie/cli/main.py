@@ -5,6 +5,7 @@ Replaces typer and rich dependencies
 
 import argparse
 from daie.cli.agent import register_agent_commands
+from daie.cli.benchmark import register_benchmark_commands
 from daie.cli.core import register_core_commands
 from daie.utils.console import print_header, print_info
 
@@ -20,8 +21,9 @@ def show_help():
     print(logo)
     print_info("A command-line interface for managing the Decentralized AI Ecosystem")
     print("\nAvailable Commands:")
-    print("  daie agent  - Manage AI agents")
-    print("  daie core   - Manage central core system")
+    print("  daie agent      - Manage AI agents")
+    print("  daie core       - Manage central core system")
+    print("  daie benchmark  - Run swarm performance benchmarks")
     print("\nQuick Start Guide:")
     print("  1. Initialize the system: daie core init")
     print("  2. Create an agent:       daie agent create")
@@ -43,6 +45,7 @@ def cli():
     # Register subcommands
     register_agent_commands(subparsers)
     register_core_commands(subparsers)
+    register_benchmark_commands(subparsers)
 
     args = parser.parse_args()
 

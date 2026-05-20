@@ -5,9 +5,9 @@ Provides document loading, chunking, indexing, and retrieval with pluggable
 backends and chunking strategies.
 
 Backends:
-    - ``"tfidf"`` — Pure numpy TF-IDF (default, zero ML deps)
-    - ``"chroma"`` — ChromaDB + sentence-transformers
+    - ``"chroma"`` — ChromaDB + sentence-transformers (default)
     - ``"faiss"`` — FAISS + sentence-transformers
+    - ``"tfidf"`` — Pure numpy TF-IDF (lightweight fallback, zero ML deps)
 
 Chunking strategies:
     - ``"fixed"`` — fixed-size with overlap (default)
@@ -17,12 +17,12 @@ Chunking strategies:
 
 Example:
     >>> from daie.rag import RAGEngine
-    >>> engine = RAGEngine("/path/to/docs", backend="tfidf")
+    >>> engine = RAGEngine("/path/to/docs")  # uses chroma by default
     >>> engine.load()
     >>> context = engine.build_context("What is DAIE?")
 
-    >>> # With ChromaDB backend and recursive chunking
-    >>> engine = RAGEngine("/path/to/docs", backend="chroma", chunking_strategy="recursive")
+    >>> # Lightweight fallback (no ML dependencies needed)
+    >>> engine = RAGEngine("/path/to/docs", backend="tfidf")
     >>> engine.load()
     >>> results = engine.retrieve("query", filters={"source": "*.pdf"})
 """

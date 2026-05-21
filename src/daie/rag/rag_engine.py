@@ -2,15 +2,15 @@
 RAG (Retrieval-Augmented Generation) Engine.
 
 Unified entry point for document chunking, indexing, and retrieval.
-Supports pluggable backends (tfidf, chroma, faiss) and chunking
+Supports pluggable backends (chroma, faiss, tfidf) and chunking
 strategies (fixed, sentence, recursive, semantic).
 
 Example:
-    >>> engine = RAGEngine("/path/to/docs")  # default: tfidf + fixed
+    >>> engine = RAGEngine("/path/to/docs")  # default: chroma + fixed
     >>> engine.load()
     >>> context = engine.build_context("What is DAIE?")
 
-    >>> engine = RAGEngine("/path/to/docs", backend="chroma", chunking_strategy="recursive")
+    >>> engine = RAGEngine("/path/to/docs", backend="tfidf")  # lightweight fallback
     >>> engine.load()
     >>> results = engine.retrieve("query", top_k=5, filters={"source": "*.pdf"})
 """
@@ -35,9 +35,9 @@ class RAGEngine:
     chunks for a given query.
 
     Backends:
-        - ``"tfidf"`` — Pure numpy TF-IDF (default, zero ML deps)
-        - ``"chroma"`` — ChromaDB + sentence-transformers
+        - ``"chroma"`` — ChromaDB + sentence-transformers (default)
         - ``"faiss"`` — FAISS + sentence-transformers
+        - ``"tfidf"`` — Pure numpy TF-IDF (lightweight fallback, zero ML deps)
 
     Chunking strategies:
         - ``"fixed"`` — fixed-size with overlap (default)
@@ -46,7 +46,7 @@ class RAGEngine:
         - ``"semantic"`` — embedding-similarity based
 
     Example:
-        >>> engine = RAGEngine("/path/to/docs", backend="tfidf")
+        >>> engine = RAGEngine("/path/to/docs")  # uses chroma by default
         >>> engine.load()
         >>> context = engine.build_context("What is DAIE?")
     """
@@ -54,7 +54,7 @@ class RAGEngine:
     def __init__(
         self,
         document_path: str,
-        backend: str = "tfidf",
+        backend: str = "chroma",
         chunking_strategy: str = "fixed",
         chunk_size: int = 500,
         chunk_overlap: int = 50,
@@ -64,7 +64,7 @@ class RAGEngine:
         """
         Args:
             document_path: Path to directory containing documents.
-            backend: Backend engine — ``"tfidf"``, ``"chroma"``, or ``"faiss"``.
+            backend: Backend engine — ``"chroma"`` (default), ``"faiss"``, or ``"tfidf"``.
             chunking_strategy: Chunking strategy — ``"fixed"``, ``"sentence"``,
                 ``"recursive"``, or ``"semantic"``.
             chunk_size: Maximum number of characters per chunk.

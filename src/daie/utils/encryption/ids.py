@@ -64,4 +64,4 @@ def secure_random_string(length: int = 32) -> str:
 
 def generate_api_key(prefix: str = "daie_") -> str:
     """Generate a new API key with prefix"""
-    return f"{prefix}{secure_random_string(32)}"
+    return f"{prefix}{secure_random_string(128)}"

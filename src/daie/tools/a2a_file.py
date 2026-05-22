@@ -1,14 +1,20 @@
 import base64
+import logging
 import mimetypes
 import os
 from typing import Any, Dict
 
 from daie.tools.tool import Tool, ToolCategory, ToolMetadata, ToolParameter
 
+logger = logging.getLogger(__name__)
+
 
 class A2ASendFileTool(Tool):
     """
-    Tool for transferring files over the P2P A2A Network securely by converting them to base64.
+    Tool for transferring files over the P2P A2A Network.
+
+    Files are Base64-encoded and then encrypted with ChaCha20+HMAC using
+    an X25519-derived shared secret between sender and receiver.
     The receiver must have allow_file_transfers = True in their configuration.
     """
 
@@ -44,6 +50,36 @@ class A2ASendFileTool(Tool):
     def set_agent(self, agent):
         self._agent_ref = agent
 
+    def _derive_shared_key(self, receiver_id: str):
+        """
+        Derive a shared encryption key using X25519 key agreement.
+
+        Returns the shared key bytes, or None if keys are unavailable.
+        """
+        try:
+            agent = self._agent_ref
+            if not agent or not getattr(agent.config, "private_key", None):
+                return None
+
+            comm = getattr(agent, "communication_manager", None)
+            if not comm or not hasattr(comm, "registry"):
+                return None
+
+            # Look up the receiver's public key from the node registry
+            topology = comm.registry.get_network_topology()
+            receiver_data = topology.get("nodes", {}).get(receiver_id)
+            if not receiver_data or not receiver_data.get("public_key"):
+                return None
+
+            from daie.utils.encryption.ciphers import derive_shared_secret
+
+            priv = base64.b64decode(agent.config.private_key)
+            pub = base64.b64decode(receiver_data["public_key"])
+            return derive_shared_secret(priv, pub)
+        except Exception as e:
+            logger.warning(f"Failed to derive shared key for file encryption: {e}")
+            return None
+
     async def _execute(self, arguments: Dict[str, Any]) -> str:
         receiver_id = arguments.get("receiver_id")
         file_path = arguments.get("file_path")
@@ -72,6 +108,24 @@ class A2ASendFileTool(Tool):
         except Exception as e:
             return f"Error reading file: {e}"
 
+        # Encrypt the base64 payload with ChaCha20+HMAC if keys are available
+        file_encrypted = False
+        shared_key = self._derive_shared_key(receiver_id)
+        if shared_key:
+            try:
+                from daie.utils.encryption.ciphers import encrypt_data
+
+                base64_encoded = encrypt_data(base64_encoded, shared_key)
+                file_encrypted = True
+                logger.info(f"File payload encrypted with ChaCha20 for receiver {receiver_id}")
+            except Exception as e:
+                logger.warning(f"File encryption failed, sending unencrypted: {e}")
+        else:
+            logger.warning(
+                f"No shared key available for {receiver_id}. "
+                "File will be sent without end-to-end encryption."
+            )
+
         mime_type, _ = mimetypes.guess_type(file_path)
         if not mime_type:
             mime_type = "application/octet-stream"
@@ -90,11 +144,13 @@ class A2ASendFileTool(Tool):
                 "file_name": file_name,
                 "mime_type": mime_type,
                 "base64_data": base64_encoded,
+                "file_encrypted": file_encrypted,
             },
         )
 
         success = await self._agent_ref.communication_manager.send_message(msg)
+        enc_label = " (encrypted)" if file_encrypted else " (unencrypted)"
         if success:
-            return f"Successfully sent file {file_name} over P2P network to {receiver_id}."
+            return f"Successfully sent file {file_name}{enc_label} over P2P network to {receiver_id}."
         else:
             return f"Failed to send file. Check if {receiver_id} exists on the network and is reachable."

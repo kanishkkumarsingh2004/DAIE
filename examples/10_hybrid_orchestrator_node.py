@@ -19,6 +19,8 @@ import logging
 
 from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
+from daie.communication import CommunicationManager
+from daie.config import SystemConfig
 from daie.core.hybrid import HybridOrchestratorNode
 
 # Configure logging
@@ -44,6 +46,12 @@ async def main():
     # ──────────────────────────────────────────────
     print("\n[*] Creating Hybrid Orchestrator Node...")
 
+    # Disable NATS (no NATS server is running locally).
+    # Setting nats_url to an empty string / None prevents the communication
+    # manager from attempting connections and avoids log spam.
+    system_config = SystemConfig(nats_url="")
+    comm_manager = CommunicationManager(config=system_config)
+
     hybrid = HybridOrchestratorNode(
         node_id="research-lab-001",
         node_name="AI Research Lab",
@@ -51,6 +59,7 @@ async def main():
         main_role="Professor",
         sub_role="Researcher",
         enable_router=True,
+        comm_manager=comm_manager,
         resources={
             "gpu_count": 4,
             "memory_gb": 32,
@@ -70,7 +79,16 @@ async def main():
         config=AgentConfig(
             name="Professor",
             role=AgentRole.COORDINATOR,
-            system_prompt="You are an expert professor coordinating research projects. You break down complex queries into logical sub-tasks for your researchers.",
+            system_prompt=(
+                "You are an expert professor coordinating research projects. "
+                "You answer questions directly and thoroughly. "
+                "When you need to delegate work to another agent, you may use ONLY these tools: "
+                "a2a_send_message (send a message to an agent), "
+                "a2a_delegate_task (assign a task to an agent), "
+                "a2a_send_file (send a file to an agent). "
+                "Do NOT attempt to call any other tools. "
+                "For mathematical calculations, compute the answer yourself and state it clearly."
+            ),
             personality="wise, methodical, and encouraging",
         )
     )

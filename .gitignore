@@ -64,3 +64,4 @@ build/
 *.temp
 .cache/
 push.sh
+mytest

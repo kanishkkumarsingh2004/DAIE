@@ -284,7 +284,7 @@ def test_export_csv_empty(tmp_path):
 
 def test_reset():
     """reset clears all records."""
-    tracker =  ()
+    tracker = _populate_tracker()
     assert len(tracker.records) == 4
     tracker.reset()
     assert len(tracker.records) == 0

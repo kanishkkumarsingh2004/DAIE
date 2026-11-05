@@ -8,7 +8,7 @@ from daie import Agent, AgentConfig, set_llm
 from daie.agents import AgentRole
 from daie.tools import FileManagerTool, tool
 
-set_llm(ollama_llm="wizard-vicuna-uncensored:7b", stream=True)
+set_llm(ollama_llm="llama3.2:1b", stream=True)
 
 
 # Define a custom tool using the @tool decorator

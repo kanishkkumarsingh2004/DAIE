@@ -23,9 +23,41 @@ from daie.core.hybrid import HybridOrchestratorNode
 # Configure your LLM here
 set_llm(ollama_llm="llama3.2:1b", stream=True)
 
-def run_server_node(network_block):
+
+def create_orchestrator_block():
+    """Create the orchestrator NetworkBlock inside the subprocess to avoid pickling issues."""
+    # We give the main agent a fixed ID so the visitor knows who to call
+    orch_main_agent = Agent(config=AgentConfig(
+        agent_id="central-boss",
+        name="Boss",
+        role=AgentRole.COORDINATOR
+    ))
+
+    orch_node = HybridOrchestratorNode(
+        node_id="main-orch-node",
+        node_name="Central Orchestrator"
+    )
+    orch_node.set_main_agent(orch_main_agent)
+
+    # Give it 3 sub-agents to make the count interesting
+    for i in range(3):
+        orch_node.add_sub_agent(Agent(config=AgentConfig(name=f"Worker-{i+1}")))
+
+    # Wrap in a NetworkBlock
+    orch_block = NetworkBlock(
+        architecture=orch_node,
+        port=8000,
+        chat=False
+    )
+    return orch_block
+
+
+def run_server_node():
     """Function to run a network_block as a background server."""
-    network_block.run()
+    # Create the block inside this process to avoid pickling issues
+    orch_block = create_orchestrator_block()
+    orch_block.run()
+
 
 def main():
     print("=== Setting up A2A NetworkBlock Communication ===")
@@ -49,7 +81,7 @@ def main():
     # Give it 3 sub-agents to make the count interesting
     for i in range(3):
         orch_node.add_sub_agent(Agent(config=AgentConfig(name=f"Worker-{i+1}")))
-    
+
     # Wrap in a NetworkBlock
     orch_block = NetworkBlock(
         architecture=orch_node,
@@ -66,7 +98,7 @@ def main():
         role=AgentRole.ASSISTANT,
         system_prompt="You are a network explorer. You use your A2A tools to gather info from other nodes."
     ))
-    
+
     # Manually map the ID in the agent's connection pool BEFORE network_block init
     # so it gets injected into the system prompt knowledge
     visitor_agent.config.network_connections["central-boss"] = "http://localhost:8000"
@@ -76,7 +108,7 @@ def main():
     visitor_block = NetworkBlock(
         architecture=visitor_agent,
         port=8001,
-        chat=True, # We will chat with this one
+        chat=True,  # We will chat with this one
         edges=["http://localhost:8000"] 
     )
 
@@ -88,7 +120,8 @@ def main():
     # 3. Execution Logic
     # -------------------------------------------------------------------------
     print("\nStarting Orchestrator in background...")
-    p = multiprocessing.Process(target=run_server_node, args=(orch_block,))
+    # Pass the factory function, not the object itself - avoids pickling
+    p = multiprocessing.Process(target=run_server_node)
     p.daemon = True
     p.start()
     
@@ -105,5 +138,8 @@ def main():
     finally:
         p.terminate()
 
+
 if __name__ == "__main__":
+    # Required for multiprocessing on some platforms
+    multiprocessing.set_start_method("spawn", force=True)
     main()

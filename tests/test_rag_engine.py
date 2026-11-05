@@ -66,8 +66,8 @@ def test_rag_engine_no_docs():
 
 def test_rag_engine_tokenization():
     """Test that tokenization works correctly (stop words, etc)."""
-    engine = RAGEngine("/tmp")  # path doesn't matter for tokenization test
-    # _tokenize now lives on the TFIDFBackend; access via the engine's backend
+    # Use TF-IDF backend for tokenization test
+    engine = RAGEngine("/tmp", backend="tfidf")
     tokens = engine._backend._tokenize("The quick brown fox jumps over the lazy dog.")
 
     # "the", "over" should be removed as stop words

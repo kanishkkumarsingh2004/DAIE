@@ -2,8 +2,9 @@ import asyncio
 import os
 import shutil
 from daie import Agent, AgentConfig, set_llm
-from daie.agents import AgentRole, Parliament, HybridParliamentOrchestrator
+from daie.agents import AgentRole, Parliament, HybridParliamentOrchestrator, OrchestratorAgent
 from daie.memory.sqlite_storage import SQLiteStorage
+from daie.communication import CommunicationManager
 
 # 1. Setup global LLM
 # Note: In a production environment, use a larger model for synthesis
@@ -24,6 +25,10 @@ async def grand_demo():
     storage = SQLiteStorage()
     storage.initialize(demo_db_path)
 
+    # Communication manager for distributed parliament
+    comm = CommunicationManager()
+    await comm.start()
+
     # We'll inject this namespace into our configurations
     shared_namespace = "autonomous_consortium_001"
 
@@ -32,7 +37,7 @@ async def grand_demo():
     coder = Agent(
         config=AgentConfig(
             name="LeadArchitect",
-            role=AgentRole.SOFTWARE_ENGINEER,
+            role=AgentRole.SPECIALIZED,
             memory_namespace=shared_namespace,
         )
     )
@@ -51,13 +56,14 @@ async def grand_demo():
     parliament = Parliament(
         sub_agents=[coder, security, manager],
         max_review_rounds=2,
-        distributed=True,  # Enable P2P capability (even if running locally here)
+        distributed=False,  # Local execution for demo
+        communication_manager=comm,
         distributed_timeout=10,
     )
 
     # 4. Create Orchestrator for execution
     # This agent will carry out the plan synthesized by the Parliament
-    executor_boss = Agent(
+    executor_boss = OrchestratorAgent(
         config=AgentConfig(
             name="ExecutionDirector", role=AgentRole.COORDINATOR, memory_namespace=shared_namespace
         )
@@ -67,7 +73,7 @@ async def grand_demo():
     pipeline = HybridParliamentOrchestrator(
         parliament=parliament,
         orchestrator=executor_boss,
-        min_confidence_threshold=50.0,  # Allow for demo flexibility
+        min_confidence_threshold=10.0,  # Lower threshold for demo
     )
 
     # 5. Start the system
@@ -83,7 +89,7 @@ async def grand_demo():
     # 1. Deliberate via Parliament (with peer review)
     # 2. Synthesize a Roadmap
     # 3. Use Orchestrator to begin execution/detailing
-    result = await pipeline.execute_task(task)
+    result = await pipeline.execute(task)
 
     print("\n\n--- Final Pipeline Result ---")
     print(result)
@@ -91,9 +97,16 @@ async def grand_demo():
     # 6. Verify Persistence and Shared Memory
     print("\n--- Verifying Persistent Memory in SQLite ---")
     # We can create a new agent pointing to the same namespace and see if it can 'remember'
+    from daie.memory import MemoryManager
+    from daie.config import SystemConfig
+    
+    memory_manager = MemoryManager(config=SystemConfig(persistent_memory=True, memory_storage_type="binary", memory_root_path=demo_db_path))
+    memory_manager.start()
+    
     new_auditor = Agent(
         config=AgentConfig(name="PostAuditAgent", memory_namespace=shared_namespace)
     )
+    await new_auditor.start(communication_manager=comm, memory_manager=memory_manager)
 
     # Check what's in the shared memory
     memories = new_auditor.memory_manager.retrieve_memories(
@@ -107,7 +120,13 @@ async def grand_demo():
         print(f"Sample content from shared memory: {memories[0].content[:100]}...")
 
     # 7. Cleanup
+    await new_auditor.stop()
+    memory_manager.stop()
     await coder.stop()
+    await security.stop()
+    await manager.stop()
+    await executor_boss.stop()
+    await comm.stop()
     await security.stop()
     await manager.stop()
     await executor_boss.stop()

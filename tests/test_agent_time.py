@@ -1,8 +1,10 @@
 import asyncio
 import datetime
+import pytest
 from daie import Agent, AgentConfig, AgentRole
 
 
+@pytest.mark.asyncio
 async def test_temporal_awareness():
     print("\n--- Testing Agent Temporal Awareness ---")
 
@@ -39,7 +41,3 @@ async def test_temporal_awareness():
         print("✅ SUCCESS: Temporal block correctly omitted when disabled.")
     else:
         print("❌ FAILURE: Temporal block found even when disabled.")
-
-
-if __name__ == "__main__":
-    asyncio.run(test_temporal_awareness())

@@ -1215,9 +1215,13 @@ class Agent:
                 else:
                     # For non-task messages, fire-and-forget is fine
                     if self._message_handler:
-                        asyncio.create_task(self._message_handler(message))
+                        res = self._message_handler(message)
+                        if asyncio.iscoroutine(res):
+                            asyncio.create_task(res)
                     else:
-                        asyncio.create_task(self._default_message_handler(message))
+                        res = self._default_message_handler(message)
+                        if asyncio.iscoroutine(res):
+                            asyncio.create_task(res)
             except Exception as exc:
                 logger.error(f"Error handling message: {exc}")
 

@@ -84,10 +84,14 @@ class NatsProvider:
 
         try:
             # Use a durable consumer so messages are queued while agent is offline
+            # NATS requires the callback to be an explicit async function, not a lambda
+            async def message_handler(msg):
+                await self._on_message(msg, callback)
+
             sub = await self.js.subscribe(
                 subject,
                 durable=durable_name,
-                cb=lambda msg: self._on_message(msg, callback),
+                cb=message_handler,
                 manual_ack=True,
             )
             self._subscriptions[agent_id] = sub
@@ -107,10 +111,14 @@ class NatsProvider:
         durable_name = f"group_{group_id.replace('.', '_')}_{agent_id.replace('-', '_')}"
 
         try:
+            # NATS requires the callback to be an explicit async function
+            async def message_handler(msg):
+                await self._on_message(msg, callback)
+
             sub = await self.js.subscribe(
                 subject,
                 durable=durable_name,
-                cb=lambda msg: self._on_message(msg, callback),
+                cb=message_handler,
                 manual_ack=True,
             )
             subscription_key = f"group:{group_id}:{agent_id}"

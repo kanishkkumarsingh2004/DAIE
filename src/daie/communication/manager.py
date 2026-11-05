@@ -199,8 +199,11 @@ class CommunicationManager:
 
         # Subscribe to NATS if connected
         if self.nats and self.nats.nc:
+            # Create a proper bound callback that preserves self and agent_id
+            def nats_callback(msg):
+                self._handle_message(agent.id, msg)
             self._track_task(
-                asyncio.create_task(self.nats.subscribe_agent(agent.id, self._handle_message))
+                asyncio.create_task(self.nats.subscribe_agent(agent.id, nats_callback))
             )
 
         return self
@@ -233,9 +236,10 @@ class CommunicationManager:
             return False
 
         if self.nats and self.nats.nc:
-            await self.nats.subscribe_group(
-                group_id, agent_id, lambda msg: self._handle_message(agent_id, msg)
-            )
+            # NATS requires explicit async function, not lambda
+            def group_handler(msg):
+                self._handle_message(agent_id, msg)
+            await self.nats.subscribe_group(group_id, agent_id, group_handler)
             logger.info(f"Agent {agent_id} joined group {group_id}")
             return True
         return False
@@ -788,6 +792,18 @@ class CommunicationManager:
             # Check if agent exists locally
             if agent_id not in self._agents:
                 logger.warning(f"Received message for unknown agent: {agent_id}")
+                return
+
+            # Authorization check: allowed_senders whitelist
+            receiver = self._agents[agent_id]
+            allowed = getattr(receiver.config, "allowed_senders", [])
+            if allowed and message.sender_id not in allowed:
+                logger.warning(
+                    f"Blocked message from {message.sender_id} to {agent_id}: sender not in allowed_senders whitelist."
+                )
+                self._audit_log(
+                    "MESSAGE_BLOCKED", message, "Sender not in allowed_senders whitelist"
+                )
                 return
 
             # Update last seen for the sender if it's a known peer
